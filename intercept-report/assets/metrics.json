@@ -1,0 +1,54 @@
+{
+  "miss_distance_m": 1185.030958,
+  "impact_time_s": 677.1,
+  "max_speed_ms": 3101.2551305678808,
+  "max_mach": 9.704673,
+  "max_q_kpa": 790.958528579,
+  "max_load_g": 40.00000007466181,
+  "max_alt_km": 29.958798144,
+  "fuel_used_kg": 1409.911782,
+  "downrange_km": 1846.9442301231197,
+  "handover_time_s": 669.43,
+  "handover_downrange_km": 1826.991542559941,
+  "terminal_phase": true,
+  "fov_exceed_ratio": 0.05532335957229992,
+  "samples": 67711,
+  "duration_s": 677.1,
+  "phase_segments": [
+    {
+      "name": "Boost",
+      "start": 0.0,
+      "end": 20.0
+    },
+    {
+      "name": "Midcourse",
+      "start": 20.0,
+      "end": 669.43
+    },
+    {
+      "name": "Terminal",
+      "start": 669.43,
+      "end": 677.1
+    }
+  ],
+  "miss_point": {
+    "east_km": 1581.2510199606581,
+    "north_km": -954.3836760226263,
+    "alt_km": 15.019564306
+  },
+  "launch": {
+    "lat": 40.0,
+    "lon": 110.0
+  },
+  "target": {
+    "lat": 28.0,
+    "lon": 126.0,
+    "alt_km": 15.24
+  },
+  "config": {
+    "max_step_s": 0.005,
+    "boost_end_s": 20.0,
+    "integration": "native RK4"
+  },
+  "downsample": 900
+}

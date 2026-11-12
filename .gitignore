@@ -1,0 +1,29 @@
+# Python
+__pycache__/
+*.py[cod]
+*.nbc
+*.nbi
+*.pytest_cache/
+.pytest_cache/
+*.egg-info/
+.venv/
+venv/
+
+# Simulation outputs and large generated data
+missile_intercept/output/
+*.csv
+!tests/**/*.csv
+
+# Local caches / share packages / screenshots
+.screenshots/
+.trae-html-share-packages/
+__pycache__/
+
+# Third-party binaries
+missile_intercept/tools/datcom/*.exe
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/

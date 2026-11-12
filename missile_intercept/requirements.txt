@@ -1,0 +1,8 @@
+# Python 3.14
+numpy>=2.3
+numba>=0.60          # JIT for hot paths; falls back to pure Python when missing
+scipy>=1.16
+matplotlib>=3.10
+pyyaml>=6.0
+pytest>=8.0
+pytest-xdist>=3.0

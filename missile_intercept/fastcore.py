@@ -1041,73 +1041,6 @@ def seeker_measure(t, r_m, v_m, body_x, r_t, v_t, fov, blind, lock_range,
 # Navigation: KF predict / GNSS update
 # ============================================================
 @njit(cache=True)
-def nav_predict(x, P, dt, a_true, sigma_acc, bias_acc, sigma_acc_q, rng_state):
-    """Constant-acceleration KF prediction (mutates ``x`` and ``P``).
-
-    ``bias_acc`` is the current (correlated) accelerometer bias vector, not a
-    per-sample white-noise scale: the raw IMU bias is generated in
-    ``NavigationSystem`` and only the white noise is drawn here.
-    """
-    if dt < 0.0:
-        dt = 0.0
-    elif dt > 0.5:
-        dt = 0.5
-
-    a0 = a_true[0] + rng_normal(rng_state) * sigma_acc + bias_acc[0]
-    a1 = a_true[1] + rng_normal(rng_state) * sigma_acc + bias_acc[1]
-    a2 = a_true[2] + rng_normal(rng_state) * sigma_acc + bias_acc[2]
-
-    x[0] += dt * x[3] + 0.5 * dt * dt * a0
-    x[1] += dt * x[4] + 0.5 * dt * dt * a1
-    x[2] += dt * x[5] + 0.5 * dt * dt * a2
-    x[3] += dt * a0
-    x[4] += dt * a1
-    x[5] += dt * a2
-
-    old = P.copy()
-    q_pos = (sigma_acc_q * dt * dt) ** 2 * 0.25
-    q_vel = (sigma_acc_q * dt) ** 2
-    for i in range(3):
-        for j in range(3):
-            p00 = old[i, j] + dt * (old[i, 3 + j] + old[3 + i, j]) + dt * dt * old[3 + i, 3 + j]
-            p01 = old[i, 3 + j] + dt * old[3 + i, 3 + j]
-            if i == j:
-                p00 += q_pos
-            P[i, j] = p00
-            P[i, 3 + j] = p01
-            P[3 + i, j] = p01
-            p11 = old[3 + i, 3 + j]
-            if i == j:
-                p11 += q_vel
-            P[3 + i, 3 + j] = p11
-
-
-@njit(cache=True)
-def nav_gnss_update(x, P, r_true, v_true, sigma_pos, sigma_vel, rng_state):
-    """GNSS position/velocity update (mutates ``x`` and ``P``)."""
-    z = np.empty(6)
-    for i in range(3):
-        z[i] = r_true[i] + rng_normal(rng_state) * sigma_pos
-        z[3 + i] = v_true[i] + rng_normal(rng_state) * sigma_vel
-
-    S = P.copy()
-    sp2 = sigma_pos * sigma_pos
-    sv2 = sigma_vel * sigma_vel
-    for i in range(3):
-        S[i, i] += sp2
-        S[3 + i, 3 + i] += sv2
-
-    K = np.linalg.solve(S, P).T
-    y = z - x
-    x[:] = x + K.dot(y)
-    p_new = P - K.dot(P)
-    for i in range(6):
-        for j in range(6):
-            P[i, j] = 0.5 * (p_new[i, j] + p_new[j, i])
-    return z
-
-
-@njit(cache=True)
 def nav_predict_ins(x, P, dt, a_true, b_true, sigma_acc, sigma_acc_q, phi_a,
                     phi_g, q_bias_a, q_bias_g, rng_state):
     """Twelve-state INS prediction ``[r, v, b_a, b_g]`` (mutates x and P).
@@ -1203,56 +1136,15 @@ def nav_bias_update_ins(x, P, b_meas, sigma_b):
 # Autopilot: three-loop law with anti-windup and gain scheduling
 # ============================================================
 @njit(cache=True)
-def ladrc_axis(state, idx, y, ref, b0, dt, q_dyn):
-    """First-order LADRC: 2nd-order LESO + proportional rate law."""
-    z1 = state[idx]
-    z2 = state[idx + 1]
-    u_prev = state[idx + 2]
-    wc_ratio = math.sqrt(max(q_dyn, 1.0) / C.LADRC_Q_REF)
-    if wc_ratio < C.LADRC_WC_MIN_RATIO:
-        wc_ratio = C.LADRC_WC_MIN_RATIO
-    elif wc_ratio > 1.0:
-        wc_ratio = 1.0
-    wc = C.LADRC_WC * wc_ratio
-    wo = C.LADRC_WO_RATIO * wc
-    e = y - z1
-    z1 += dt * (z2 + b0 * u_prev + 2.0 * wo * e)
-    z2 += dt * (wo * wo * e)
-    if abs(b0) > 1.0e-9:
-        u = (wc * (ref - z1) - z2) / b0
-    else:
-        u = 0.0
-    if u > C.FIN_MAX:
-        u = C.FIN_MAX
-    elif u < -C.FIN_MAX:
-        u = -C.FIN_MAX
-    af = dt / max(C.LADRC_TAU, 1.0e-3)
-    if af > 1.0:
-        af = 1.0
-    u = u_prev + af * (u - u_prev)
-    du_max = 0.9 * C.FIN_RATE_MAX * dt
-    if u > u_prev + du_max:
-        u = u_prev + du_max
-    elif u < u_prev - du_max:
-        u = u_prev - du_max
-    state[idx] = z1
-    state[idx + 1] = z2
-    state[idx + 2] = u
-    return u
-
-
-@njit(cache=True)
 def autopilot_update(q, omega, a_cmd, mass, q_dyn, cn_alpha,
                      alpha_trim, beta_trim, is_saturated, dt, alpha_max,
                      prefilter_hz,
                      kp_angle, ki_angle, kp_rate, ki_rate,
                      kp_angle_y, ki_angle_y, kp_rate_y, ki_rate_y,
                      kp_roll, ki_roll,
-                     sched_q, sched_scale, roll_align, state):
+                     roll_align,
+                     n_meas, kp_nz, ki_nz, nz_lead, state):
     """Compiled equivalent of ``Autopilot.update``.
-
-    ``sched_q`` / ``sched_scale`` are the gain-schedule breakpoints (Pa) and
-    the corresponding scale factors, interpolated linearly in ln(q).
 
     ``state`` layout: [alpha_x, alpha_xd, alpha_init,
                        beta_x,  beta_xd,  beta_init,
@@ -1379,45 +1271,27 @@ def autopilot_update(q, omega, a_cmd, mass, q_dyn, cn_alpha,
     p, qq, r = omega[0], omega[1], omega[2]
     low_q = q_dyn < 100.0
 
-    # Gain schedule: model-based (holds the rate-loop crossover at AP_OMEGA_Q
-    # using the instantaneous fin authority, inertia and q) or legacy table.
-    if C.GAIN_SCHEDULE_MODEL > 0.5:
-        if C.MASS0 > C.DRY_MASS:
-            ff = (mass - C.DRY_MASS) / (C.MASS0 - C.DRY_MASS)
-            if ff < 0.0:
-                ff = 0.0
-            elif ff > 1.0:
-                ff = 1.0
-        else:
+    # Gain schedule: hold the rate-loop crossover at AP_OMEGA_Q using the
+    # instantaneous fin authority, inertia and q.
+    if C.MASS0 > C.DRY_MASS:
+        ff = (mass - C.DRY_MASS) / (C.MASS0 - C.DRY_MASS)
+        if ff < 0.0:
             ff = 0.0
-        iyy = C.IYY_DRY + ff * (C.IYY_FULL - C.IYY_DRY)
-        cm_de = (cn_alpha - C.CN_ALPHA_BODY) * C.FIN_LEVER / C.LENGTH
-        if cm_de < 1.0e-3:
-            cm_de = 1.0e-3
-        gain_scale = (C.AP_OMEGA_Q * iyy
-                      / (max(q_dyn, 1.0) * C.S_REF * C.LENGTH * cm_de)
-                      / kp_rate)
-        if gain_scale < C.GAIN_SCALE_MIN:
-            gain_scale = C.GAIN_SCALE_MIN
-        elif gain_scale > C.GAIN_SCALE_MAX:
-            gain_scale = C.GAIN_SCALE_MAX
+        elif ff > 1.0:
+            ff = 1.0
     else:
-        lq = math.log(max(q_dyn, 1.0))
-        n_sched = sched_q.shape[0]
-        if lq <= math.log(sched_q[0]):
-            gain_scale = sched_scale[0]
-        elif lq >= math.log(sched_q[n_sched - 1]):
-            gain_scale = sched_scale[n_sched - 1]
-        else:
-            gain_scale = sched_scale[n_sched - 1]
-            for j in range(1, n_sched):
-                lq1 = math.log(sched_q[j])
-                if lq <= lq1:
-                    lq0 = math.log(sched_q[j - 1])
-                    w = (lq - lq0) / (lq1 - lq0)
-                    gain_scale = sched_scale[j - 1] + w * (
-                        sched_scale[j] - sched_scale[j - 1])
-                    break
+        ff = 0.0
+    iyy = C.IYY_DRY + ff * (C.IYY_FULL - C.IYY_DRY)
+    cm_de = (cn_alpha - C.CN_ALPHA_BODY) * C.FIN_LEVER / C.LENGTH
+    if cm_de < 1.0e-3:
+        cm_de = 1.0e-3
+    gain_scale = (C.AP_OMEGA_Q * iyy
+                  / (max(q_dyn, 1.0) * C.S_REF * C.LENGTH * cm_de)
+                  / kp_rate)
+    if gain_scale < C.GAIN_SCALE_MIN:
+        gain_scale = C.GAIN_SCALE_MIN
+    elif gain_scale > C.GAIN_SCALE_MAX:
+        gain_scale = C.GAIN_SCALE_MAX
     freeze = (is_saturated > 0.5) or low_q
     ki_scale = math.sqrt(max(q_dyn, 1.0) / ref_q)
     if ki_scale > 1.0:
@@ -1437,47 +1311,39 @@ def autopilot_update(q, omega, a_cmd, mass, q_dyn, cn_alpha,
     q_cmd = alpha_ref_dot + kp_angle * e_alpha + ki_angle_eff * state[8]
     r_cmd = -(beta_ref_dot + kp_angle_y * e_beta + ki_angle_y_eff * state[9])
 
-    if C.ATT_LADRC > 0.5:
-        if C.MASS0 > C.DRY_MASS:
-            ff2 = (mass - C.DRY_MASS) / (C.MASS0 - C.DRY_MASS)
-            ff2 = min(max(ff2, 0.0), 1.0)
-        else:
-            ff2 = 0.0
-        ixx = C.IXX_DRY + ff2 * (C.IXX_FULL - C.IXX_DRY)
-        iyy = C.IYY_DRY + ff2 * (C.IYY_FULL - C.IYY_DRY)
-        izz = C.IZZ_DRY + ff2 * (C.IZZ_FULL - C.IZZ_DRY)
-        ratio_l = (cn_alpha - C.CN_ALPHA_BODY) / (10.17 - C.CN_ALPHA_BODY)
-        ratio_l = min(max(ratio_l, 0.2), 2.0)
-        qsl = q_dyn * C.S_REF * C.LENGTH
-        cm_de_l = (cn_alpha - C.CN_ALPHA_BODY) * C.FIN_LEVER / C.LENGTH
-        if q_dyn < C.LADRC_Q_MIN:
-            d_p = 0.0
-            d_y = 0.0
-            d_r = 0.0
-        else:
-            d_p = ladrc_axis(state, 14, qq, q_cmd,
-                             -qsl * cm_de_l / iyy, dt_f, q_dyn)
-            d_y = ladrc_axis(state, 17, r, r_cmd,
-                             qsl * C.CN_DR * ratio_l / izz, dt_f, q_dyn)
-            d_r = ladrc_axis(state, 20, p, p_cmd,
-                             qsl * C.CL_DA * ratio_l / ixx, dt_f, q_dyn)
-        ki_p = 0.0
-        ki_y = 0.0
-    else:
-        e_q = q_cmd - qq
-        e_r = r_cmd - r
+    # Direct load-factor loop on body -Z (matches the Python path).  The
+    # n_z integrator lives in state[27] and the lead-filter state in
+    # state[28], so the compiled state is 29 long.
+    if kp_nz != 0.0 or ki_nz != 0.0:
+        n_used = n_meas
+        if nz_lead > 0.0:
+            # Lead compensation: low-passed derivative of the measured load
+            # factor (same formula as the Python path).
+            tau_l = C.AP_NZ_LEAD_LPF
+            n_f = state[28] + dt_f / tau_l * (n_meas - state[28])
+            state[28] = min(max(n_f, -50.0), 50.0)
+            n_dot = (n_meas - state[28]) / tau_l
+            n_used = n_meas + nz_lead * n_dot
+        e_n = -ab2 / C.G0 - n_used
         if not freeze:
-            state[10] += e_q * dt_f
-            state[11] += e_r * dt_f
-        state[10] = min(max(state[10], -5.0), 5.0)
-        state[11] = min(max(state[11], -5.0), 5.0)
+            state[27] += e_n * dt_f
+        state[27] = min(max(state[27], -50.0), 50.0)
+        q_cmd += kp_nz * e_n + ki_nz * state[27]
 
-        kp_p = kp_rate * gain_scale
-        ki_p = ki_rate * gain_scale * 0.1 * ki_scale
-        kp_y = kp_rate_y * gain_scale
-        ki_y = ki_rate_y * gain_scale * 0.1 * ki_scale
-        d_p = -kp_p * e_q - ki_p * state[10]
-        d_y = kp_y * e_r + ki_y * state[11]
+    e_q = q_cmd - qq
+    e_r = r_cmd - r
+    if not freeze:
+        state[10] += e_q * dt_f
+        state[11] += e_r * dt_f
+    state[10] = min(max(state[10], -5.0), 5.0)
+    state[11] = min(max(state[11], -5.0), 5.0)
+
+    kp_p = kp_rate * gain_scale
+    ki_p = ki_rate * gain_scale * 0.1 * ki_scale
+    kp_y = kp_rate_y * gain_scale
+    ki_y = ki_rate_y * gain_scale * 0.1 * ki_scale
+    d_p = -kp_p * e_q - ki_p * state[10]
+    d_y = kp_y * e_r + ki_y * state[11]
 
     # Feed-forward trim, first-order low-pass with 0.3 safety factor.  Scale
     # by the current static margin (CG migrating forward with fuel burn).
@@ -1502,80 +1368,65 @@ def autopilot_update(q, omega, a_cmd, mass, q_dyn, cn_alpha,
         state[6] += a_f * (trim_raw - state[6])
     d_p += 0.3 * state[6]
 
-    if C.ATT_LADRC < 0.5:
-        if not freeze:
-            state[12] += (p_cmd - p) * dt_f
-        else:
-            state[12] *= 0.98
-        state[12] = min(max(state[12], -1.0), 1.0)
-        d_r = kp_roll * gain_scale * (p_cmd - p) + ki_roll * state[12]
+    if not freeze:
+        state[12] += (p_cmd - p) * dt_f
+    else:
+        state[12] *= 0.98
+    state[12] = min(max(state[12], -1.0), 1.0)
+    d_r = kp_roll * gain_scale * (p_cmd - p) + ki_roll * state[12]
+    # Pre-mixer position limit, matching the Python path so both paths hand
+    # the mixer the same virtual command.
+    d_p = min(max(d_p, -C.FIN_MAX), C.FIN_MAX)
+    d_y = min(max(d_y, -C.FIN_MAX), C.FIN_MAX)
 
-    if True:
-        # Mixer/actuator in the loop: rate limit -> first-order lag ->
-        # position limit on the four physical fins, then invert the mixer.
-        # The command is returned unchanged; the achieved virtual fins are
-        # stored for the LADRC observer and for PID back-calculation.
-        t0 = d_y
-        t1 = d_y
-        t2 = d_p - d_r
-        t3 = d_p + d_r
-        max_step = C.FIN_RATE_MAX * dt_f
-        alpha_m = dt_f / (C.FIN_TAU + dt_f)
-        f0c = 0.0
-        f1c = 0.0
-        f2c = 0.0
-        f3c = 0.0
-        for i in range(4):
-            if i == 0:
-                tgt = t0
-            elif i == 1:
-                tgt = t1
-            elif i == 2:
-                tgt = t2
-            else:
-                tgt = t3
-            dlt = tgt - state[23 + i]
-            if dlt > max_step:
-                dlt = max_step
-            elif dlt < -max_step:
-                dlt = -max_step
-            f_cmd = state[23 + i] + dlt
-            if f_cmd > C.FIN_MAX:
-                f_cmd = C.FIN_MAX
-            elif f_cmd < -C.FIN_MAX:
-                f_cmd = -C.FIN_MAX
-            f_obs = state[23 + i] + alpha_m * dlt
-            if f_obs > C.FIN_MAX:
-                f_obs = C.FIN_MAX
-            elif f_obs < -C.FIN_MAX:
-                f_obs = -C.FIN_MAX
-            state[23 + i] = f_obs
-            if i == 0:
-                f0c = f_cmd
-            elif i == 1:
-                f1c = f_cmd
-            elif i == 2:
-                f2c = f_cmd
-            else:
-                f3c = f_cmd
-        d_y_a = 0.5 * (state[23] + state[24])
-        d_p_a = 0.5 * (state[25] + state[26])
-        d_r_a = 0.5 * (state[26] - state[25])
-        state[16] = d_p_a
-        state[19] = d_y_a
-        state[22] = d_r_a
-        # Cascade-PID back-calculation anti-windup from the mixer shortfall.
-        if C.ATT_LADRC < 0.5 and not freeze:
-            if ki_p > 1e-9:
-                state[10] += 0.5 * (d_p - d_p_a) / ki_p
-            if ki_y > 1e-9:
-                state[11] -= 0.5 * (d_y - d_y_a) / ki_y
-            state[10] = min(max(state[10], -5.0), 5.0)
-            state[11] = min(max(state[11], -5.0), 5.0)
-            ikr = ki_roll if ki_roll > 1e-6 else 1e-6
-            state[12] += 0.5 * (d_r - d_r_a) / ikr
-            state[12] = min(max(state[12], -1.0), 1.0)
-        # d_p/d_y/d_r keep the unmodified virtual command (see Python path).
+    # Mixer/actuator in the loop: rate limit -> first-order lag ->
+    # position limit on the four physical fins, then invert the mixer.
+    # The command is returned unchanged; the achieved virtual fins are
+    # stored for PID back-calculation.
+    t0 = d_y
+    t1 = d_y
+    t2 = d_p - d_r
+    t3 = d_p + d_r
+    max_step = C.FIN_RATE_MAX * dt_f
+    alpha_m = dt_f / (C.FIN_TAU + dt_f)
+    for i in range(4):
+        if i == 0:
+            tgt = t0
+        elif i == 1:
+            tgt = t1
+        elif i == 2:
+            tgt = t2
+        else:
+            tgt = t3
+        dlt = tgt - state[23 + i]
+        if dlt > max_step:
+            dlt = max_step
+        elif dlt < -max_step:
+            dlt = -max_step
+        f_obs = state[23 + i] + alpha_m * dlt
+        if f_obs > C.FIN_MAX:
+            f_obs = C.FIN_MAX
+        elif f_obs < -C.FIN_MAX:
+            f_obs = -C.FIN_MAX
+        state[23 + i] = f_obs
+    d_y_a = 0.5 * (state[23] + state[24])
+    d_p_a = 0.5 * (state[25] + state[26])
+    d_r_a = 0.5 * (state[26] - state[25])
+    state[16] = d_p_a
+    state[19] = d_y_a
+    state[22] = d_r_a
+    # Cascade-PID back-calculation anti-windup from the mixer shortfall.
+    if not freeze:
+        if ki_p > 1e-9:
+            state[10] += 0.5 * (d_p - d_p_a) / ki_p
+        if ki_y > 1e-9:
+            state[11] -= 0.5 * (d_y - d_y_a) / ki_y
+        state[10] = min(max(state[10], -5.0), 5.0)
+        state[11] = min(max(state[11], -5.0), 5.0)
+        ikr = ki_roll if ki_roll > 1e-6 else 1e-6
+        state[12] += 0.5 * (d_r - d_r_a) / ikr
+        state[12] = min(max(state[12], -1.0), 1.0)
+    # d_p/d_y/d_r keep the unmodified virtual command (see Python path).
 
     out = np.empty(3)
     out[0] = min(max(d_p, -C.FIN_MAX), C.FIN_MAX)

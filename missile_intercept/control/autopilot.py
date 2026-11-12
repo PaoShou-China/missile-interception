@@ -6,8 +6,9 @@ Engineering features
   reference governor (feasible command shaping at low dynamic pressure);
 - anti-windup: freeze integrators while the fin mixer is saturated, plus
   back-calculation of the rate-loop integral on position saturation;
-- gain scheduling table over dynamic pressure (linear in ln(q)), bounded to
-  [0.3, 3.0], with reduced integral action at low dynamic pressure;
+- model-based gain scheduling over dynamic pressure from the instantaneous fin
+  authority, inertia and q, bounded to [0.3, 3.0], with reduced integral action
+  at low dynamic pressure;
 - reference-rate feed-forward in the angle loop;
 - lift-vector (roll) alignment with an angle-unwrapped error-rate feed-forward
   and roll-rate damping, so the roll loop keeps up with a command direction
@@ -113,11 +114,17 @@ class Autopilot:
     KP_ROLL = 0.035
     KI_ROLL = 0.008
     REF_Q = C.AP_REF_Q
+    # Direct load-factor loop (A/B switchable; the gains are handed to the
+    # compiled core at run time).
+    NZ_LOOP = bool(C.AP_NZ_LOOP)
+    KP_NZ = C.AP_KP_NZ
+    KI_NZ = C.AP_KI_NZ
+    NZ_LEAD = C.AP_NZ_LEAD
 
     def __init__(self, dt=C.DT_AUTOPILOT, alpha_max=25.0 * C.DEG):
         self.dt = float(dt)
         self.alpha_max = float(alpha_max)
-        self._state = np.zeros(27)
+        self._state = np.zeros(29)
         self.alpha_f = SecondOrderFilter(C.AP_PREFILTER_HZ, 0.707)
         self.beta_f = SecondOrderFilter(C.AP_PREFILTER_HZ, 0.707)
         self.trim_f = FirstOrderFilter(0.1)
@@ -127,9 +134,6 @@ class Autopilot:
         self.int_rate_y = 0.0
         self.int_roll = 0.0
         self.initialized = False
-        # Optional (q_points, scale) override used by the standalone ITAE
-        # tuning tool; None keeps the analytic 1/q law and the compiled path.
-        self.gain_schedule = None
 
     # --------------------------------------------------------
     # Integrator states are views on the compiled state vector.
@@ -186,22 +190,18 @@ class Autopilot:
     def _mixer_feedback(self, d_p, d_y, d_r, dt):
         """Run the cruciform mixer model and return the achieved virtual fins.
 
-        The LADRC output is a virtual (P, Y, R) command; the real actuator has
-        a rate limit, a first-order lag and a position limit, and the mixer
-        maps P/R to the left/right pair as ``d_p ± d_r``.  Closing this loop
-        inside the controller means the observer sees the control that was
-        actually applied, and prevents the post-mix rate saturation that the
+        The virtual (P, Y, R) command is mapped by the real actuator model,
+        which has a rate limit, a first-order lag and a position limit, and the
+        mixer maps P/R to the left/right pair as ``d_p ± d_r``.  Closing this
+        loop inside the controller exposes the applied fins for the cascade-PID
+        back-calculation, and prevents the post-mix rate saturation that the
         independent per-axis limiter cannot catch.
         """
         fins = self._state[23:27]
         target = np.array([d_y, d_y, d_p - d_r, d_p + d_r])
         max_step = C.FIN_RATE_MAX * dt
-        delta = np.clip(target - fins, -max_step, max_step)
-        # Command returned to the real mixer: rate-limited but NOT lagged, so
-        # the mixer still has a non-zero error to drive.  The observer, on the
-        # other hand, must use the lagged (actually applied) fins.
-        cmd = np.clip(fins + delta, -C.FIN_MAX, C.FIN_MAX)
         alpha = dt / (C.FIN_TAU + dt)
+        delta = np.clip(target - fins, -max_step, max_step)
         achieved = np.clip(fins + alpha * delta, -C.FIN_MAX, C.FIN_MAX)
         self._state[23:27] = achieved
         # Observer input: the virtual command the airframe actually applied.
@@ -209,78 +209,31 @@ class Autopilot:
         self._state[19] = 0.5 * (achieved[0] + achieved[1])
         self._state[22] = 0.5 * (achieved[3] - achieved[2])
         # Return the unmodified virtual command so the real mixer keeps its
-        # normal command path; only the observer is closed through the mixer.
+        # normal command path; only the applied fins are fed back through it.
         return float(d_p), float(d_y), float(d_r)
 
     # --------------------------------------------------------
-    def _ladrc_axis(self, idx, y, ref, b0, dt, q_dyn):
-        """First-order LADRC on one body-rate axis.
-
-        ``y`` is the measured rate, ``ref`` its command, ``b0`` the modelled
-        control effectiveness (signed, 1/s^2 per rad of fin).  The LESO keeps
-        z1 (rate) and z2 (lumped disturbance + model error); the control law
-        inverts b0 and cancels z2, so the remaining tuning is only the
-        controller bandwidth and the observer/controller ratio.  The bandwidth
-        is scaled with sqrt(q) like the model gain schedule, otherwise the
-        loop saturates at low dynamic pressure.
-        """
-        z1 = float(self._state[idx])
-        z2 = float(self._state[idx + 1])
-        u_prev = float(self._state[idx + 2])
-        wc = C.LADRC_WC * min(max(np.sqrt(max(q_dyn, 1.0) / C.LADRC_Q_REF),
-                                  C.LADRC_WC_MIN_RATIO), 1.0)
-        wo = C.LADRC_WO_RATIO * wc
-        e = float(y) - z1
-        z1 += dt * (z2 + b0 * u_prev + 2.0 * wo * e)
-        z2 += dt * (wo * wo * e)
-        if abs(b0) > 1.0e-9:
-            u = (wc * (float(ref) - z1) - z2) / b0
-        else:
-            u = 0.0
-        u = float(np.clip(u, -C.FIN_MAX, C.FIN_MAX))
-        # First-order command smoothing: removes the dither that otherwise
-        # keeps the fin rate limiter saturated in cruise.
-        alpha_f = min(dt / max(C.LADRC_TAU, 1.0e-3), 1.0)
-        u = u_prev + alpha_f * (u - u_prev)
-        du_max = 0.9 * C.FIN_RATE_MAX * dt
-        u = float(np.clip(u, u_prev - du_max, u_prev + du_max))
-        self._state[idx] = z1
-        self._state[idx + 1] = z2
-        self._state[idx + 2] = u
-        return u
-
-    # --------------------------------------------------------
-    def _gain_scale(self, q_dyn, cn_alpha=None, mass=None):
+    def _gain_scale(self, q_dyn, cn_alpha, mass):
         """Rate-loop gain factor.
 
-        In model mode the factor is derived from the instantaneous plant:
-        the pitch-rate crossover is held at ``AP_OMEGA_Q`` given the fin
-        authority ``(cn_alpha - CN_ALPHA_BODY) * FIN_LEVER / LENGTH``, the
-        current inertia and q.  Geometry or DATCOM changes therefore need no
-        offline re-tuning.  With no plant inputs (or in table mode) the legacy
-        q-table is used.
+        The factor is derived from the instantaneous plant: the pitch-rate
+        crossover is held at ``AP_OMEGA_Q`` given the fin authority
+        ``(cn_alpha - CN_ALPHA_BODY) * FIN_LEVER / LENGTH``, the current
+        inertia and q.  Geometry or DATCOM changes therefore need no offline
+        re-tuning.
         """
-        if (self.gain_schedule is None and C.GAIN_SCHEDULE_MODEL
-                and cn_alpha is not None and mass is not None):
-            if C.MASS0 > C.DRY_MASS:
-                fuel_f = min(max((mass - C.DRY_MASS) /
-                                 (C.MASS0 - C.DRY_MASS), 0.0), 1.0)
-            else:
-                fuel_f = 0.0
-            iyy = C.IYY_DRY + fuel_f * (C.IYY_FULL - C.IYY_DRY)
-            cm_de = max((float(cn_alpha) - C.CN_ALPHA_BODY) * C.FIN_LEVER
-                        / C.LENGTH, 1.0e-3)
-            kp_req = C.AP_OMEGA_Q * iyy / (
-                max(float(q_dyn), 1.0) * C.S_REF * C.LENGTH * cm_de)
-            return float(min(max(kp_req / self.KP_RATE,
-                                 C.GAIN_SCALE_MIN), C.GAIN_SCALE_MAX))
-        table = self.gain_schedule
-        if table is None:
-            table = (C.GAIN_SCHEDULE_Q, C.GAIN_SCHEDULE_SCALE)
-        q_pts, s_pts = table
-        return float(np.interp(np.log(max(q_dyn, 1.0)),
-                               np.log(np.asarray(q_pts, dtype=float)),
-                               np.asarray(s_pts, dtype=float)))
+        if C.MASS0 > C.DRY_MASS:
+            fuel_f = min(max((mass - C.DRY_MASS) /
+                             (C.MASS0 - C.DRY_MASS), 0.0), 1.0)
+        else:
+            fuel_f = 0.0
+        iyy = C.IYY_DRY + fuel_f * (C.IYY_FULL - C.IYY_DRY)
+        cm_de = max((float(cn_alpha) - C.CN_ALPHA_BODY) * C.FIN_LEVER
+                    / C.LENGTH, 1.0e-3)
+        kp_req = C.AP_OMEGA_Q * iyy / (
+            max(float(q_dyn), 1.0) * C.S_REF * C.LENGTH * cm_de)
+        return float(min(max(kp_req / self.KP_RATE,
+                             C.GAIN_SCALE_MIN), C.GAIN_SCALE_MAX))
 
     # --------------------------------------------------------
     def _moment_derivs(self, cn_alpha):
@@ -350,7 +303,7 @@ class Autopilot:
     # --------------------------------------------------------
     def update(self, t, q, omega_body, a_cmd_eci, mass, q_dyn, cn_alpha,
                alpha_trim=0.0, beta_trim=0.0, is_saturated=False, dt=None,
-               roll_align=True):
+               roll_align=True, load_body=None):
         """Compute virtual fin deflections.
 
         Parameters
@@ -360,10 +313,21 @@ class Autopilot:
         q_dyn : dynamic pressure Pa
         cn_alpha : current normal-force slope
         alpha_trim, beta_trim : current aero angles (rad)
+        load_body : (3,) measured body-axis load factor (F/(m*g)), or None.
+            Its -Z component drives the optional n_z loop.
         """
         dt = self.dt if dt is None else float(min(max(dt, 1e-5), 0.05))
+        n_meas = -float(load_body[2]) if load_body is not None else 0.0
+        if self.NZ_LOOP:
+            kp_nz = float(self.KP_NZ)
+            ki_nz = float(self.KI_NZ)
+            nz_lead = float(self.NZ_LEAD)
+        else:
+            kp_nz = 0.0
+            ki_nz = 0.0
+            nz_lead = 0.0
 
-        if FC.NUMBA_AVAILABLE and self.gain_schedule is None:
+        if FC.NUMBA_AVAILABLE:
             out = FC.autopilot_update(
                 np.ascontiguousarray(np.asarray(q, dtype=float).reshape(4)),
                 np.ascontiguousarray(np.asarray(omega_body, dtype=float).reshape(3)),
@@ -376,8 +340,9 @@ class Autopilot:
                 self.KP_ANGLE_Y, self.KI_ANGLE_Y,
                 self.KP_RATE_Y, self.KI_RATE_Y,
                 self.KP_ROLL, self.KI_ROLL,
-                C.GAIN_SCHEDULE_Q, C.GAIN_SCHEDULE_SCALE,
-                1.0 if roll_align else 0.0, self._state)
+                1.0 if roll_align else 0.0,
+                n_meas, kp_nz, ki_nz, nz_lead,
+                self._state)
             self.initialized = True
             return out
 
@@ -450,52 +415,44 @@ class Autopilot:
         r_cmd = -(beta_ref_dot + self.KP_ANGLE_Y * e_beta
                   + ki_angle_y * self.int_angle_y)
 
-        # Middle loop: rate error -> virtual fin (LADRC or legacy PI).
-        if C.ATT_LADRC:
-            if C.MASS0 > C.DRY_MASS:
-                fuel_f = min(max((mass - C.DRY_MASS) /
-                                 (C.MASS0 - C.DRY_MASS), 0.0), 1.0)
-            else:
-                fuel_f = 0.0
-            ixx = C.IXX_DRY + fuel_f * (C.IXX_FULL - C.IXX_DRY)
-            iyy = C.IYY_DRY + fuel_f * (C.IYY_FULL - C.IYY_DRY)
-            izz = C.IZZ_DRY + fuel_f * (C.IZZ_FULL - C.IZZ_DRY)
-            ratio = min(max((float(cn_alpha) - C.CN_ALPHA_BODY) /
-                            (10.17 - C.CN_ALPHA_BODY), 0.2), 2.0)
-            qsl = q_dyn * C.S_REF * C.LENGTH
-            cm_de = (float(cn_alpha) - C.CN_ALPHA_BODY) * C.FIN_LEVER / C.LENGTH
-            if q_dyn < C.LADRC_Q_MIN:
-                # Launch/boost: no dynamic pressure, the plant model is
-                # meaningless and b0 -> 0.  Hold the fins neutral and keep the
-                # observers at zero until the airframe is flying.
-                d_p_raw = 0.0
-                d_y_raw = 0.0
-                d_r = 0.0
-            else:
-                d_p_raw = self._ladrc_axis(14, qq, q_cmd,
-                                           -qsl * cm_de / iyy, dt, q_dyn)
-                d_y_raw = self._ladrc_axis(17, r, r_cmd,
-                                           qsl * C.CN_DR * ratio / izz, dt, q_dyn)
-                d_r = self._ladrc_axis(20, p, p_cmd,
-                                       qsl * C.CL_DA * ratio / ixx, dt, q_dyn)
-            ki_p = 0.0
-            ki_y = 0.0
-        else:
-            e_q = q_cmd - qq
-            e_r = r_cmd - r
+        # Direct load-factor loop: trim the pitch-rate command with the error
+        # between the commanded and measured body normal load factor.  The
+        # alpha loop cannot see the difference between a commanded and an
+        # achieved g, which is exactly the lag seen in the terminal phase.
+        if kp_nz != 0.0 or ki_nz != 0.0:
+            n_cmd = -float(a_b[2]) / C.G0
+            # Lead compensation: a low-passed derivative of the measured load
+            # factor anticipates the value the PI should act on, adding phase
+            # near the loop crossover without pure differentiation noise.
+            n_used = n_meas
+            if nz_lead > 0.0:
+                tau_l = C.AP_NZ_LEAD_LPF
+                n_f = self._state[28] + dt / tau_l * (n_meas - self._state[28])
+                self._state[28] = float(min(max(n_f, -50.0), 50.0))
+                n_dot = (n_meas - self._state[28]) / tau_l
+                n_used = n_meas + nz_lead * n_dot
+            e_n = n_cmd - n_used
             if not freeze:
-                self.int_rate_p += e_q * dt
-                self.int_rate_y += e_r * dt
-            self.int_rate_p = float(min(max(self.int_rate_p, -5.0), 5.0))
-            self.int_rate_y = float(min(max(self.int_rate_y, -5.0), 5.0))
-            kp_p = self.KP_RATE * gain_scale
-            ki_p = self.KI_RATE * gain_scale * 0.1 * ki_scale
-            kp_y = self.KP_RATE_Y * gain_scale
-            ki_y = self.KI_RATE_Y * gain_scale * 0.1 * ki_scale
-            # Positive pitch fin produces a nose-down moment (CM_DE < 0),
-            # hence the negative feedback sign on the pitch channel.
-            d_p_raw = -kp_p * e_q - ki_p * self.int_rate_p
-            d_y_raw = kp_y * e_r + ki_y * self.int_rate_y
+                self._state[27] += e_n * dt
+            self._state[27] = float(min(max(self._state[27], -50.0), 50.0))
+            q_cmd += kp_nz * e_n + ki_nz * self._state[27]
+
+        # Middle loop: rate error -> virtual fin.
+        e_q = q_cmd - qq
+        e_r = r_cmd - r
+        if not freeze:
+            self.int_rate_p += e_q * dt
+            self.int_rate_y += e_r * dt
+        self.int_rate_p = float(min(max(self.int_rate_p, -5.0), 5.0))
+        self.int_rate_y = float(min(max(self.int_rate_y, -5.0), 5.0))
+        kp_p = self.KP_RATE * gain_scale
+        ki_p = self.KI_RATE * gain_scale * 0.1 * ki_scale
+        kp_y = self.KP_RATE_Y * gain_scale
+        ki_y = self.KI_RATE_Y * gain_scale * 0.1 * ki_scale
+        # Positive pitch fin produces a nose-down moment (CM_DE < 0),
+        # hence the negative feedback sign on the pitch channel.
+        d_p_raw = -kp_p * e_q - ki_p * self.int_rate_p
+        d_y_raw = kp_y * e_r + ki_y * self.int_rate_y
 
         # Model feed-forward trim: low-passed and scaled by 0.3.  The pitch
         # stiffness grows as fuel burn moves the CG forward, so the trim
@@ -523,21 +480,20 @@ class Autopilot:
         d_p = float(np.clip(d_p_raw, -C.FIN_MAX, C.FIN_MAX))
         d_y = float(np.clip(d_y_raw, -C.FIN_MAX, C.FIN_MAX))
 
-        # Roll loop: legacy PI when LADRC is disabled.
-        if not C.ATT_LADRC:
-            e_p = p_cmd - p
-            if not freeze:
-                self.int_roll += e_p * dt
-            else:
-                self.int_roll *= 0.98
-            self.int_roll = float(min(max(self.int_roll, -1.0), 1.0))
-            d_r = self.KP_ROLL * gain_scale * e_p + self.KI_ROLL * self.int_roll
+        # Roll loop: PI on the body roll rate.
+        e_p = p_cmd - p
+        if not freeze:
+            self.int_roll += e_p * dt
+        else:
+            self.int_roll *= 0.98
+        self.int_roll = float(min(max(self.int_roll, -1.0), 1.0))
+        d_r = self.KP_ROLL * gain_scale * e_p + self.KI_ROLL * self.int_roll
 
         # Actuator/mixer in the loop: the model returns the command unchanged
         # but stores the achieved (rate/lag/position limited) virtual fins.
         # Cascade PID uses the shortfall for back-calculation anti-windup.
         d_p, d_y, d_r = self._mixer_feedback(d_p, d_y, d_r, dt)
-        if (not C.ATT_LADRC) and not freeze:
+        if not freeze:
             if ki_p > 1e-9:
                 self.int_rate_p += 0.5 * (d_p - self._state[16]) / ki_p
             if ki_y > 1e-9:

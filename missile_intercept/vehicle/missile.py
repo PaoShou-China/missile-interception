@@ -274,7 +274,6 @@ class Missile:
         self.fuel0 = max(self.mass0 - self.dry_mass, 0.0)
         self.S = C.S_REF
         self.L = C.LENGTH
-        self.D = C.DIAMETER
 
     # --------------------------------------------------------
     # Mass properties

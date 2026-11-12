@@ -16,7 +16,6 @@ import hashlib
 import json
 from dataclasses import dataclass
 from types import MappingProxyType
-from typing import Mapping
 
 import numpy as np
 

@@ -472,10 +472,11 @@ onset lag models roll/manoeuvre reversal.
 
 ### 11.1 Filter
 
-A 6-state linear Kalman filter estimates position and velocity in ECI:
+A 12-state linear Kalman filter estimates position, velocity, accelerometer
+bias and gyro bias in ECI:
 
 ```
-x = [r, v]
+x = [r, v, b_acc, b_gyro]
 F = [[0, I], [0, 0]]
 ```
 
@@ -607,10 +608,10 @@ Four physical fins in a cruciform layout:
 Each fin is limited to ±25° and to the actuator rate limit. Saturation is
 reported in telemetry (`fin_sat`).
 
-### 14.3 Optional LADRC
+### 14.3 Gain scheduling
 
-A linear ADRC mode (`ATT_LADRC=1`) replaces the rate loop with a third-order
-LESO plus proportional control. The default is the classical three-loop law.
+The rate-loop gain is scheduled from the instantaneous fin authority, inertia
+and dynamic pressure; no offline table or retuning is required.
 
 ---
 
@@ -708,6 +709,8 @@ used by the generator. The scenario, geometry and mass data are constants in
 | Pitch outer-loop gain | 6.0 |
 | Pitch rate-loop gain | 0.14 |
 | Attitude command prefilter | 1–10 Hz (with q) |
+| Load-factor loop `AP_NZ_LOOP` (`AP_KP_NZ`/`AP_KI_NZ`) | on / 0.02 rad·s⁻¹·g⁻¹ / 0.004 |
+| Load-factor lead `AP_NZ_LEAD` | 0.06 s (4-seed mean 3.3 m vs 17.7 m baseline) |
 | Roll-alignment gain | 4.0 1/s |
 
 ### 18.3 Seeker and navigation
@@ -806,7 +809,7 @@ not terminal-guidance tuning errors.
    not wired into the compiled derivative by default.
 4. **Seeker**: radar/IIR with white noise, glint, dropout and false-lock
    statistics; no terrain, clutter or electronic attack.
-5. **Navigation**: 6-state GNSS/INS; no star tracker by default; the 50 ms
+5. **Navigation**: 12-state GNSS/INS; no star tracker by default; the 50 ms
    output delay is modelled.
 6. **Autopilot**: three-loop linear design with nonlinear limits; no structural
    bending, fuel slosh or actuator bandwidth beyond the first-order model.

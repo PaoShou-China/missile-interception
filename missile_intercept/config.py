@@ -172,20 +172,8 @@ _Y_MAC = (WING_SPAN / 3.0) * (ROOT_CHORD + 2.0 * TIP_CHORD) / (
 _SWEEP = math.atan((ROOT_CHORD - TIP_CHORD) / (WING_SPAN + 0.5 * DIAMETER))
 FIN_LEVER = ((LENGTH - ROOT_CHORD) + _Y_MAC * math.tan(_SWEEP)
              + 0.25 * _MAC - CG_FULL)
-GAIN_SCHEDULE_MODEL = 1        # 1 = model-based schedule, 0 = legacy table
 AP_OMEGA_Q = 22.0              # Pitch-rate loop crossover rad/s (best of 14/18/22/25)
 GAIN_SCALE_MIN, GAIN_SCALE_MAX = 0.30, 3.0
-# Three-axis attitude control: linear ADRC on the body-rate loops.  Each axis
-# uses a 3rd-order LESO (z1 rate, z2 disturbance) plus a proportional rate
-# law; b0 is taken from the current fin authority and inertia, so it follows
-# geometry and Mach without re-tuning.
-ATT_LADRC = 0
-LADRC_WC = 6.0                # Rate-loop controller bandwidth rad/s
-LADRC_WO_RATIO = 3.0          # Observer bandwidth / controller bandwidth
-LADRC_TAU = 0.05              # Fin-command low-pass time constant s
-LADRC_Q_MIN = 500.0           # Below this q the observer/control is frozen Pa
-LADRC_Q_REF = 100000.0        # q at which LADRC_WC applies Pa
-LADRC_WC_MIN_RATIO = 0.30     # Minimum bandwidth ratio at low q
 
 # ============================================================
 # 4. Propulsion (solid booster + supersonic ramjet)
@@ -327,7 +315,6 @@ AERO_CM_GAIN_MACH = np.array([0.20, 2.00, 3.00, 4.00, 5.00])
 AERO_CM_GAIN = np.array([1.00, 1.85, 1.35, 1.35, 1.31])
 AERO_CM_GAIN_ALPHA = np.array([6.0, 16.0])   # deg: ramp start / full
 
-CN_ALPHA_PEAK = 9.2          # Reference slope used to normalise fin authority
 CN_ALPHA_BODY = 2.0          # Body-alone slender-body slope, 1/rad
 
 # ---- Hypersonic branch (M > 5): shock-expansion, not extrapolation -------
@@ -344,11 +331,8 @@ MACH_NL_START = 5.0          # Newtonian branch switch begins above this Mach
 MACH_NL_FULL = 7.0           # Newtonian branch fully active above this Mach
 CN_NEWTON_SHAPE = 2.0        # Lifting-body factor: S_PLANFORM/S_REF * 0.41
 
-# Reference derivatives.  CM_ALPHA is the M = 2 DATCOM value and CM_DE is the
-# fin-lift/lever-arm value at the same condition; the run-time curves are
-# rebuilt from the tables above and fin_slope_ratio(M).
-CM_ALPHA = -0.51             # Pitch static-stability derivative 1/rad (stable)
-CM_DE = -1.03                # Elevator effectiveness 1/rad
+# Reference derivatives.  The run-time curves are rebuilt from the tables
+# above and fin_slope_ratio(M); the values below document the M = 2 anchor.
 CN_BETA = -0.30              # Yaw static-stability derivative 1/rad
 CN_DR = 0.30                 # Rudder effectiveness 1/rad
 CY_BETA = -1.6               # Side-force derivative 1/rad
@@ -377,13 +361,27 @@ AP_PREFILTER_HZ_MIN = 1.0    # Low-q floor of the scheduled pre-filter Hz
 AP_REF_GOV_ACCEL_MARGIN = 0.45  # Usable fraction of the moment-limited alpha_ddot
 AP_KI_LOW_Q_FLOOR = 0.35     # Minimum integral-gain scale at low dynamic pressure
 
-# Autopilot gain-schedule table: dynamic pressure breakpoints (Pa) and the
-# scale applied to KP_RATE/KI_RATE/KP_ROLL.  Interpolation is linear in ln(q)
-# and flat outside the table.  Tuned with the standalone ITAE step-response
-# tool ``tools/tune_gain_schedule.py`` over six flight conditions and two
-# mass states (4 deg / 10 deg alpha steps).
-GAIN_SCHEDULE_Q = np.array([4442.0, 9994.0, 25199.0, 54125.0, 99679.0, 159587.0])
-GAIN_SCHEDULE_SCALE = np.array([2.999, 2.984, 2.978, 2.473, 1.777, 1.191])
+# Direct normal-load-factor (n_z) feedback.  The outer alpha loop only sees the
+# pseudo-angle; the measured body -Z load factor is the quantity the guidance
+# command actually asks for, so a dedicated PI on n_z removes the residual lag
+# between commanded and achieved acceleration.  It is passed to the compiled
+# core at run time so switching it does not require a Numba recompile.
+# A/B tested with tools/tune_autopilot.py on the 4-seed baseline suite
+# (pass/4, mean, worst miss):
+#   no n_z loop                     3/4  17.7 m  39.8 m
+#   n_z only                        3/4   9.6 m  23.6 m
+#   n_z + lead 0.06 s               4/4   3.3 m   7.1 m   <- adopted
+#   n_z + lead 0.09 s               4/4   6.0 m   9.1 m
+# The rejected variants (q/mass gain schedule, actuator-lag inversion) were
+# removed: both helped alone but never stacked with the lead term.
+AP_NZ_LOOP = 1               # 1 = enable n_z PI loop rad/s per g
+AP_KP_NZ = 0.02              # n_z proportional gain rad/s per g
+AP_KI_NZ = 0.004             # n_z integral gain rad/s per (g*s)
+# Lead compensation on the measured load factor: the PI only reacts to the
+# present error, while a first-order high-pass term anticipates where n_z is
+# heading and adds phase near the loop crossover.
+AP_NZ_LEAD = 0.06            # Lead time constant s (0 disables)
+AP_NZ_LEAD_LPF = 0.02        # Low-pass time constant of the n_z derivative s
 
 # ============================================================
 # 6. Multi-rate scheduling (ZOH)
@@ -615,9 +613,9 @@ IMU_SIGMA_ACC = 0.012        # m/s^2 per 5 ms sample
 IMU_BIAS_ACC = 0.0147        # m/s^2 initial bias (1.5 mg)
 IMU_BIAS_WALK = 0.0015       # m/s^2 in-run bias stability (150 ug)
 IMU_BIAS_TAU = 1000.0        # s bias correlation time
-# Process-noise acceleration used by the navigation KF.  The 6-state filter
-# has no accel-bias state, so this value must cover the 1.5 mg bias plus
-# unmodelled manoeuvre/thrust transients; otherwise the estimate drifts.
+# Process-noise acceleration used by the navigation KF.  It must cover the
+# unmodelled manoeuvre/thrust transients not captured by the bias states;
+# otherwise the estimate drifts.
 NAV_PROCESS_ACC = 0.50       # m/s^2
 
 # ============================================================
@@ -736,7 +734,6 @@ class SimConfig:
     # Realism switches.  Defaults are the realistic models; set the flag to the
     # legacy value to reproduce the pre-upgrade nominal result.
     ideal_attitude: bool = False     # True = autopilot/seeker use truth q, omega
-    ins_error_states: bool = True    # False = legacy 6-state navigation filter
     enable_attitude_aid: bool = True # star tracker + GNSS heading correction
     enable_wind: bool = True         # False = still air
     seeker_swerling: bool = True     # False = constant RCS / lock range
@@ -745,7 +742,6 @@ class SimConfig:
     enable_plot: bool = True
     output_dir: str = "output"
     verbose: bool = True
-    telemetry_profile: str = "full"      # "full" | "basic"
 
 
 # Telemetry columns (order equals array order; column 0 is always time)

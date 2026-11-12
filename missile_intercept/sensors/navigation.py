@@ -1,4 +1,6 @@
-"""GNSS/INS navigation: six-state linear Kalman filter (position + velocity).
+"""GNSS/INS navigation: twelve-state linear Kalman filter.
+
+State: position, velocity, accelerometer bias and gyro bias.
 
 - 1 s: GNSS measurement update (white position/velocity noise);
 - one IMU prediction per outer simulation step (default 5 ms);
@@ -20,8 +22,7 @@ import fastcore as FC
 class NavigationSystem:
     def __init__(self, dt_gnss=C.DT_GNSS, delay=C.NAV_DELAY,
                  sigma_pos=C.GNSS_SIGMA_POS, sigma_vel=C.GNSS_SIGMA_VEL,
-                 sigma_acc=C.IMU_SIGMA_ACC, seed=0, noise_scale=1.0,
-                 ins_error_states=True):
+                 sigma_acc=C.IMU_SIGMA_ACC, seed=0, noise_scale=1.0):
         self.dt_gnss = float(dt_gnss)
         self.delay = float(delay)
         scale = float(noise_scale)
@@ -35,13 +36,11 @@ class NavigationSystem:
         self.gyro_bias_tau = max(float(C.GYRO_BIAS_TAU), 1e-6)
         self.sigma_gbias = float(C.GYRO_BIAS) * scale
         self.sigma_gbias_walk = float(C.GYRO_BIAS_WALK) * scale
-        self.ins = bool(ins_error_states)
         self.rng = np.random.RandomState(seed)
         self._rng_state = FC.make_rng_state(seed)
 
-        n = 12 if self.ins else 6
-        self.x = np.zeros(n)       # [r, v, b_a, b_g]
-        self.P = np.eye(n) * 1e4
+        self.x = np.zeros(12)      # [r, v, b_a, b_g]
+        self.P = np.eye(12) * 1e4
         self.b_acc = np.zeros(3)   # raw (true) accelerometer bias
         self.t_last = 0.0
         self.next_gnss = 0.0
@@ -58,16 +57,11 @@ class NavigationSystem:
         v = np.asarray(v, dtype=float)
         rn = r + self.rng.normal(0.0, self.sigma_pos, 3)
         vn = v + self.rng.normal(0.0, self.sigma_vel, 3)
-        if self.ins:
-            self.x = np.concatenate([rn, vn, np.zeros(3), np.zeros(3)])
-            self.P = np.diag([self.sigma_pos ** 2] * 3
-                             + [self.sigma_vel ** 2] * 3
-                             + [self.sigma_bias ** 2] * 3
-                             + [self.sigma_gbias ** 2] * 3)
-        else:
-            self.x = np.concatenate([rn, vn])
-            self.P = np.diag([self.sigma_pos ** 2] * 3
-                             + [self.sigma_vel ** 2] * 3)
+        self.x = np.concatenate([rn, vn, np.zeros(3), np.zeros(3)])
+        self.P = np.diag([self.sigma_pos ** 2] * 3
+                         + [self.sigma_vel ** 2] * 3
+                         + [self.sigma_bias ** 2] * 3
+                         + [self.sigma_gbias ** 2] * 3)
         self.b_acc = self.rng.normal(0.0, self.sigma_bias, 3)
         self.t_last = float(t)
         self.next_gnss = float(t)
@@ -76,59 +70,7 @@ class NavigationSystem:
         self.initialized = True
 
     # --------------------------------------------------------
-    def _predict(self, dt, a_eci):
-        """State and covariance prediction with a constant-acceleration model."""
-        dt = float(min(max(dt, 0.0), 0.5))
-        a = np.asarray(a_eci, dtype=float)
-
-        self.x[0:3] += dt * self.x[3:6] + (0.5 * dt * dt) * a
-        self.x[3:6] += dt * a
-
-        P = self.P
-        P00 = P[0:3, 0:3]
-        P01 = P[0:3, 3:6]
-        P10 = P[3:6, 0:3]
-        P11 = P[3:6, 3:6]
-
-        q_pos = (self.sigma_acc_q * dt * dt) ** 2 * 0.25
-        q_vel = (self.sigma_acc_q * dt) ** 2
-
-        P00_new = P00 + dt * (P01 + P10) + (dt * dt) * P11
-        P01_new = P01 + dt * P11
-        P11_new = P11.copy()
-
-        P00_new[0, 0] += q_pos
-        P00_new[1, 1] += q_pos
-        P00_new[2, 2] += q_pos
-        P11_new[0, 0] += q_vel
-        P11_new[1, 1] += q_vel
-        P11_new[2, 2] += q_vel
-
-        P[0:3, 0:3] = P00_new
-        P[0:3, 3:6] = P01_new
-        P[3:6, 0:3] = P01_new.T
-        P[3:6, 3:6] = P11_new
-
-    def _update_gnss(self):
-        """GNSS position/velocity update; H is the 6x6 identity."""
-        S = self.P.copy()
-        sp2 = self.sigma_pos ** 2
-        sv2 = self.sigma_vel ** 2
-        S[0, 0] += sp2
-        S[1, 1] += sp2
-        S[2, 2] += sp2
-        S[3, 3] += sv2
-        S[4, 4] += sv2
-        S[5, 5] += sv2
-
-        y = self.truth_meas - self.x
-        # S is symmetric positive definite; solve(S, P).T == P @ inv(S).
-        K = np.linalg.solve(S, self.P).T
-        self.x = self.x + K.dot(y)
-        self.P = self.P - K.dot(self.P)
-        self.P = 0.5 * (self.P + self.P.T)
-
-    def _predict9(self, dt, a_eci, phi, q_bias):
+    def _predict_ins(self, dt, a_eci, phi, q_bias):
         """Twelve-state prediction fallback (r, v, b_a, b_g)."""
         dt = float(min(max(dt, 0.0), 0.5))
         a = np.asarray(a_eci, dtype=float) - self.x[6:9]
@@ -158,7 +100,7 @@ class NavigationSystem:
             Pn[9 + i, 9 + i] += q_gb
         self.P = 0.5 * (Pn + Pn.T)
 
-    def _update_gnss9(self):
+    def _update_gnss_ins(self):
         """GNSS update with H = [I6 0 0] for the twelve-state filter."""
         R = np.zeros((6, 6))
         R[0:3, 0:3] = np.eye(3) * self.sigma_pos ** 2
@@ -171,8 +113,6 @@ class NavigationSystem:
 
     def set_gyro_bias(self, b_meas):
         """Inject the star-aided gyro-bias estimate as a KF pseudo-measurement."""
-        if not self.ins:
-            return
         b = np.ascontiguousarray(np.asarray(b_meas, dtype=float).reshape(3))
         if FC.NUMBA_AVAILABLE:
             FC.nav_bias_update_ins(self.x, self.P, b, C.ATT_BIAS_SIGMA)
@@ -200,31 +140,20 @@ class NavigationSystem:
                                             * np.sqrt(max(1.0 - phi * phi, 0.0)), 3))
             a_vec = np.ascontiguousarray(
                 np.asarray(a_true_eci, dtype=float).reshape(3))
-            if self.ins:
-                phi_g = float(np.exp(-dt / self.gyro_bias_tau))
-                q_bias = (self.sigma_bias_walk
-                          * np.sqrt(max(1.0 - phi * phi, 0.0))) ** 2
-                q_gb = (self.sigma_gbias_walk
-                        * np.sqrt(max(1.0 - phi_g * phi_g, 0.0))) ** 2
-                if FC.NUMBA_AVAILABLE:
-                    FC.nav_predict_ins(self.x, self.P, dt, a_vec, self.b_acc,
-                                       self.sigma_acc, self.sigma_acc_q,
-                                       phi, phi_g, q_bias, q_gb,
-                                       self._rng_state)
-                else:
-                    self._predict9(dt, a_vec + self.b_acc
-                                   + self.rng.normal(0.0, self.sigma_acc, 3),
-                                   phi, q_bias)
-            elif FC.NUMBA_AVAILABLE:
-                FC.nav_predict(
-                    self.x, self.P, dt, a_vec,
-                    self.sigma_acc, self.b_acc, self.sigma_acc_q,
-                    self._rng_state)
+            phi_g = float(np.exp(-dt / self.gyro_bias_tau))
+            q_bias = (self.sigma_bias_walk
+                      * np.sqrt(max(1.0 - phi * phi, 0.0))) ** 2
+            q_gb = (self.sigma_gbias_walk
+                    * np.sqrt(max(1.0 - phi_g * phi_g, 0.0))) ** 2
+            if FC.NUMBA_AVAILABLE:
+                FC.nav_predict_ins(self.x, self.P, dt, a_vec, self.b_acc,
+                                   self.sigma_acc, self.sigma_acc_q,
+                                   phi, phi_g, q_bias, q_gb,
+                                   self._rng_state)
             else:
-                a_meas = (np.asarray(a_true_eci, dtype=float)
-                          + self.rng.normal(0.0, self.sigma_acc, 3)
-                          + self.b_acc)
-                self._predict(dt, a_meas)
+                self._predict_ins(dt, a_vec + self.b_acc
+                                  + self.rng.normal(0.0, self.sigma_acc, 3),
+                                  phi, q_bias)
             self.t_last = float(t)
 
             if t + 1e-12 >= self.next_gnss:
@@ -232,29 +161,18 @@ class NavigationSystem:
                     np.asarray(r_true, dtype=float).reshape(3))
                 v_a = np.ascontiguousarray(
                     np.asarray(v_true, dtype=float).reshape(3))
-                if self.ins:
-                    if FC.NUMBA_AVAILABLE:
-                        self.truth_meas = FC.nav_gnss_update_ins(
-                            self.x, self.P, r_a, v_a,
-                            self.sigma_pos, self.sigma_vel, self._rng_state)
-                    else:
-                        self.truth_meas = np.concatenate([
-                            np.asarray(r_true, dtype=float)
-                            + self.rng.normal(0.0, self.sigma_pos, 3),
-                            np.asarray(v_true, dtype=float)
-                            + self.rng.normal(0.0, self.sigma_vel, 3),
-                        ])
-                        self._update_gnss9()
-                elif FC.NUMBA_AVAILABLE:
-                    self.truth_meas = FC.nav_gnss_update(
+                if FC.NUMBA_AVAILABLE:
+                    self.truth_meas = FC.nav_gnss_update_ins(
                         self.x, self.P, r_a, v_a,
                         self.sigma_pos, self.sigma_vel, self._rng_state)
                 else:
                     self.truth_meas = np.concatenate([
-                        np.asarray(r_true, dtype=float) + self.rng.normal(0.0, self.sigma_pos, 3),
-                        np.asarray(v_true, dtype=float) + self.rng.normal(0.0, self.sigma_vel, 3),
+                        np.asarray(r_true, dtype=float)
+                        + self.rng.normal(0.0, self.sigma_pos, 3),
+                        np.asarray(v_true, dtype=float)
+                        + self.rng.normal(0.0, self.sigma_vel, 3),
                     ])
-                    self._update_gnss()
+                    self._update_gnss_ins()
                 self.next_gnss += self.dt_gnss
                 if self.next_gnss < t:
                     self.next_gnss = t + self.dt_gnss

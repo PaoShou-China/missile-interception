@@ -78,7 +78,7 @@ guidance, handover management, multi-rate sampling and Monte-Carlo campaigns.
 | Propulsion | Solid booster (13 s, 800 kg propellant) + supersonic ramjet (Mach 1.6–10) |
 | Dynamics | 14-state 6DOF rigid body (3 translation + 4 rotation quaternion + 3 angular rate + 1 mass) |
 | Target | F-35A-class threat (3DOF point mass), Mach 1.6 constant-altitude cruise, 9 g weaving evasion inside 15 km |
-| Navigation | INS prediction + 1 Hz GNSS with a 6-state linear Kalman filter, 50 ms output delay |
+| Navigation | INS prediction + 1 Hz GNSS with a 12-state linear Kalman filter, 50 ms output delay |
 | Seeker | Dual-mode (radar + imaging infrared) 5 ms measurement (boost/terminal; midcourse follows the 10 ms outer step), ±20° FOV, 200 m blind zone, angle noise + glint; radar lock range scales with the fourth root of target RCS |
 | Control | Three-loop PID (pseudo angle of attack → angular rate → virtual fin) + anti-windup + dynamic-pressure gain scheduling |
 | Numerics | In-house fixed-step RK4 + uniflight-style direction-aware event guard + RK4 bisection localisation |
@@ -106,7 +106,7 @@ Nominal single-shot results (`intercept-report/assets/metrics.json`):
 
 - Python 3.9+ (code keeps 3.6+ syntax compatibility, verified on 3.14)
 - NumPy 1.x / 2.x
-- Optional: SciPy (only for the differential-evolution optimisation in `tools/tune_gain_schedule.py`)
+- Optional: SciPy (only for the Saltelli/Sobol sampling in `analysis.py`)
 - Optional: matplotlib (only for the batch-campaign histograms)
 - Optional: Numba (hot-path acceleration; falls back to pure Python automatically with identical behaviour)
 - Tests: pytest, pytest-xdist
@@ -180,7 +180,6 @@ python -m pytest -n 4
 | `python tools/aero_crosscheck.py` | Cross-check the aero model against classical theory, exact shock/expansion relations and DATCOM output |
 | `python tools/aero_optimize.py` | DATCOM-based wing planform screening (DoE) |
 | `python tools/aero_uq.py [N]` | Fast uncertainty quantification of aero-coefficient / centre-of-gravity perturbations |
-| `python tools/tune_gain_schedule.py` | Offline ITAE-based tuning of the dynamic-pressure gain schedule |
 | `python tools/build_report_data.py` | Build the `../intercept-report/` report data from `output/telemetry.csv` |
 | `python tools/handover_diagnostics.py --suite baseline` | 逐案交班诊断：首次锁定距离、交班距离、FOV 裕度、t_go、前置角、可用/需求过载、末段指令/实际过载与失锁率 |
 | `python verification.py` | Built-in numerical verification: RK4 order, Kepler conservation, long-run quaternion norm, fixed-step vs RK45 cross-comparison |
@@ -198,10 +197,72 @@ python -m pytest -n 4
 | `output/batch/batch_results.csv` | Per-case miss distance, intercept time, final phase, CPU time, etc. |
 | `output/batch/batch_miss_hist.png` | Miss-distance distribution (requires matplotlib) |
 | `output/datcom_aero.csv` | Raw DATCOM aero tables |
-| `output/gain_schedule_tuning.json` | Gain-schedule tuning metadata and results |
 | `output/handover_diagnostics/handover_diagnostics.csv` | 逐案交班诊断明细 / per-case handover diagnostics |
 | `output/handover_diagnostics/handover_summary.json` | 交班失败分类与下一步建议 / failure classification and recommendation |
 | `../intercept-report/intercept-report.html` | Apple-style single-page HTML technical report (ECharts) |
+
+### 2.7 Mode and switch reference
+
+Every optional behaviour is a configuration item, not a hidden branch. Runtime
+switches live in `config.py` (`SimConfig` / `Scenario`); campaign modes are CLI
+flags. Defaults reproduce the nominal run.
+
+**Realism and sensor models**
+
+| Switch | Default | Alternative |
+|---|---|---|
+| `EARTH_MODEL` | `"wgs84"` (ellipsoid + J2) | `"sphere"` (6371 km sphere, central gravity) |
+| `SimConfig.enable_wind` | `True` | `False` = still air |
+| `SimConfig.ideal_attitude` | `False` (IMU + star tracker) | `True` = autopilot/seeker use truth attitude and rate |
+| `SimConfig.enable_attitude_aid` | `True` | `False` = no star fix / GNSS heading correction |
+| `SimConfig.seeker_swerling` | `True` | `False` = constant RCS and lock range |
+| `SimConfig.seeker_dropout_rate` | `0.05` 1/s | `0` disables loss-of-lock events |
+| `SimConfig.seeker_false_lock_rate` | `0.01` 1/s | `0` disables false detections |
+| `SimConfig.sensor_noise_scale` | `1.0` | `0` = noise-free navigation/seeker (`--converge`) |
+| `SimConfig.datalink_period` | `1.0` s | `<= 0` disables the midcourse datalink |
+| `SimConfig.datalink_latency` / `datalink_loss_prob` | `0.2` s / `0.02` | `0` = ideal zero-delay, lossless link |
+| `Scenario.cue_pos_sigma` / `cue_vel_sigma` | `0` | non-zero = imperfect pre-launch cue |
+| `Scenario.target_evade_g` | `9` g | `0` = cooperative straight-flying target |
+| `Scenario.target_evade_phase` | `0` rad | weave phase offset |
+
+**Guidance, control and hard-wired modes**
+
+| Switch | Default | Alternative |
+|---|---|---|
+| `AP_NZ_LOOP` | `1` | `0` = pure alpha loop without direct load-factor feedback |
+| `AP_NZ_SCHED` | `0` | `1` = schedule the `n_z` gains with q and mass |
+| `AP_NZ_LEAD` | `0` s | non-zero = lead compensation on the measured load factor |
+| `AP_ACT_INV` | `0` | `0..1` = inverse actuator-lag pre-warp |
+| `HANDOVER_*` | tuned gates | thresholds for range/FOV/lead/t_go/load/altitude/speed |
+| `MIDCOURSE_*` | q-hold + adaptive descent | cruise q, descent gradient, coplanar constraint gains |
+
+Always-on (no switch): radar + IIR dual-mode seeker, forced-handover fallback,
+boost/midcourse/terminal phase machine, and the 12-state INS.
+
+**Numerical and run modes**
+
+| Mode | Where | Effect |
+|---|---|---|
+| Fixed-step RK4 | `integrate(..., method="rk4")` (default) | production integrator |
+| Adaptive RK45 | `integrate(..., method="rk45")` | continuous-system reference integrator (verification) |
+| Numba / pure Python | automatic via `fastcore.NUMBA_AVAILABLE` | compiled hot paths or identical fallback |
+| Telemetry profile | `SimConfig.telemetry_profile` | `"full"` 132 columns or `"basic"` 48 columns |
+| Plot / no plot | `SimConfig.enable_plot`, `--no-plot` | write the HTML dashboard or not |
+| Verbose | `SimConfig.verbose` | console summary on/off |
+
+**Campaign and analysis modes (CLI)**
+
+| Entry point | Modes / options |
+|---|---|
+| `main.py` | `--max-step`, `--midcourse-step`, `--duration`, `--no-plot`, `--converge` (+`--converge-factor/--converge-levels`), `--batch N --workers W --seed S` |
+| `batch.py` | dispersion (`--launch-cep`, `--target-cep`, `--target-alt-sigma`, `--target-mach-sigma`, `--evade-g-sigma`, `--lethal-radius`), `--checkpoint/--resume`, `--workers`, `--no-plot` |
+| `analysis.py` | `sweep` (Cartesian), `sobol` (sensitivity), `optimize` (cross-entropy), `mc` (checkpoint/resume) |
+| `verification.py` | RK4 order, Kepler invariants, quaternion norm, RK4/RK45 cross-check, adaptive accuracy |
+| `validate_performance.py` | per-suite pass-rate validation |
+| `tools/` | DATCOM generation, aero cross-check/optimisation/UQ, autopilot/handover tuning, handover diagnostics, miss budget, report data |
+
+> Legacy modes removed: LADRC rate loop, the q-table gain-schedule fallback,
+> the 6-state navigation filter and the NDI feed-forward.
 
 ---
 
@@ -244,7 +305,6 @@ missile_intercept/
 │   ├── aero_crosscheck.py       # aerodynamic cross-validation
 │   ├── aero_optimize.py         # wing planform screening
 │   ├── aero_uq.py               # aerodynamic uncertainty quantification
-│   ├── tune_gain_schedule.py    # ITAE gain-schedule tuning
 │   └── build_report_data.py     # HTML report data generation
 └── tests/                       # pytest (supports -n auto)
 ```
@@ -949,12 +1009,12 @@ ten-metre level, see the regression case in `tests/test_main_integration.py`.
 
 ## 11. GNSS/INS navigation
 
-### 11.1 6-state linear Kalman filter
+### 11.1 Twelve-state linear Kalman filter
 
-State:
+State (position, velocity, accelerometer bias, gyro bias):
 
 $$
-\mathbf{x} = [\mathbf{r},\ \mathbf{v}]^\top \in \mathbb{R}^6
+\mathbf{x} = [\mathbf{r},\ \mathbf{v},\ \mathbf{b}_a,\ \mathbf{b}_g]^\top \in \mathbb{R}^{12}
 $$
 
 **Prediction (constant-acceleration model):**
@@ -967,7 +1027,7 @@ $$
 \mathbf{v}_{k+1} = \mathbf{v}_k + \Delta t\,\mathbf{a}_k
 $$
 
-Covariance block propagation:
+The two bias vectors follow first-order Gauss-Markov dynamics. Covariance block propagation:
 
 $$
 \mathbf{P}_{00}^{+} = \mathbf{P}_{00} + \Delta t(\mathbf{P}_{01}+\mathbf{P}_{10}) + \Delta t^2\mathbf{P}_{11} + Q_{pos}\mathbf{I}
@@ -983,16 +1043,16 @@ Q_{pos} = \left(\sigma_a \Delta t^2\right)^2/4,\qquad
 Q_{vel} = \left(\sigma_a \Delta t\right)^2
 $$
 
-**GNSS update ($H = I_6$):**
+**GNSS update ($H = [I_6\ 0\ 0]$):**
 
 $$
-\mathbf{S} = \mathbf{P} + \mathbf{R},\qquad
-\mathbf{K} = \mathbf{P}\mathbf{S}^{-1}
+\mathbf{S} = \mathbf{P}_{0:6,0:6} + \mathbf{R},\qquad
+\mathbf{K} = \mathbf{P}_{:,0:6}\mathbf{S}^{-1}
 $$
 
 $$
-\mathbf{x} \leftarrow \mathbf{x} + \mathbf{K}(\mathbf{z} - \mathbf{x}),\qquad
-\mathbf{P} \leftarrow (\mathbf{I}-\mathbf{K})\mathbf{P}
+\mathbf{x} \leftarrow \mathbf{x} + \mathbf{K}(\mathbf{z} - \mathbf{x}_{0:6}),\qquad
+\mathbf{P} \leftarrow (\mathbf{I}-\mathbf{K}\mathbf{H})\mathbf{P}
 $$
 
 After the update, $\mathbf{P}$ is forced symmetric:
@@ -1381,7 +1441,7 @@ $$
 d_r = K_{Pp}\,e_p + 0.01\int e_p,\qquad K_{Pp}=0.03
 $$
 
-**Model gain scheduling** (default `GAIN_SCHEDULE_MODEL = 1`):
+**Model gain scheduling:**
 
 $$
 K_{Pq,req} = \frac{\omega_q I_{yy}}{q_\infty S_{ref} L\,|C_{M\delta_e}|}
@@ -1393,11 +1453,6 @@ $$
 
 $\omega_q = 22$ rad/s. No offline retuning is needed after geometry or
 aerodynamic changes.
-Backup table mode: linear interpolation in $\ln q$.
-
-| q (Pa) | 4 442 | 9 994 | 25 199 | 54 125 | 99 679 | 159 587 |
-|---|---:|---:|---:|---:|---:|---:|
-| Scale | 2.999 | 2.984 | 2.978 | 2.473 | 1.777 | 1.191 |
 
 ### 14.6 Anti-windup and low-dynamic-pressure protection
 
@@ -1464,13 +1519,6 @@ Processing order: **rate limit → first-order lag → position limit**
 | Fin rate limit | 100°/s |
 | Actuator first-order time constant | 10 ms |
 | Saturation flag | Fed back to the attitude-control anti-windup |
-
-### 14.10 Optional LADRC
-
-`ATT_LADRC = 0` (default three-loop PID). When set to 1, each angular-rate axis
-uses a third-order LESO + proportional control; $b_0$ is computed in real time
-from the current fin effectiveness and inertia, and the bandwidth is scheduled
-with $\sqrt{q}$.
 
 ---
 
@@ -1614,7 +1662,6 @@ $$
 | `output/datcom_aero.csv` | Aerodynamic database | CD/CL/CM/CN/CA/CN_α/CM_α/CYB/CNB/CLB for M = 0.2/0.5/0.8/0.95/1.05/1.2/2/3/4/5, α = 0–24° | `tools/datcom_aero.py` |
 | `output/telemetry.csv` | Time-series database | Full 47-column telemetry | `main.py` at run end |
 | `output/batch/batch_results.csv` | Statistics database | Per-case miss distance, time, final phase, CPU time, scenario parameters | `batch.py` |
-| `output/gain_schedule_tuning.json` | Control database | Tuning flight points, mass states, q breakpoints, ITAE metrics | `tools/tune_gain_schedule.py` |
 | `intercept-report/assets/metrics.json` | Results database | Key metrics and phase segmentation of the nominal trajectory | `tools/build_report_data.py` |
 | `intercept-report/assets/data.js` | Chart data | 900-point sampled telemetry + fully computed metrics | `tools/build_report_data.py` |
 | `output/intercept_dashboard.html` | Visualisation | Six-panel interactive dashboard | `main.py` |
@@ -1702,6 +1749,8 @@ it is 15 km from the missile.
 | Pitch outer-loop gain `AP_KP_ANGLE` | 6.0 |
 | Pitch rate-loop gain `AP_KP_RATE` | 0.14 |
 | Attitude command prefilter | 1–10 Hz (with q) |
+| 法向过载环 `AP_NZ_LOOP`（`AP_KP_NZ`/`AP_KI_NZ`） | 开 / 0.02 rad·s⁻¹·g⁻¹ / 0.004 |
+| 过载超前补偿 `AP_NZ_LEAD` | 0.06 s（4 种子均值 3.3 m，基线 17.7 m） |
 | Midcourse command limit | 5 g |
 | Terminal command limit | 40 g |
 | Boost command limit | 4 g |
@@ -1888,7 +1937,6 @@ hit-probability assessment, or any live-fire employment decision.
 | `ZEM/APN` | Zero-effort-miss / augmented proportional navigation survey (code annotation: Evduzen, 2026); for the APN form see the standard proportional-navigation literature |
 | `Hacettepe-3loop` | Three-loop load-factor autopilot structure and anti-windup design (project reference label) |
 | `TU-Delft-AW` | Gain scheduling and anti-windup (Anti-Windup) methods (project reference label) |
-| `ITAE tuning` | ITAE-based step-response tuning and dynamic-pressure gain scheduling (`tools/tune_gain_schedule.py`) |
 | `gnss-ins-sim` | IMU bias and angle-random-walk magnitude reference from an open-source GNSS/INS simulator |
 | `METU-VarMass` | Variable-mass / centre-of-gravity-travel 6DOF modelling (project reference label) |
 | `uniflight` | Single-owner RHS, packed state and event-integrator architecture reference (implemented natively in this project) |

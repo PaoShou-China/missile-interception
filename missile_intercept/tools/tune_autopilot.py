@@ -1,16 +1,19 @@
-"""Tune the pitch outer-loop gain, rate-loop gain and command pre-filter.
+"""A/B-tune the pitch autopilot baseline against the direct n_z loop.
 
 The terminal diagnostic showed the guidance command sitting almost entirely
 in the body -Z (pitch) channel while alpha stayed at 4-5 deg and the pitch
 rate at 0.03-0.15 rad/s.  The fins were far from their limits, so the pitch
 loop, not the fin authority, was the bottleneck.
 
-This tool sweeps:
+This tool sweeps the baseline pitch-loop tuning together with the direct
+load-factor loop and its lead compensation:
 
-  * Autopilot.KP_ANGLE   (outer alpha loop)
-  * Autopilot.KP_RATE    (pitch rate loop; model schedule uses it as the
-                          low-q gain floor)
-  * AP_PREFILTER_HZ      (second-order command filter bandwidth)
+  * Autopilot.KP_ANGLE           (outer alpha loop)
+  * Autopilot.KP_RATE            (pitch rate loop; model schedule uses it as
+                                  the low-q gain floor)
+  * AP_PREFILTER_HZ              (second-order command filter bandwidth)
+  * Autopilot.NZ_LOOP/KP_NZ/KI_NZ (direct body load-factor PI loop)
+  * Autopilot.NZ_LEAD            (lead compensation on measured n_z)
 
 over the baseline scenarios and ranks the configurations by pass rate, then
 worst-case miss, then mean miss.  Fin-saturation and peak-alpha are reported
@@ -45,6 +48,10 @@ def _run_one(payload):
     Autopilot.KP_ANGLE = cfg_values["kp_angle"]
     Autopilot.KP_RATE = cfg_values["kp_rate"]
     C.AP_PREFILTER_HZ = cfg_values["prefilter"]
+    Autopilot.NZ_LOOP = cfg_values["nz_loop"]
+    Autopilot.KP_NZ = cfg_values["kp_nz"]
+    Autopilot.KI_NZ = cfg_values["ki_nz"]
+    Autopilot.NZ_LEAD = cfg_values["nz_lead"]
     cfg = replace(
         C.SimConfig(),
         verbose=False,
@@ -98,14 +105,21 @@ def main():
     os.makedirs(args.out, exist_ok=True)
 
     configs = []
-    for kp_angle in (6.0,):
-        for kp_rate in (0.14, 0.16, 0.18):
-            for prefilter in (10.0, 15.0, 20.0):
-                label = "kpA=%.1f kpR=%.2f f=%.0f" % (kp_angle, kp_rate, prefilter)
-                configs.append((label, {
-                    "kp_angle": kp_angle, "kp_rate": kp_rate,
-                    "prefilter": prefilter,
-                }))
+    base = {
+        "kp_angle": 6.0, "kp_rate": 0.14, "prefilter": 10.0,
+        "nz_loop": True, "kp_nz": 0.02, "ki_nz": 0.004, "nz_lead": 0.06,
+    }
+    variants = [
+        ("nz+lead 0.06", {}),
+        ("nz 0.02/0.004 (no lead)", {"nz_lead": 0.0}),
+        ("+lead 0.03", {"nz_lead": 0.03}),
+        ("+lead 0.09", {"nz_lead": 0.09}),
+        ("baseline no-nz", {"nz_loop": False, "kp_nz": 0.0, "ki_nz": 0.0}),
+    ]
+    for label, over in variants:
+        cfg_values = dict(base)
+        cfg_values.update(over)
+        configs.append((label, cfg_values))
 
     jobs = []
     for label, cfg_values in configs:

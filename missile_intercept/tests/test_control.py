@@ -78,22 +78,6 @@ def test_gain_schedule_bounded():
     assert np.all(np.abs(hi) <= C.FIN_MAX)
 
 
-def test_gain_schedule_table_interpolation():
-    """Table nodes return the tuned scales and interpolate linearly in ln(q)."""
-    ap = Autopilot()
-    q_pts = C.GAIN_SCHEDULE_Q
-    s_pts = C.GAIN_SCHEDULE_SCALE
-    for qi, si in zip(q_pts, s_pts):
-        assert ap._gain_scale(float(qi)) == pytest.approx(float(si))
-    # Flat extrapolation outside the table.
-    assert ap._gain_scale(1.0) == pytest.approx(float(s_pts[0]))
-    assert ap._gain_scale(1e7) == pytest.approx(float(s_pts[-1]))
-    # The ln(q) midpoint maps to the mean of the two neighbouring nodes.
-    q_mid = float(np.sqrt(q_pts[2] * q_pts[3]))
-    assert ap._gain_scale(q_mid) == pytest.approx(
-        0.5 * (s_pts[2] + s_pts[3]))
-
-
 def test_prefilter_and_accel_limit_follow_dynamic_pressure():
     """Prefilter bandwidth and available angular acceleration authority both
     increase monotonically with dynamic pressure."""

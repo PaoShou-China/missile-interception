@@ -108,8 +108,7 @@ class Simulation(object):
             maneuver_dist=self.scenario.target_maneuver_dist)
         self.nav = NavigationSystem(self.cfg.dt_gnss, self.cfg.nav_delay,
                                     seed=self.scenario.nav_seed,
-                                    noise_scale=self.cfg.sensor_noise_scale,
-                                    ins_error_states=self.cfg.ins_error_states)
+                                    noise_scale=self.cfg.sensor_noise_scale)
         self.seeker = Seeker(seed=self.scenario.seeker_seed,
                              noise_scale=self.cfg.sensor_noise_scale,
                              swerling=self.cfg.seeker_swerling,
@@ -382,13 +381,18 @@ class Simulation(object):
 
         # 4) Autopilot and fin mixer.
         if self.scheduler.due("autopilot", t):
+            load_body = None
+            fb = self._last_info.get("F_body")
+            if fb is not None and mass > 1.0:
+                load_body = np.asarray(fb, dtype=float) / (mass * C.G0)
             virtual = self.autopilot.update(
                 t, q_ctrl, omega_ctrl, self.guidance_cmd.a_cmd_eci, mass,
                 self._last_q_dyn, self._last_cn_alpha,
                 alpha_trim=self._last_alpha,
                 beta_trim=float(self._last_info.get("beta", 0.0)),
                 is_saturated=self.act_cmd.is_saturated,
-                dt=self.cfg.dt_autopilot)
+                dt=self.cfg.dt_autopilot,
+                load_body=load_body)
             self.act_cmd = self.fin_mixer.mix(virtual, dt=self.cfg.dt_autopilot)
             self._fins_zoh[:] = self.act_cmd.delta_fins
 

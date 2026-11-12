@@ -362,6 +362,13 @@ FIN_MAX = 25.0 * DEG         # Physical fin position limit rad
 FIN_RATE_MAX = 150.0 * DEG   # Physical fin rate limit rad/s
 FIN_TAU = 0.010              # Fin actuator first-order time constant s
 AP_PREFILTER_HZ = 10.0       # Autopilot command pre-filter bandwidth Hz
+# Pitch outer-loop tuning on the F-35A 9 g baseline suite:
+#   KP_ANGLE 3.8 -> 6.0: mean miss 21.0 -> 10.6 m, pass 1/4 -> 3/4.
+#   Faster pre-filter (15/20 Hz) or higher KP_RATE (0.16/0.18) worsened the
+#   tail (max miss 27-48 m), so the command filter and rate gain stay at the
+#   values below.  The compiled fastcore path takes the bandwidth at run time.
+AP_KP_ANGLE = 6.0            # Outer alpha loop gain
+AP_KP_RATE = 0.14            # Pitch rate loop gain / low-q schedule floor
 AP_REF_RATE_MAX = 4.0        # Reference body-rate cap at AP_REF_Q rad/s
 AP_ROLL_ANGLE_GAIN = 4.0     # Lift-vector/roll-angle alignment gain 1/s
 AP_ROLL_RATE_MAX = 6.0       # Roll-rate command limit rad/s

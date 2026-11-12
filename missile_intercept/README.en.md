@@ -705,6 +705,9 @@ used by the generator. The scenario, geometry and mass data are constants in
 | `CD0` (M 2) | ≈ 0.34 |
 | Fin limit | ±25° |
 | Pitch-rate crossover | 22 rad/s |
+| Pitch outer-loop gain | 6.0 |
+| Pitch rate-loop gain | 0.14 |
+| Attitude command prefilter | 1–10 Hz (with q) |
 | Roll-alignment gain | 4.0 1/s |
 
 ### 18.3 Seeker and navigation

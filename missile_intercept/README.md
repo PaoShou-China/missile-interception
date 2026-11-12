@@ -1699,7 +1699,9 @@ it is 15 km from the missile.
 | Maximum fin deflection | 25° |
 | Maximum fin rate | 100°/s |
 | Pitch-rate loop crossover frequency | 22 rad/s |
-| Attitude command prefilter | 1–8 Hz (with q) |
+| Pitch outer-loop gain `AP_KP_ANGLE` | 6.0 |
+| Pitch rate-loop gain `AP_KP_RATE` | 0.14 |
+| Attitude command prefilter | 1–10 Hz (with q) |
 | Midcourse command limit | 5 g |
 | Terminal command limit | 40 g |
 | Boost command limit | 4 g |

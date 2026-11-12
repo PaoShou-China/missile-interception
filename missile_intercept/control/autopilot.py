@@ -102,9 +102,9 @@ class Autopilot:
     # deliberately detuned relative to pitch/yaw: lateral guidance is carried
     # by the alpha/beta channels, so the roll loop only has to keep the lift
     # vector aligned and must not fight the pitch/yaw fins for authority.
-    KP_ANGLE = 3.8
+    KP_ANGLE = C.AP_KP_ANGLE
     KI_ANGLE = 0.75
-    KP_RATE = 0.14
+    KP_RATE = C.AP_KP_RATE
     KI_RATE = 1.7
     KP_ANGLE_Y = 3.6
     KI_ANGLE_Y = 0.65

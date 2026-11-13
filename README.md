@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="assets/hero.jpg" alt="Hypersonic interceptor with cruciform tail fins and lifting strakes" width="100%">
+  <img src="assets/hero.svg" alt="General arrangement: 8.11 m interceptor, four identical cruciform fins doubling as lifting surfaces, section A-A" width="100%">
 </div>
 
 <p align="center"><img src="assets/icon.png" width="96" height="96" alt="Project icon"></p>

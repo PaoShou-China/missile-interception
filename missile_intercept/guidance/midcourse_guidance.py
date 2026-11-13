@@ -68,6 +68,8 @@ class MidcourseGuidance(BaseGuidance):
         self.a_prev = None
         self.descent_active = False
         self.descent_ref = None
+        self.a_vert_prev = None
+        self.t_vert = 0.0
 
     def reset(self):
         self.path = None
@@ -75,6 +77,8 @@ class MidcourseGuidance(BaseGuidance):
         self.a_prev = None
         self.descent_active = False
         self.descent_ref = None
+        self.a_vert_prev = None
+        self.t_vert = 0.0
 
     # --------------------------------------------------------
     def _build_path(self, nav, target_state):
@@ -514,6 +518,15 @@ class MidcourseGuidance(BaseGuidance):
                               - C.MIDCOURSE_GAMMA_DAMP * (vz_up - vz_ref),
                               -a_max, a_max))
         a_vert = a_net + C.G0 * float(np.cos(gamma))
+        # Slew-limit the vertical command.  Entering the descent profile used to
+        # move the vertical demand by ~2.7 g inside one second, which saturated
+        # both fin pairs and coupled into the roll/yaw channels.
+        if self.a_vert_prev is not None:
+            step = C.MIDCOURSE_VERT_SLEW * max(t - self.t_vert, 1e-3)
+            a_vert = float(np.clip(a_vert, self.a_vert_prev - step,
+                                   self.a_vert_prev + step))
+        self.a_vert_prev = a_vert
+        self.t_vert = t
         a_h = MU.perpendicular(a_cmd, up)
         a_cmd = a_h + up * a_vert
 

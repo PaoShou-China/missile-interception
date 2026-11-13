@@ -454,6 +454,7 @@ MIDCOURSE_GAMMA_DAMP = 0.22     # vertical-velocity damping 1/s
 # than the fixed 14 km band.  The q-hold term is disabled in the descent.
 MIDCOURSE_DESCENT_GAMMA = 9.0 * DEG   # max descent flight-path angle rad
 MIDCOURSE_DESCENT_ACC_MAX = 2.5 * G0  # vertical acceleration budget in the dive m/s^2
+MIDCOURSE_VERT_SLEW = 1.5 * G0       # vertical command slew limit m/s^3
 MIDCOURSE_DESCENT_DH_TARGET = 800.0   # small positive look-down aimed for at handover m
 # Handover look-down: a positive advantage keeps the target below the velocity
 # vector at handover, and the shaped dive's terminal slope is aligned with that

@@ -68,3 +68,12 @@ python verification.py              # 数值验证
 - 运行环境为 Windows / Linux + Python 3.9+（代码保留 3.6+ 语法兼容）。
 - `numba` 用于加速热路径；未安装时自动回退纯 Python，结果一致但更慢。
 - `tools/datcom/` 中的 DATCOM 可执行文件为第三方二进制，未纳入版本库。
+- CI 在 push / PR 时自动运行测试集，见 [.github/workflows/tests.yml](.github/workflows/tests.yml)。
+
+## 参与贡献
+
+欢迎提交 Issue 与 Pull Request。开发约定、提交规范与测试要求见 [CONTRIBUTING.md](CONTRIBUTING.md)，行为准则见 [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md)，安全问题请按 [SECURITY.md](SECURITY.md) 私密报告。
+
+## 许可证
+
+本项目采用 [MIT License](LICENSE) 开源。

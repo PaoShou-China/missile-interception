@@ -1,0 +1,62 @@
+name: Bug 报告
+description: 报告可复现的仿真、数值或工具问题
+title: "[Bug] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        感谢反馈。请先确认问题可以在最新 `main` 上复现，并提供足够的参数信息。
+        如果是安全相关问题，请勿在此提交，改用 [SECURITY.md](../blob/main/SECURITY.md) 中的私密渠道。
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: 问题描述
+      description: 实际发生了什么，期望是什么
+      placeholder: 运行 main.py 时末制导阶段脱靶量异常增大……
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: 复现步骤
+      description: 完整命令与必要参数
+      render: shell
+      placeholder: |
+        cd missile_intercept
+        python main.py --duration 600
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: 版本 / 提交
+      description: 仓库提交 SHA 或分支名
+      placeholder: main @ 28f61db
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: 运行环境
+      description: 操作系统、Python、NumPy / Numba 版本
+      placeholder: Windows 11, Python 3.14.10, numpy 2.3.1, numba 0.60
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: 日志与输出
+      description: 报错堆栈、关键遥测片段或截图
+      render: text
+    validations:
+      required: false
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: 确认
+      options:
+        - label: 我已在最新 `main` 上确认该问题仍存在
+          required: true
+        - label: 我已搜索过现有 Issue，没有重复报告
+          required: true

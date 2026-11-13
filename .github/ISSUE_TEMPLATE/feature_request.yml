@@ -1,0 +1,46 @@
+name: 功能建议
+description: 提出新的模型、算法或工具需求
+title: "[Feature] "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        请说明需求背后的物理/工程动机，以及它对现有仿真链路的影响。
+  - type: textarea
+    id: motivation
+    attributes:
+      label: 需求背景
+      description: 当前能力缺少什么，为什么需要
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: 建议方案
+      description: 期望的实现方式、涉及的模块或参数
+      placeholder: 在 guidance/ 下新增某项制导律，并补充对应测试
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: 备选方案
+      description: 考虑过但未采用的方案及原因
+    validations:
+      required: false
+  - type: dropdown
+    id: scope
+    attributes:
+      label: 影响范围
+      multiple: true
+      options:
+        - 动力学 / 气动
+        - 推进
+        - 导航 / 导引头
+        - 制导 / 交接
+        - 控制
+        - 分析 / 可视化
+        - 测试 / 工具链
+    validations:
+      required: true

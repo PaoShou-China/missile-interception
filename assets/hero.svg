@@ -1,150 +1,194 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900">
 <defs>
-  <linearGradient id="bg" x1="0" y1="0" x2="0.5" y2="1">
-    <stop offset="0" stop-color="#060a11"/><stop offset="0.65" stop-color="#04070c"/>
+  <linearGradient id="sky" x1="0" y1="0" x2="0.45" y2="1">
+    <stop offset="0" stop-color="#070b13"/><stop offset="0.6" stop-color="#04070c"/>
     <stop offset="1" stop-color="#020408"/>
   </linearGradient>
-  <radialGradient id="glow" cx="0.62" cy="0.42" r="0.5">
-    <stop offset="0" stop-color="#3f8fd8" stop-opacity="0.16"/>
-    <stop offset="1" stop-color="#3f8fd8" stop-opacity="0"/>
+  <radialGradient id="neb" cx="0.65" cy="0.28" r="0.62">
+    <stop offset="0" stop-color="#3d8fdc" stop-opacity="0.20"/>
+    <stop offset="1" stop-color="#3d8fdc" stop-opacity="0"/>
   </radialGradient>
-  <linearGradient id="skin" x1="0" y1="0" x2="0" y2="1">
-    <stop offset="0" stop-color="#e9f1f9"/>
-    <stop offset="0.34" stop-color="#b9c6d4"/>
-    <stop offset="0.62" stop-color="#7e8b9a"/>
-    <stop offset="1" stop-color="#333c47"/>
+  <radialGradient id="vig" cx="0.5" cy="0.5" r="0.75">
+    <stop offset="0.55" stop-color="#000" stop-opacity="0"/>
+    <stop offset="1" stop-color="#000" stop-opacity="0.55"/>
+  </radialGradient>
+  <linearGradient id="skin" gradientUnits="userSpaceOnUse" x1="716.4" y1="480.5" x2="691.1" y2="392.0">
+    <stop offset="0" stop-color="#f4f9fd"/>
+    <stop offset="0.20" stop-color="#dbe6f1"/>
+    <stop offset="0.44" stop-color="#a9b7c6"/>
+    <stop offset="0.70" stop-color="#6c7887"/>
+    <stop offset="0.88" stop-color="#3b434d"/>
+    <stop offset="1" stop-color="#232a31"/>
   </linearGradient>
-  <linearGradient id="fin" x1="0" y1="1" x2="0" y2="0">
-    <stop offset="0" stop-color="#55606d"/><stop offset="1" stop-color="#b9c9da"/>
+  <linearGradient id="noseSkin" gradientUnits="userSpaceOnUse" x1="716.4" y1="480.5" x2="691.1" y2="392.0">
+    <stop offset="0" stop-color="#ffffff"/>
+    <stop offset="0.35" stop-color="#cfdce9"/>
+    <stop offset="0.75" stop-color="#77838f"/>
+    <stop offset="1" stop-color="#2f363e"/>
   </linearGradient>
-  <linearGradient id="finb" x1="0" y1="0" x2="0" y2="1">
-    <stop offset="0" stop-color="#4d5763"/><stop offset="1" stop-color="#1b222a"/>
+  <linearGradient id="finUp" gradientUnits="userSpaceOnUse" x1="888.3" y1="350.5" x2="984.0" y2="285.2">
+    <stop offset="0" stop-color="#e6eef7"/><stop offset="1" stop-color="#7e8b9b"/>
   </linearGradient>
-  <linearGradient id="plume" x1="0" y1="0" x2="1" y2="0">
-    <stop offset="0" stop-color="#fff3d8" stop-opacity="0.92"/>
-    <stop offset="0.35" stop-color="#ffc878" stop-opacity="0.55"/>
-    <stop offset="1" stop-color="#ff7a2f" stop-opacity="0"/>
+  <linearGradient id="finRight" gradientUnits="userSpaceOnUse" x1="914.3" y1="391.5" x2="1040.0" y2="373.6">
+    <stop offset="0" stop-color="#b7c6d6"/><stop offset="1" stop-color="#4c5763"/>
+  </linearGradient>
+  <linearGradient id="finDown" gradientUnits="userSpaceOnUse" x1="905.6" y1="411.1" x2="1021.4" y2="415.8">
+    <stop offset="0" stop-color="#8b96a4"/><stop offset="1" stop-color="#2b333c"/>
+  </linearGradient>
+  <linearGradient id="finLeft" gradientUnits="userSpaceOnUse" x1="879.6" y1="370.1" x2="965.3" y2="327.4">
+    <stop offset="0" stop-color="#3a434d"/><stop offset="1" stop-color="#12171c"/>
+  </linearGradient>
+  <linearGradient id="plumeCore" x1="0" y1="0" x2="1" y2="0">
+    <stop offset="0" stop-color="#ffffff" stop-opacity="0.95"/>
+    <stop offset="0.35" stop-color="#ffe7b8" stop-opacity="0.85"/>
+    <stop offset="1" stop-color="#ffb25e" stop-opacity="0"/>
+  </linearGradient>
+  <linearGradient id="plumeOuter" x1="0" y1="0" x2="1" y2="0">
+    <stop offset="0" stop-color="#ffd9a0" stop-opacity="0.55"/>
+    <stop offset="1" stop-color="#ff6a2a" stop-opacity="0"/>
   </linearGradient>
   <linearGradient id="earth" x1="0" y1="0" x2="0" y2="1">
-    <stop offset="0" stop-color="#0a2949"/><stop offset="1" stop-color="#04101c"/>
+    <stop offset="0" stop-color="#0a2b4e"/><stop offset="0.45" stop-color="#06182b"/>
+    <stop offset="1" stop-color="#030d18"/>
   </linearGradient>
-  <filter id="bM" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="14"/></filter>
-  <filter id="bS" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="3"/></filter>
-  <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
-    <path d="M40 0H0V40" fill="none" stroke="#7fd4ff" stroke-opacity="0.045"/>
-  </pattern>
+  <filter id="bXL" x="-70%" y="-70%" width="240%" height="240%"><feGaussianBlur stdDeviation="36"/></filter>
+  <filter id="bL" x="-60%" y="-60%" width="220%" height="220%"><feGaussianBlur stdDeviation="16"/></filter>
+  <filter id="bM" x="-60%" y="-60%" width="220%" height="220%"><feGaussianBlur stdDeviation="7"/></filter>
+  <filter id="bS" x="-60%" y="-60%" width="220%" height="220%"><feGaussianBlur stdDeviation="2.6"/></filter>
 </defs>
 
-<rect width="1600" height="900" fill="url(#bg)"/>
-<rect width="1600" height="900" fill="url(#grid)"/>
-<rect width="1600" height="900" fill="url(#glow)"/>
+<rect width="1600" height="900" fill="url(#sky)"/>
+<rect width="1600" height="900" fill="url(#neb)"/>
 
-<!-- earth limb -->
-<circle cx="1240" cy="1560" r="760" fill="url(#earth)"/>
-<circle cx="1240" cy="1560" r="760" fill="none" stroke="#8ad8ff" stroke-opacity="0.42" stroke-width="2"/>
-<circle cx="1240" cy="1560" r="760" fill="none" stroke="#4fb3ff" stroke-opacity="0.22" stroke-width="18" filter="url(#bM)"/>
-
-<!-- corner ticks -->
-<g stroke="#7fd4ff" stroke-opacity="0.22" stroke-width="1.2">
-  <path d="M60 60h34M60 60v34M1540 60h-34M1540 60v34M60 840v-34M60 840h34M1540 840v-34M1540 840h-34"/>
-</g>
-
-<!-- stars and trajectory -->
 <g fill="#ffffff">
-  <circle cx="180" cy="150" r="1.3" opacity=".45"/><circle cx="360" cy="96" r="1" opacity=".3"/>
-  <circle cx="520" cy="170" r="1.1" opacity=".38"/><circle cx="700" cy="110" r="1.4" opacity=".42"/>
-  <circle cx="900" cy="160" r="1" opacity=".3"/><circle cx="1080" cy="90" r="1.2" opacity=".35"/>
-  <circle cx="1240" cy="150" r="1.3" opacity=".4"/><circle cx="1420" cy="110" r="1" opacity=".28"/>
-  <circle cx="240" cy="230" r="1" opacity=".26"/><circle cx="460" cy="260" r="1.1" opacity=".3"/>
-  <circle cx="640" cy="220" r="1" opacity=".24"/><circle cx="840" cy="250" r="1.2" opacity=".28"/>
+  <circle cx="130" cy="110" r="1.3" opacity=".5"/><circle cx="300" cy="66" r="1" opacity=".32"/>
+  <circle cx="470" cy="150" r="1.2" opacity=".4"/><circle cx="620" cy="80" r="1" opacity=".28"/>
+  <circle cx="790" cy="130" r="1.4" opacity=".44"/><circle cx="950" cy="70" r="1" opacity=".3"/>
+  <circle cx="1100" cy="150" r="1.2" opacity=".38"/><circle cx="1250" cy="90" r="1.3" opacity=".4"/>
+  <circle cx="1400" cy="170" r="1" opacity=".3"/><circle cx="1520" cy="110" r="1.2" opacity=".34"/>
+  <circle cx="200" cy="240" r="1" opacity=".26"/><circle cx="360" cy="320" r="1.1" opacity=".3"/>
+  <circle cx="520" cy="250" r="1" opacity=".24"/><circle cx="700" cy="300" r="1.1" opacity=".26"/>
 </g>
+
+<circle cx="1220" cy="1640" r="880" fill="url(#earth)"/>
+<circle cx="1220" cy="1640" r="880" fill="none" stroke="#8ad8ff" stroke-opacity="0.5" stroke-width="2.4"/>
+<circle cx="1220" cy="1640" r="880" fill="none" stroke="#4fb3ff" stroke-opacity="0.24" stroke-width="18" filter="url(#bL)"/>
+<circle cx="1220" cy="1640" r="880" fill="none" stroke="#5ec8ff" stroke-opacity="0.12" stroke-width="56" filter="url(#bXL)"/>
+
+<g stroke="#7fd4ff" fill="none" stroke-opacity="0.10">
+  <circle cx="1180" cy="300" r="150" stroke-dasharray="2 10"/>
+  <circle cx="1180" cy="300" r="236" stroke-dasharray="1 14"/>
+  <path d="M 980 300h58M 1322 300h58M 1180 120v46M 1180 438v46"/>
+</g>
+
+<!-- glow behind vehicle -->
+<ellipse cx="723" cy="431" rx="430" ry="90" fill="#4fb3ff" opacity="0.13" filter="url(#bXL)"/>
 
 <!-- plume -->
-<path d="M 1013.7 414.0 C 1083.7 396.0, 1143.7 418.0, 1209.7 430.0
-         C 1143.7 442.0, 1083.7 464.0, 1013.7 446.0 Z" fill="url(#plume)"/>
-<ellipse cx="1043.7" cy="430.0" rx="70" ry="20" fill="#ff9a4d" opacity="0.25" filter="url(#bM)"/>
+<g>
+  <path d="M 1079.6 298.5
+           C 1199.6 276.5, 1329.6 310.5, 1499.6 328.5
+           C 1329.6 350.5, 1199.6 386.5, 1079.6 362.5 Z"
+        fill="url(#plumeOuter)" filter="url(#bM)"/>
+  <path d="M 1079.6 310.5
+           C 1169.6 298.5, 1259.6 318.5, 1379.6 328.5
+           C 1259.6 340.5, 1169.6 360.5, 1079.6 348.5 Z"
+        fill="url(#plumeCore)"/>
+  <ellipse cx="1116" cy="328" rx="30" ry="17" fill="#fff6e0" opacity="0.75" filter="url(#bM)"/>
+</g>
 
-<!-- lifting surfaces (horizontal pair, plan view) -->
-<polygon points="679.3,402.3 1013.7,402.3 1013.7,370.2 872.9,370.2" fill="url(#fin)" stroke="#39434e" stroke-width="1.2"/>
-<polygon points="679.3,457.7 1013.7,457.7 1013.7,489.8 872.9,489.8" fill="url(#fin)" stroke="#39434e" stroke-width="1.2"/>
+<!-- far horizontal fin -->
+<polygon points="697.0 422.5 1062.3 317.7 1042.2 305.4 888.4 349.5" fill="url(#finLeft)" stroke="#0c1116" stroke-opacity="0.7"/>
+<!-- upper fin -->
+<polygon points="705.6 402.9 1070.9 298.2 1060.9 263.2 907.1 307.3" fill="url(#finUp)" stroke="#4a545f" stroke-width="1.1"/>
 
 <!-- body -->
-<path d="M 300.0 430.0 300.0 430.0 L 305.5 423.1 L 311.0 420.4 L 316.5 418.3 L 322.0 416.6 L 327.5 415.1 L 333.0 413.8 L 338.5 412.7 L 344.0 411.7 L 349.5 410.7 L 355.0 409.9 L 360.5 409.1 L 366.0 408.4 L 371.5 407.7 L 377.0 407.1 L 382.5 406.5 L 388.0 406.0 L 393.5 405.5 L 399.0 405.1 L 404.5 404.7 L 410.0 404.3 L 415.5 404.0 L 421.0 403.7 L 426.5 403.4 L 432.0 403.2 L 437.5 403.0 L 443.0 402.8 L 448.5 402.6 L 454.0 402.5 L 459.5 402.4 L 465.0 402.3 L 470.5 402.3 L 476.0 402.3 L 1013.7 402.3 L 1013.7 457.7 476.0 457.7 476.0 457.7 L 470.5 457.7 L 465.0 457.7 L 459.5 457.6 L 454.0 457.5 L 448.5 457.4 L 443.0 457.2 L 437.5 457.0 L 432.0 456.8 L 426.5 456.6 L 421.0 456.3 L 415.5 456.0 L 410.0 455.7 L 404.5 455.3 L 399.0 454.9 L 393.5 454.5 L 388.0 454.0 L 382.5 453.5 L 377.0 452.9 L 371.5 452.3 L 366.0 451.6 L 360.5 450.9 L 355.0 450.1 L 349.5 449.3 L 344.0 448.3 L 338.5 447.3 L 333.0 446.2 L 327.5 444.9 L 322.0 443.4 L 316.5 441.7 L 311.0 439.6 L 305.5 436.9 L 300.0 430.0 Z" fill="url(#skin)" stroke="#a9b8c8" stroke-opacity="0.35" stroke-width="1"/>
-<path d="M 300.0 430.0 300.0 430.0 L 305.5 423.1 L 311.0 420.4 L 316.5 418.3 L 322.0 416.6 L 327.5 415.1 L 333.0 413.8 L 338.5 412.7 L 344.0 411.7 L 349.5 410.7 L 355.0 409.9 L 360.5 409.1 L 366.0 408.4 L 371.5 407.7 L 377.0 407.1 L 382.5 406.5 L 388.0 406.0 L 393.5 405.5 L 399.0 405.1 L 404.5 404.7 L 410.0 404.3 L 415.5 404.0 L 421.0 403.7 L 426.5 403.4 L 432.0 403.2 L 437.5 403.0 L 443.0 402.8 L 448.5 402.6 L 454.0 402.5 L 459.5 402.4 L 465.0 402.3 L 470.5 402.3 L 476.0 402.3 L 1013.7 402.3 L 1013.7 457.7 476.0 457.7 476.0 457.7 L 470.5 457.7 L 465.0 457.7 L 459.5 457.6 L 454.0 457.5 L 448.5 457.4 L 443.0 457.2 L 437.5 457.0 L 432.0 456.8 L 426.5 456.6 L 421.0 456.3 L 415.5 456.0 L 410.0 455.7 L 404.5 455.3 L 399.0 454.9 L 393.5 454.5 L 388.0 454.0 L 382.5 453.5 L 377.0 452.9 L 371.5 452.3 L 366.0 451.6 L 360.5 450.9 L 355.0 450.1 L 349.5 449.3 L 344.0 448.3 L 338.5 447.3 L 333.0 446.2 L 327.5 444.9 L 322.0 443.4 L 316.5 441.7 L 311.0 439.6 L 305.5 436.9 L 300.0 430.0 Z" fill="none" stroke="#bfe9ff" stroke-opacity="0.55" stroke-width="1.6" filter="url(#bS)"/>
+<path d="M 300.0 552.0 L 305.0 541.6 L 311.4 536.1 L 318.1 531.5 L 325.0 527.4 L 331.9 523.5 L 338.8 519.9 L 345.8 516.5 L 352.9 513.2 L 360.0 510.0 L 367.1 506.9 L 374.2 503.9 L 381.4 501.0 L 388.6 498.2 L 395.8 495.5 L 403.0 492.8 L 410.3 490.1 L 417.6 487.5 L 424.8 485.0 L 432.1 482.6 L 439.4 480.1 L 446.8 477.8 L 454.1 475.4 L 461.4 473.2 L 468.8 470.9 L 476.2 468.7 L 483.6 466.6 L 579.7 439.0 L 695.0 406.0 L 810.4 372.9 L 925.8 339.8 L 1021.9 312.2 L 1070.9 298.2 L 1079.6 328.5 L 500.9 527.2 L 493.5 529.3 L 486.1 531.3 L 478.7 533.3 L 471.3 535.3 L 463.8 537.2 L 456.3 539.1 L 448.9 540.9 L 441.4 542.6 L 433.8 544.4 L 426.3 546.0 L 418.8 547.6 L 411.2 549.2 L 403.6 550.7 L 396.0 552.1 L 388.4 553.4 L 380.8 554.7 L 373.1 555.8 L 365.4 556.9 L 357.7 557.8 L 349.9 558.6 L 342.1 559.3 L 334.2 559.7 L 326.2 559.8 L 318.1 559.4 L 309.8 558.2 L 300.0 552.0 L 1088.3 358.7 L 1039.2 372.8 L 943.1 400.4 L 827.8 433.4 L 712.4 466.5 L 597.1 499.6 Z" fill="url(#skin)"/>
+<path d="M 300.0 552.0 L 305.0 541.6 L 311.4 536.1 L 318.1 531.5 L 325.0 527.4 L 331.9 523.5 L 338.8 519.9 L 345.8 516.5 L 352.9 513.2 L 360.0 510.0 L 367.1 506.9 L 374.2 503.9 L 381.4 501.0 L 388.6 498.2 L 395.8 495.5 L 403.0 492.8 L 410.3 490.1 L 417.6 487.5 L 424.8 485.0 L 432.1 482.6 L 439.4 480.1 L 446.8 477.8 L 454.1 475.4 L 461.4 473.2 L 468.8 470.9 L 476.2 468.7 L 483.6 466.6 L 579.7 439.0 L 695.0 406.0 L 810.4 372.9 L 925.8 339.8 L 1021.9 312.2 L 1070.9 298.2 L 1079.6 328.5 L 500.9 527.2 L 493.5 529.3 L 486.1 531.3 L 478.7 533.3 L 471.3 535.3 L 463.8 537.2 L 456.3 539.1 L 448.9 540.9 L 441.4 542.6 L 433.8 544.4 L 426.3 546.0 L 418.8 547.6 L 411.2 549.2 L 403.6 550.7 L 396.0 552.1 L 388.4 553.4 L 380.8 554.7 L 373.1 555.8 L 365.4 556.9 L 357.7 557.8 L 349.9 558.6 L 342.1 559.3 L 334.2 559.7 L 326.2 559.8 L 318.1 559.4 L 309.8 558.2 L 300.0 552.0 L 1088.3 358.7 L 1039.2 372.8 L 943.1 400.4 L 827.8 433.4 L 712.4 466.5 L 597.1 499.6 Z" fill="none" stroke="#cfe9ff" stroke-opacity="0.32" stroke-width="1.2"/>
+
+<!-- nose gloss -->
+<path d="M 300.0 552.0
+         C 348.5 521.5,
+           422.3 488.8,
+           483.6 466.6
+         L 906.5 345.3"
+      fill="none" stroke="#ffffff" stroke-opacity="0.5" stroke-width="2.2" filter="url(#bS)"/>
 
 <!-- panel lines -->
-<g stroke="#26303a" stroke-opacity="0.5" stroke-width="1.2">
-  <path d="M 476.0 402.3 L 476.0 457.7"/>
-  <path d="M 568.4 403.3 L 568.4 456.7"/>
-  <path d="M 679.3 404.3 L 679.3 455.7"/>
-  <path d="M 964.4 405.3 L 964.4 454.7"/>
+<g stroke="#222a33" stroke-opacity="0.55" stroke-width="1.2">
+  <path d="M 500.9 527.2 L 483.6 466.6"/>
+  <path d="M 601.7 497.5 L 584.7 438.3"/>
+  <path d="M 722.6 462.0 L 706.0 404.4"/>
+  <path d="M 1028.9 373.1 L 1013.0 317.4"/>
 </g>
+<g stroke="#ffffff" stroke-opacity="0.14" stroke-width="1">
+  <path d="M 486.7 470.4 L 1003.9 322.1"/>
+</g>
+
+<!-- near horizontal fin -->
+<polygon points="731.6 443.9 1096.9 339.2 1116.9 351.5 963.1 395.6" fill="url(#finRight)" stroke="#39434e" stroke-width="1"/>
+
+<!-- lower fin -->
+<polygon points="723.0 463.5 1088.3 358.7 1098.3 393.7 944.5 437.8" fill="url(#finDown)" stroke="#2a323b" stroke-width="1"/>
+
+<!-- fin root shadow -->
+<g stroke="#0d1218" stroke-opacity="0.5" stroke-width="4" fill="none">
+  <path d="M 705.6 402.9 L 1070.9 298.2"/>
+  <path d="M 723.0 463.5 L 1088.3 358.7"/>
+</g>
+
+<!-- rim light -->
+<path d="M 300.0 552.0
+         C 348.5 521.5,
+           422.3 488.8,
+           483.6 466.6
+         L 1055.5 302.6"
+      fill="none" stroke="#a8f1ff" stroke-opacity="0.9" stroke-width="2.2" filter="url(#bS)"/>
+<polygon points="705.6 402.9 1070.9 298.2 1060.9 263.2 907.1 307.3" fill="none"
+         stroke="#a8f1ff" stroke-opacity="0.45" stroke-width="1.6" filter="url(#bS)"/>
 
 <!-- nozzle -->
-<ellipse cx="1013.7" cy="430.0" rx="10" ry="26.7" fill="#111820" stroke="#3b4550"/>
-<ellipse cx="1013.7" cy="430.0" rx="5" ry="18.7" fill="#ffd9a0" opacity="0.85"/>
+<ellipse cx="1083" cy="327" rx="11" ry="30"
+         transform="rotate(-16.0 1083 327)"
+         fill="#0f151c" stroke="#3b4550" stroke-width="1.4"/>
+<ellipse cx="1083" cy="327" rx="7" ry="18"
+         transform="rotate(-16.0 1083 327)"
+         fill="#ffe3b0" opacity="0.95"/>
 
-<!-- length dimension -->
-<g stroke="#5f7d95" stroke-opacity="0.8" stroke-width="1" fill="#8ea3b8"
-   font-family="'SF Mono',Consolas,monospace" font-size="14">
-  <path d="M 300.0 560 L 1013.7 560"/>
-  <path d="M 300.0 552 L 300.0 568 M 1013.7 552 L 1013.7 568"/>
-  <text x="656.8" y="586" text-anchor="middle">8.11 m</text>
-</g>
-<g stroke="#5f7d95" stroke-opacity="0.7" stroke-width="1" fill="#8ea3b8"
-   font-family="'SF Mono',Consolas,monospace" font-size="13">
-  <path d="M 679.3 612 L 1013.7 612"/>
-  <path d="M 679.3 604 L 679.3 620 M 1013.7 604 L 1013.7 620"/>
-  <text x="846.5" y="638" text-anchor="middle">root chord 3.8 m</text>
-  <path d="M 872.9 352.2 L 1013.7 352.2"/>
-  <path d="M 872.9 344.2 L 872.9 360.2
-           M 1013.7 344.2 L 1013.7 360.2"/>
-  <text x="943.3" y="336.2" text-anchor="middle">tip chord 1.6 m</text>
-</g>
+<!-- plasma sheath -->
+<path d="M 300.0 552.0
+         C 343.9 523.8,
+           408.2 493.9,
+           478.9 468.5"
+      fill="none" stroke="#7fe6ff" stroke-opacity="0.55" stroke-width="7" filter="url(#bL)"/>
 
-<!-- section marker A-A -->
-<g stroke="#7fd4ff" stroke-opacity="0.5" stroke-dasharray="6 5" stroke-width="1">
-  <path d="M 933.6 324.2 L 933.6 535.8"/>
-</g>
-<g font-family="'SF Mono',Consolas,monospace" font-size="13" fill="#7fd4ff" fill-opacity="0.8">
-  <text x="941.6" y="318.2">A</text>
-  <text x="941.6" y="549.8">A</text>
+<!-- callout -->
+<g font-family="'SF Mono',Consolas,monospace" fill="#93a3b5" font-size="14" letter-spacing="1.8">
+  <path d="M 1150 205 L 1060 205 L 925 313" fill="none" stroke="#7fd4ff" stroke-opacity="0.35"/>
+  <text x="1164" y="199">4 × CRUCIFORM FINS</text>
+  <text x="1164" y="221" fill="#66707d" font-size="11.5">same station · root 3.8 m · span 0.36 m/side</text>
+  <text x="1164" y="240" fill="#66707d" font-size="11.5">doubles as low-aspect-ratio lifting surface</text>
+
+  <path d="M 250 690 L 330 690 L 381 527" fill="none" stroke="#7fd4ff" stroke-opacity="0.3"/>
+  <text x="96" y="684">TANGENT-OGIVE NOSE</text>
+  <text x="96" y="706" fill="#66707d" font-size="11.5">2.0 m ogive · Ø 0.63 m body</text>
 </g>
 
-<!-- front view -->
-<g>
-  <g fill="#c9d6e4" stroke="#39434e" stroke-width="1.2">
-    <path d="M 1341.0 352.8 L 1359.0 352.8 L 1355.0 298.1 L 1345.0 298.1 Z"/>
-    <path d="M 1341.0 447.2 L 1359.0 447.2 L 1355.0 501.9 L 1345.0 501.9 Z"/>
-    <path d="M 1302.8 391.0 L 1302.8 409.0 L 1248.2 405.0 L 1248.2 395.0 Z"/>
-    <path d="M 1397.2 391.0 L 1397.2 409.0 L 1451.8 405.0 L 1451.8 395.0 Z"/>
+<!-- section inset -->
+<g transform="translate(1466,752)">
+  <circle cx="0" cy="0" r="30" fill="#0b1119" stroke="#7fd4ff" stroke-opacity="0.35" stroke-width="1.1"/>
+  <g fill="#cfdae6" opacity="0.95">
+    <path d="M-4.5 -29 L4.5 -29 L3.5 -44 L-3.5 -44 Z"/>
+    <path d="M-4.5 29 L4.5 29 L3.5 44 L-3.5 44 Z"/>
+    <path d="M-29 -4.5 L-29 4.5 L-44 3.5 L-44 -3.5 Z"/>
+    <path d="M29 -4.5 L29 4.5 L44 3.5 L44 -3.5 Z"/>
   </g>
-  <circle cx="1350.0" cy="400.0" r="47.2" fill="#0c1219" stroke="#93a4b6" stroke-opacity="0.85" stroke-width="1.6"/>
-  <circle cx="1350.0" cy="400.0" r="47.2" fill="none" stroke="#7fd4ff" stroke-opacity="0.25" stroke-width="4" filter="url(#bS)"/>
-  <text x="1350.0" y="274.1" text-anchor="middle" font-family="'SF Mono',Consolas,monospace"
-        font-size="13" letter-spacing="2.4" fill="#9fb2c6">SECTION A-A</text>
-  <text x="1350.0" y="535.9" text-anchor="middle" font-family="'SF Mono',Consolas,monospace"
-        font-size="11.5" letter-spacing="1.6" fill="#6f8296">4 × FINS · 90° CRUCIFORM</text>
+  <text x="0" y="-60" text-anchor="middle" font-family="'SF Mono',Consolas,monospace"
+        font-size="11" letter-spacing="2.2" fill="#7f8a9c">SECTION A-A</text>
 </g>
 
-<!-- callouts -->
-<g font-family="'SF Mono',Consolas,monospace" fill="#9fb2c6" font-size="14" letter-spacing="1.6">
-  <path d="M 250 300 L 420 300 L 379.2 416.0" fill="none" stroke="#7fd4ff" stroke-opacity="0.35"/>
-  <text x="96" y="294">TANGENT-OGIVE NOSE</text>
-  <text x="96" y="316" fill="#6f8296" font-size="11.5">2.0 m ogive · Ø 0.63 m body</text>
+<text x="1510" y="856" text-anchor="end" font-family="'SF Mono',Consolas,monospace"
+      font-size="13" letter-spacing="1.8" fill="#5f7a90">8.11 m · Ø 0.63 m · 2000 km class</text>
 
-  <path d="M 1180 200 L 1080 200 L 1003.7 384.2" fill="none" stroke="#7fd4ff" stroke-opacity="0.35"/>
-  <text x="1194" y="194">4 × CRUCIFORM FINS</text>
-  <text x="1194" y="216" fill="#6f8296" font-size="11.5">same station · root 3.8 m · span 0.36 m/side</text>
-  <text x="1194" y="236" fill="#6f8296" font-size="11.5">double duty as low-aspect-ratio lifting surfaces</text>
-</g>
-
-<!-- title block -->
-<g font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif">
-  <text x="96" y="712" font-size="13" letter-spacing="3" fill="#6f8296" font-family="'SF Mono',Consolas,monospace">GENERAL ARRANGEMENT</text>
-  <text x="96" y="754" font-size="30" font-weight="700" fill="#eef4fa" letter-spacing="-0.5">2000 km-class hypersonic interceptor</text>
-  <text x="96" y="784" font-size="14" fill="#8ea3b8" font-family="'SF Mono',Consolas,monospace">6DOF simulation model · cruciform fins · lifting body</text>
-</g>
-<text x="1500" y="846" text-anchor="end" font-family="'SF Mono',Consolas,monospace"
-      font-size="13" letter-spacing="1.6" fill="#5f7d95">L 8.11 m · Ø 0.63 m · m0 2565 kg</text>
+<rect width="1600" height="900" fill="url(#vig)"/>
 </svg>

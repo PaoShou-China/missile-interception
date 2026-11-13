@@ -1,0 +1,142 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="620" viewBox="0 0 1280 620" role="img" aria-label="Hypersonic interceptor 6DOF simulation architecture">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0b0f16"/>
+      <stop offset="0.55" stop-color="#080a10"/>
+      <stop offset="1" stop-color="#05060a"/>
+    </linearGradient>
+    <linearGradient id="traj" x1="0" y1="1" x2="1" y2="0">
+      <stop offset="0" stop-color="#37d0d6"/>
+      <stop offset="0.5" stop-color="#4da3ff"/>
+      <stop offset="1" stop-color="#ffb454"/>
+    </linearGradient>
+    <linearGradient id="glowA" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#4da3ff" stop-opacity="0.28"/>
+      <stop offset="1" stop-color="#4da3ff" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="glowB" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#37d0d6" stop-opacity="0.20"/>
+      <stop offset="1" stop-color="#37d0d6" stop-opacity="0"/>
+    </linearGradient>
+    <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+      <path d="M40 0H0V40" fill="none" stroke="#ffffff" stroke-opacity="0.035" stroke-width="1"/>
+    </pattern>
+    <filter id="soft" x="-40%" y="-40%" width="180%" height="180%">
+      <feGaussianBlur stdDeviation="18"/>
+    </filter>
+  </defs>
+
+  <rect width="1280" height="620" fill="url(#bg)"/>
+  <rect width="1280" height="620" fill="url(#grid)"/>
+  <ellipse cx="985" cy="150" rx="330" ry="210" fill="#4da3ff" opacity="0.13" filter="url(#soft)"/>
+  <ellipse cx="700" cy="500" rx="280" ry="150" fill="#37d0d6" opacity="0.09" filter="url(#soft)"/>
+
+  <!-- left: title -->
+  <g font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif">
+    <text x="80" y="126" font-size="12.5" letter-spacing="3.4" fill="#7f8a9c" font-weight="600">AEROSPACE · GUIDANCE · CONTROL</text>
+    <text x="80" y="192" font-size="52" font-weight="700" fill="#f4f7fb" letter-spacing="-1.6">HYPERSONIC</text>
+    <text x="80" y="250" font-size="52" font-weight="700" fill="#f4f7fb" letter-spacing="-1.6">INTERCEPTOR</text>
+    <text x="80" y="292" font-size="19" fill="#9aa6b8">6DOF end-to-end simulation</text>
+
+    <rect x="80" y="322" width="424" height="1" fill="#ffffff" opacity="0.10"/>
+
+    <g font-size="13" fill="#c3cddb" font-weight="500">
+      <rect x="80" y="348" width="112" height="34" rx="17" fill="#ffffff" opacity="0.05"/>
+      <rect x="80" y="348" width="112" height="34" rx="17" fill="none" stroke="#4da3ff" stroke-opacity="0.35"/>
+      <text x="136" y="370" text-anchor="middle">6DOF rigid body</text>
+
+      <rect x="202" y="348" width="120" height="34" rx="17" fill="#ffffff" opacity="0.05"/>
+      <rect x="202" y="348" width="120" height="34" rx="17" fill="none" stroke="#37d0d6" stroke-opacity="0.35"/>
+      <text x="262" y="370" text-anchor="middle">2000 km class</text>
+
+      <rect x="332" y="348" width="92" height="34" rx="17" fill="#ffffff" opacity="0.05"/>
+      <rect x="332" y="348" width="92" height="34" rx="17" fill="none" stroke="#ffb454" stroke-opacity="0.4"/>
+      <text x="378" y="370" text-anchor="middle">5 ms step</text>
+    </g>
+
+    <text x="80" y="424" font-size="13" fill="#6f7a8c" font-family="'SF Mono',Consolas,monospace">python · numpy · numba · scipy</text>
+    <text x="80" y="448" font-size="13" fill="#6f7a8c" font-family="'SF Mono',Consolas,monospace">cold launch → boost → midcourse → terminal</text>
+  </g>
+
+  <!-- right: trajectory -->
+  <g>
+    <text x="580" y="108" font-size="11.5" letter-spacing="3" fill="#6f7a8c" font-family="'SF Mono',Consolas,monospace">FLIGHT PROFILE</text>
+
+    <!-- ground -->
+    <line x1="566" y1="470" x2="1204" y2="470" stroke="#ffffff" stroke-opacity="0.18" stroke-width="1"/>
+    <path d="M566 470h638" stroke="#ffffff" stroke-opacity="0.05" stroke-width="14"/>
+
+    <!-- launch site -->
+    <path d="M600 470 L612 470 L606 452 Z" fill="#37d0d6"/>
+    <text x="606" y="496" font-size="11" fill="#7f8a9c" text-anchor="middle" font-family="'SF Mono',Consolas,monospace">LAUNCH</text>
+
+    <!-- target -->
+    <g transform="translate(1148,434)">
+      <rect x="-9" y="-9" width="18" height="18" fill="#ffb454" transform="rotate(45)"/>
+      <rect x="-17" y="-17" width="34" height="34" fill="none" stroke="#ffb454" stroke-opacity="0.4" transform="rotate(45)"/>
+    </g>
+    <text x="1148" y="496" font-size="11" fill="#7f8a9c" text-anchor="middle" font-family="'SF Mono',Consolas,monospace">TARGET</text>
+
+    <!-- trajectory -->
+    <path d="M606 452 C 640 330, 720 258, 830 268 C 940 278, 1030 330, 1120 398"
+          fill="none" stroke="url(#traj)" stroke-width="3.4" stroke-linecap="round"/>
+    <path d="M606 452 C 640 330, 720 258, 830 268 C 940 278, 1030 330, 1120 398"
+          fill="none" stroke="url(#traj)" stroke-width="11" stroke-opacity="0.10" stroke-linecap="round"/>
+
+    <!-- stage markers -->
+    <g>
+      <circle cx="648" cy="360" r="5.5" fill="#37d0d6"/>
+      <circle cx="648" cy="360" r="11" fill="none" stroke="#37d0d6" stroke-opacity="0.35"/>
+      <text x="648" y="336" font-size="11" fill="#9fb0c4" text-anchor="middle" font-family="'SF Mono',Consolas,monospace">BOOST</text>
+
+      <circle cx="800" cy="266" r="5.5" fill="#4da3ff"/>
+      <circle cx="800" cy="266" r="11" fill="none" stroke="#4da3ff" stroke-opacity="0.35"/>
+      <text x="800" y="242" font-size="11" fill="#9fb0c4" text-anchor="middle" font-family="'SF Mono',Consolas,monospace">MIDCOURSE</text>
+
+      <circle cx="972" cy="308" r="5.5" fill="#7ea7ff"/>
+      <circle cx="972" cy="308" r="11" fill="none" stroke="#7ea7ff" stroke-opacity="0.35"/>
+      <text x="972" y="284" font-size="11" fill="#9fb0c4" text-anchor="middle" font-family="'SF Mono',Consolas,monospace">HANDOVER</text>
+
+      <circle cx="1082" cy="370" r="5.5" fill="#ffb454"/>
+      <circle cx="1082" cy="370" r="11" fill="none" stroke="#ffb454" stroke-opacity="0.35"/>
+      <text x="1074" y="346" font-size="11" fill="#9fb0c4" text-anchor="middle" font-family="'SF Mono',Consolas,monospace">TERMINAL</text>
+    </g>
+
+    <!-- handed over label -->
+    <path d="M972 308 L972 470" stroke="#ffffff" stroke-opacity="0.08" stroke-dasharray="3 5"/>
+    <path d="M648 360 L648 470" stroke="#ffffff" stroke-opacity="0.05" stroke-dasharray="3 5"/>
+  </g>
+
+  <!-- bottom module strip -->
+  <g font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif">
+    <line x1="72" y1="524" x2="1208" y2="524" stroke="#ffffff" stroke-opacity="0.08"/>
+    <text x="72" y="552" font-size="10.5" letter-spacing="2.6" fill="#5f6a7c" font-family="'SF Mono',Consolas,monospace">MODULES</text>
+
+    <g font-size="12.5" fill="#c8d2e0">
+      <g transform="translate(72,574)">
+        <circle cx="4" cy="-4" r="3.5" fill="#37d0d6"/>
+        <text x="16" y="0">Propulsion</text>
+      </g>
+      <g transform="translate(268,574)">
+        <circle cx="4" cy="-4" r="3.5" fill="#4da3ff"/>
+        <text x="16" y="0">GNSS / INS</text>
+      </g>
+      <g transform="translate(464,574)">
+        <circle cx="4" cy="-4" r="3.5" fill="#4da3ff"/>
+        <text x="16" y="0">Seeker</text>
+      </g>
+      <g transform="translate(660,574)">
+        <circle cx="4" cy="-4" r="3.5" fill="#7ea7ff"/>
+        <text x="16" y="0">Guidance &amp; handover</text>
+      </g>
+      <g transform="translate(904,574)">
+        <circle cx="4" cy="-4" r="3.5" fill="#ffb454"/>
+        <text x="16" y="0">Autopilot</text>
+      </g>
+      <g transform="translate(1088,574)">
+        <circle cx="4" cy="-4" r="3.5" fill="#45d483"/>
+        <text x="16" y="0">Monte-Carlo</text>
+      </g>
+    </g>
+  </g>
+</svg>

@@ -1,79 +1,143 @@
-# 2000 km 级高超声速拦截器 — 6DOF 端到端仿真
+<div align="center">
+  <img src="assets/architecture.svg" alt="Hypersonic interceptor 6DOF simulation — flight profile and modules" width="100%">
+</div>
 
-**Hypersonic Interceptor 6DOF Simulation** · 垂冷发射 / 组合动力 / GNSS-INS + 雷达导引头 / 中末制导 / 蒙特卡洛打靶
+<h1 align="center">2000 km-class Hypersonic Interceptor</h1>
+<h3 align="center">6DOF end-to-end simulation · launch → intercept</h3>
 
-基于纯 Python + NumPy 的模块化、可测试、可并行的飞行器六自由度仿真。覆盖垂直冷发射、固体助推 + 超声速冲压组合循环动力、GNSS/INS 组合导航、雷达导引头、三回路姿态控制、Bezier 中制导、ZEM/APN 末制导、交接班管理、多速率采样与蒙特卡洛打靶。
+<p align="center">
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-3fb950?style=flat-square" alt="License: MIT"></a>
+  <img src="https://img.shields.io/badge/python-3.9%2B-4da3ff?style=flat-square" alt="Python 3.9+">
+  <img src="https://img.shields.io/badge/solver-6DOF%20%C2%B7%205%20ms-37d0d6?style=flat-square" alt="6DOF, 5 ms step">
+  <a href="https://paoshou-china.github.io/missile-interception/"><img src="https://img.shields.io/badge/reports-online-0071e3?style=flat-square" alt="Online reports"></a>
+</p>
 
-> **在线报告**：<https://paoshou-china.github.io/missile-interception/>
->
-> **免责声明**：2000 km 级拦截器的公开数据十分有限。`config.py` 中的几何、质量、惯量、气动与动力参数是对公开资料的**工程外推**，仅用于算法、软件与体系验证，不代表任何现役装备的实测数据或性能。
+<p align="center">
+  A modular, testable and parallelizable flight-dynamics simulation of a 2000 km-class
+  lifting-body interceptor, written in pure Python / NumPy.<br>
+  Vertical cold launch · solid boost + supersonic ramjet · GNSS/INS + radar seeker ·
+  Bezier midcourse · ZEM/APN terminal · three-loop autopilot · Monte-Carlo campaigns.
+</p>
 
-## 页面与报告
+---
 
-| 报告 | 内容 | 链接 |
+> **Disclaimer** — Public data for a 2000 km-class interceptor are scarce. The geometry,
+> mass, inertia, aerodynamic and propulsion parameters in `config.py` are an **engineering
+> extrapolation** from public sources plus generic hypersonic-vehicle characteristics.
+> They serve algorithm, software and architecture verification only, and do not represent
+> measured data or performance of any fielded system.
+
+## Overview
+
+| Area | What is modelled |
+| --- | --- |
+| **Flight dynamics** | 6DOF rigid body, quaternion attitude, variable mass/inertia, Earth rotation & curvature |
+| **Propulsion** | Vertical cold launch, solid booster, supersonic ramjet combined cycle, thrust scheduling |
+| **Aerodynamics** | USSA1976 atmosphere, Mach/altitude aerodynamic database, DATCOM cross-check tooling |
+| **Navigation** | Strapdown INS, GNSS updates, error-state filtering, wind and sensor noise |
+| **Seeker** | Radar seeker measurements, target tracking, measurement latency and dropout |
+| **Guidance** | Bezier midcourse, ZEM / APN terminal, multi-constraint handover management |
+| **Control** | Three-loop autopilot, fin mixer, actuator limits and rate constraints, gain scheduling |
+| **Analysis** | Multi-rate integration, step convergence, Monte-Carlo batch, sensitivity / Sobol |
+
+## Online reports
+
+Interactive reports generated from simulation output, published with GitHub Pages:
+
+| Report | Contents | Link |
 | --- | --- | --- |
-| 项目概览 | 交互式总览：弹道、能量、制导交接与关键指标 | [/missile-intercept-overview/](https://paoshou-china.github.io/missile-interception/missile-intercept-overview/missile-intercept-overview.html) |
-| 拦截分析报告 | 2000 km 级 6DOF 仿真分析：弹道剖面、脱靶量、蒙特卡洛统计 | [/intercept-report/](https://paoshou-china.github.io/missile-interception/intercept-report/intercept-report.html) |
-| 全流程测试报告 | 分系统与全链路测试结果汇总 | [/test-report/](https://paoshou-china.github.io/missile-interception/test-report/missile_interceptor_test_report.html) |
+| **Project overview** | Interactive walk-through: trajectory, energy, handover, key metrics | [Open →](https://paoshou-china.github.io/missile-interception/missile-intercept-overview/missile-intercept-overview.html) |
+| **Intercept analysis** | 2000 km-class 6DOF analysis: altitude/Mach profile, LOS rates, miss distance, Monte-Carlo statistics | [Open →](https://paoshou-china.github.io/missile-interception/intercept-report/intercept-report.html) |
+| **Full-flow test report** | Subsystem and end-to-end test summary: aero anchors, navigation, seeker, handover, control, numeric consistency | [Open →](https://paoshou-china.github.io/missile-interception/test-report/missile_interceptor_test_report.html) |
 
-## 仓库结构
+## Flight phases
+
+| Phase | Model |
+| --- | --- |
+| **Cold launch** | Vertical ejection from a canister, ignition sequence, initial attitude hold |
+| **Boost** | Solid motor thrust profile, mass depletion, attitude pre-programming |
+| **Midcourse** | Bezier path shaping, altitude/Mach constraints, energy management |
+| **Handover** | Handover manager with field-of-view, range and geometry constraints |
+| **Terminal** | ZEM / APN guidance, seeker measurements, endgame autopilot limits |
+| **Assessment** | Miss distance, intercept geometry, Monte-Carlo dispersion statistics |
+
+## Repository layout
 
 ```
 .
-├── missile_intercept/           # 仿真主体
-│   ├── main.py                  # 单发仿真入口
-│   ├── batch.py                 # 蒙特卡洛批量打靶
-│   ├── analysis.py              # 灵敏度 / Sobol / 蒙特卡洛分析
-│   ├── config.py                # 全部工程参数与开关
-│   ├── fastcore.py              # Numba JIT 热路径（缺失时回退纯 Python）
-│   ├── integrator.py            # 多速率积分与事件处理
-│   ├── state_schema.py          # 状态量定义
-│   ├── telemetry.py             # 遥测输出
-│   ├── verification.py          # 数值验证
-│   ├── validate_performance.py  # 性能指标校验
-│   ├── vehicle/                 # 大气、气动、目标、风场
-│   ├── sensors/                 # IMU、GNSS/INS、导引头、目标跟踪
-│   ├── guidance/                # 助推/中制导/末制导/交接班
-│   ├── control/                 # 自动驾驶仪、舵机分配、推力控制
-│   ├── tools/                   # 气动交叉校核、参数整定、诊断工具
-│   ├── tests/                   # pytest 测试集
-│   └── README.md                # 完整技术说明与遥测字典
-├── intercept-report/            # 拦截分析报告（HTML）
-├── missile-intercept-overview/  # 项目概览页（HTML）
-├── test-report/                 # 全流程测试报告（HTML）
-└── index.html                   # GitHub Pages 首页
+├── missile_intercept/           # simulation package
+│   ├── main.py                  # single-run entry point
+│   ├── batch.py                 # Monte-Carlo batch campaigns
+│   ├── analysis.py              # sensitivity / Sobol / Monte-Carlo analysis
+│   ├── config.py                # all engineering parameters and switches
+│   ├── fastcore.py              # Numba-JIT hot paths (falls back to pure Python)
+│   ├── integrator.py            # multi-rate integration and event handling
+│   ├── state_schema.py          # state vector definition
+│   ├── telemetry.py             # telemetry writers
+│   ├── verification.py          # numerical verification
+│   ├── validate_performance.py  # performance checks
+│   ├── vehicle/                 # atmosphere, aerodynamics, target, wind
+│   ├── sensors/                 # IMU, GNSS/INS, seeker, target tracker
+│   ├── guidance/                # boost / midcourse / terminal guidance, handover
+│   ├── control/                 # autopilot, fin mixer, thrust controller
+│   ├── tools/                   # aero cross-check, tuning, diagnostics
+│   ├── tests/                   # pytest suite
+│   └── README.md                # full technical reference and telemetry dictionary
+├── intercept-report/            # intercept analysis report (HTML)
+├── missile-intercept-overview/  # project overview page (HTML)
+├── test-report/                 # full-flow test report (HTML)
+├── assets/                      # README figures
+└── index.html                   # GitHub Pages landing page
 ```
 
-详细架构、坐标系、动力学模型、遥测字段字典请见 [missile_intercept/README.md](missile_intercept/README.md)（英文版：[README.en.md](missile_intercept/README.en.md)）。
-
-## 快速开始
+## Quick start
 
 ```bash
-cd missile_intercept
+git clone https://github.com/PaoShou-China/missile-interception.git
+cd missile-interception/missile_intercept
 python -m pip install -r requirements.txt
-
-python main.py                      # 单发仿真（助推/末段 5 ms，中制导 10 ms）
-python main.py --no-plot            # 只输出遥测 CSV
-python main.py --converge           # 步长收敛 + Richardson 外推
-
-python batch.py --cases 50 --workers 8 --seed 2026   # 蒙特卡洛打靶
-python -m pytest -n auto            # 测试
-python verification.py              # 数值验证
 ```
 
-输出写入 `missile_intercept/output/`（遥测 CSV、图表与 HTML 看板），该目录不入库。
+```bash
+# Single run — 5 ms in boost/terminal, 10 ms in midcourse
+python main.py
 
-## 说明
+# Variants
+python main.py --no-plot          # telemetry CSV only
+python main.py --duration 900     # custom end time
+python main.py --converge         # step convergence + Richardson extrapolation
 
-- 运行环境为 Windows / Linux + Python 3.9+（代码保留 3.6+ 语法兼容）。
-- `numba` 用于加速热路径；未安装时自动回退纯 Python，结果一致但更慢。
-- `tools/datcom/` 中的 DATCOM 可执行文件为第三方二进制，未纳入版本库。
-- CI 在 push / PR 时自动运行测试集，见 [.github/workflows/tests.yml](.github/workflows/tests.yml)。
+# Monte-Carlo campaign
+python batch.py --cases 50 --workers 8 --seed 2026
 
-## 参与贡献
+# Tests and verification
+python -m pytest -n auto
+python verification.py
+```
 
-欢迎提交 Issue 与 Pull Request。开发约定、提交规范与测试要求见 [CONTRIBUTING.md](CONTRIBUTING.md)，行为准则见 [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md)，安全问题请按 [SECURITY.md](SECURITY.md) 私密报告。
+Outputs are written to `missile_intercept/output/` (telemetry CSV, plots and the HTML
+dashboard) and are intentionally not tracked.
 
-## 许可证
+> **Requirements** — Python 3.9+ on Windows or Linux. `numba` accelerates the hot paths;
+> without it the solver falls back to pure Python with identical results but slower runs.
+> The DATCOM binary in `tools/datcom/` is third-party software and is not versioned.
 
-本项目采用 [MIT License](LICENSE) 开源。
+## Documentation
+
+- [Technical reference — architecture, frames, models, telemetry dictionary](missile_intercept/README.md)
+- [English edition (legacy)](missile_intercept/README.en.md)
+- [Changelog](CHANGELOG.md) · [Contributing](CONTRIBUTING.md) · [Security policy](SECURITY.md)
+- [Code of Conduct](CODE_OF_CONDUCT.md)
+
+## Contributing
+
+Issues and pull requests are welcome. Please read [CONTRIBUTING.md](CONTRIBUTING.md) for
+branch, commit and testing conventions, and run `python -m pytest -n auto` before opening a PR.
+
+## License
+
+Released under the [MIT License](LICENSE).
+
+---
+
+<p align="center"><sub>Engineering-extrapolated model — for algorithm and software verification only.</sub></p>

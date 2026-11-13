@@ -1,6 +1,8 @@
 <div align="center">
-  <img src="assets/architecture.svg" alt="Hypersonic interceptor 6DOF simulation — flight profile and modules" width="100%">
+  <img src="assets/hero.jpg" alt="Hypersonic interceptor — flight profile from launch to intercept" width="100%">
 </div>
+
+<p align="center"><img src="assets/icon.png" width="96" height="96" alt="Project icon"></p>
 
 <h1 align="center">2000 km-class Hypersonic Interceptor</h1>
 <h3 align="center">6DOF end-to-end simulation · launch → intercept</h3>

@@ -4,6 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>2000 km 级高超声速拦截器 · 6DOF 仿真</title>
+<link rel="icon" type="image/png" href="assets/icon.png">
+<link rel="apple-touch-icon" href="assets/icon.png">
 <style>
   :root{
     --bg:#f5f5f7; --bg2:#ffffff; --ink:#1d1d1f; --muted:#6e6e73;
@@ -21,9 +23,11 @@
 
   /* hero */
   .hero{background:#000;color:#f5f5f7;padding:96px 0 72px;position:relative;overflow:hidden}
+  .hero::before{content:"";position:absolute;inset:0;background:url("assets/hero.jpg") center 42%/cover no-repeat;
+    opacity:.55;filter:saturate(1.05)}
   .hero::after{content:"";position:absolute;inset:0;pointer-events:none;
-    background:radial-gradient(900px 380px at 78% 8%,rgba(0,113,227,.30),transparent 62%),
-               radial-gradient(620px 300px at 12% 92%,rgba(48,176,199,.22),transparent 66%)}
+    background:linear-gradient(90deg,rgba(0,0,0,.92) 0%,rgba(0,0,0,.72) 46%,rgba(0,0,0,.30) 100%),
+               radial-gradient(900px 380px at 78% 8%,rgba(0,113,227,.28),transparent 62%)}
   .hero .wrap{position:relative;z-index:1}
   .eyebrow{font:600 12px/1 var(--mono);letter-spacing:.16em;text-transform:uppercase;color:#86868b;margin-bottom:22px}
   .eyebrow b{color:var(--accent2);font-weight:600}

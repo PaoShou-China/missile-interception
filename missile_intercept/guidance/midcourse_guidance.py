@@ -68,8 +68,6 @@ class MidcourseGuidance(BaseGuidance):
         self.a_prev = None
         self.descent_active = False
         self.descent_ref = None
-        self.a_vert_prev = None
-        self.t_vert = 0.0
 
     def reset(self):
         self.path = None
@@ -77,8 +75,6 @@ class MidcourseGuidance(BaseGuidance):
         self.a_prev = None
         self.descent_active = False
         self.descent_ref = None
-        self.a_vert_prev = None
-        self.t_vert = 0.0
 
     # --------------------------------------------------------
     def _build_path(self, nav, target_state):
@@ -125,14 +121,10 @@ class MidcourseGuidance(BaseGuidance):
     def handover_gamma():
         """Desired flight-path angle at handover (negative = descending).
 
-        By default it is derived from the look-down advantage and the handover
-        range, so the velocity is aligned with the LOS the terminal seeker
-        will use.  An explicit ``MIDCOURSE_HANDOVER_GAMMA`` overrides it,
+        It is derived from the look-down advantage and the handover range, so
+        the velocity is aligned with the LOS the terminal seeker will use,
         bounded by the descending gradient the airframe can fly.
         """
-        if C.MIDCOURSE_HANDOVER_GAMMA is not None:
-            return max(float(C.MIDCOURSE_HANDOVER_GAMMA),
-                       -C.MIDCOURSE_DESCENT_GAMMA)
         dh = max(C.MIDCOURSE_HANDOVER_DH, C.MIDCOURSE_DESCENT_DH_TARGET)
         return -min(math.atan2(dh, C.HANDOVER_RANGE),
                     C.MIDCOURSE_DESCENT_GAMMA)
@@ -221,7 +213,7 @@ class MidcourseGuidance(BaseGuidance):
         terminal seeker inherits.
         """
         r_entry, dh_entry = self.descent_ref
-        r_h = C.HANDOVER_RANGE + C.MIDCOURSE_LEVEL_LEAD
+        r_h = C.HANDOVER_RANGE
         dh_hand = max(C.MIDCOURSE_HANDOVER_DH,
                       C.MIDCOURSE_DESCENT_DH_TARGET)
         gamma_h = self.handover_gamma()
@@ -518,15 +510,6 @@ class MidcourseGuidance(BaseGuidance):
                               - C.MIDCOURSE_GAMMA_DAMP * (vz_up - vz_ref),
                               -a_max, a_max))
         a_vert = a_net + C.G0 * float(np.cos(gamma))
-        # Slew-limit the vertical command.  Entering the descent profile used to
-        # move the vertical demand by ~2.7 g inside one second, which saturated
-        # both fin pairs and coupled into the roll/yaw channels.
-        if self.a_vert_prev is not None:
-            step = C.MIDCOURSE_VERT_SLEW * max(t - self.t_vert, 1e-3)
-            a_vert = float(np.clip(a_vert, self.a_vert_prev - step,
-                                   self.a_vert_prev + step))
-        self.a_vert_prev = a_vert
-        self.t_vert = t
         a_h = MU.perpendicular(a_cmd, up)
         a_cmd = a_h + up * a_vert
 

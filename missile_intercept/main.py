@@ -191,7 +191,6 @@ class Simulation(object):
         # Estimated attitude/rate used by the control loop (IMU-propagated,
         # star-aided; the gyro bias is estimated alongside).
         self.att = AttitudeEstimator(q0)
-        self.att_est = self.att.q
         self.omega_meas = np.zeros(3)
         self._t_imu = 0.0
         self._t_star = 0.0
@@ -324,7 +323,6 @@ class Simulation(object):
                     float(self._last_info.get("beta", 0.0)),
                     C.GNSS_ATT_AID_GAIN, C.GNSS_ATT_AID_BETA_MAX)
             self._t_star = float(t)
-        self.att_est = self.att.q
 
         if self.cfg.ideal_attitude:
             q_ctrl = q_truth
@@ -420,7 +418,6 @@ class Simulation(object):
             if dt > 0.0:
                 self.omega_meas = self.imu.gyro(y[SL_M_OMEGA], dt)
                 self.att.propagate(self.omega_meas, dt)
-                self.att_est = self.att.q
                 self._t_imu = float(t)
 
         if not np.all(np.isfinite(y)):
@@ -439,8 +436,11 @@ class Simulation(object):
                 self.phase = "midcourse"
 
         if self.phase == "boost":
-            self.guidance_cmd = self.boost.compute(
+            cmd = self.boost.compute(
                 t, self.nav_est, target_state, q, self.seeker_meas)
+            self.guidance_cmd = C.GuidanceCommand(
+                a_cmd_eci=MU.clip_norm(cmd.a_cmd_eci, C.MAX_LOAD_G * C.G0),
+                phase="boost")
             return
 
         a_mid = self.midcourse.compute(
@@ -467,8 +467,13 @@ class Simulation(object):
         if triggered:
             self.phase = "terminal"
             self.handover_flag = 1.0
+        # Terminal keeps the airframe lift capability; boost/midcourse stay on
+        # the lower navigation limit (see config).
+        n_lim = (C.MAX_LOAD_TERMINAL_G if self.phase == "terminal"
+                 else C.MAX_LOAD_G)
         self.guidance_cmd = C.GuidanceCommand(
-            a_cmd_eci=np.asarray(a_cmd, dtype=float), phase=self.phase)
+            a_cmd_eci=MU.clip_norm(np.asarray(a_cmd, dtype=float), n_lim * C.G0),
+            phase=self.phase)
 
     # --------------------------------------------------------
     def _log(self, t, y):

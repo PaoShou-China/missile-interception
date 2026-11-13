@@ -32,7 +32,7 @@ from config import GuidanceCommand
 class TerminalGuidance(BaseGuidance):
     name = "terminal"
 
-    def __init__(self, n=4.0, n_max_g=40.0, fov_margin=0.80,
+    def __init__(self, n=4.0, n_max_g=C.MAX_LOAD_TERMINAL_G, fov_margin=0.80,
                  fov_gain=2.0, tau_at=C.TERMINAL_AT_TAU, alpha=0.75,
                  t_go_min=0.05):
         self.n = float(n)

@@ -56,7 +56,6 @@ class Seeker:
         # they are reported as a lock; a physical detection is trusted at once.
         self._false_streak = 0
         self._was_physical = False
-        self.is_confirmed = False
         self._los_filt = None
 
     # --------------------------------------------------------
@@ -98,7 +97,6 @@ class Seeker:
 
         if self.noise_scale <= 0.0:
             self._false_streak = 0
-            self.is_confirmed = physical
             meas.is_locked = physical
             meas.confirmed = physical
             return meas
@@ -130,7 +128,6 @@ class Seeker:
 
         meas.is_locked = locked
         meas.confirmed = bool(locked)
-        self.is_confirmed = bool(locked)
         meas.los_angle = self._smooth_los(meas.los_angle)
         return meas
 

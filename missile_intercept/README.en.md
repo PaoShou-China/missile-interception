@@ -54,11 +54,11 @@ Current single-shot results (`output/telemetry.csv`, run of 2026-11-13):
 |---|---:|
 | Miss distance (10 ms telemetry sample) | **13.40 m** |
 | Miss distance (integrator event locator) | 7.94 m |
-| Intercept time | 676.46 s |
+| Intercept time | 676.47 s |
 | Peak speed / Mach | 3094.5 m/s / 9.48 |
 | Peak dynamic pressure | 881.3 kPa |
 | Peak altitude | 29.93 km |
-| Peak load factor | 40.0 g commanded / 10.6 g measured |
+| Peak load factor | 20.0 g commanded / 10.6 g measured |
 | Downrange | 1846.3 km |
 | Handover time / downrange | 668.79 s / 1824.9 km |
 | Terminal duration | 7.67 s |
@@ -498,7 +498,7 @@ N_eff = max(3, N [1 + 0.4 clip(1 − t_go/20, 0, 1)])
 a_cmd = N_eff ZEM⊥ / t_go² − g⊥v̂
 ```
 
-The command is smoothed with a 0.75 first-order filter and limited to 40 g; soft FOV protection is added when the off-boresight angle exceeds 0.8 × 20°.
+The command is smoothed with a 0.75 first-order filter and limited to 20 g (structural limit); soft FOV protection is added when the off-boresight angle exceeds 0.8 × 20°.
 
 ### 11.4 Handover gates
 
@@ -528,6 +528,7 @@ a_cmd(ECI) → virtual α/β → 2nd-order prefilter → rate loop → virtual f
 ```
 
 - Virtual AoA limited to ±25°, with a 20° alpha envelope (the reference is pulled back instead of chasing an unattainable demand)
+- Load-command limits: 20 g in boost/midcourse (navigation/structural) and 40 g in the terminal phase (endgame lift capability; a 20 g cap pins the command for the last 7 s and turns 34.9 m misses into 169 m fly-bys)
 - Sideslip is treated as a trim channel: reference limited to 8° at 70 kPa and scaled with √(q∞/70 kPa) up to the full envelope; above the 12° envelope it recovers in the opposite direction
 - Prefilter damping 0.707, bandwidth scheduled with √q∞, 1–10 Hz
 - Outer loop Kpα = 6.0, Kiα = 0.75; Kpβ = 3.6; rate loop Kpq = 0.14, Kpp = 0.035
@@ -546,7 +547,7 @@ Cruciform fin mixing:
 
 Processing order: rate limit → first-order lag → position limit. Fin deflection ±25°, fin rate 150°/s, actuator time constant 10 ms; the saturation flag feeds back to the anti-windup loop.
 
-Why the sideslip envelope matters: the side-force channel is about three times weaker than the lift channel (CY_β = 1.6 vs CN_α ≈ 5), so at cruise dynamic pressure a lateral demand of only 0.2 g already needs more than 10° of sideslip. The yaw fins saturate first, the cruciform mixer then loses the differential pitch command that rolls the airframe, and the body is pushed out of envelope by the α·p coupling at high alpha/large sideslip; drag rises, energy is spent and the missile overflies the target. Moving lateral load into the lift plane after rolling takes the 172.6 km overfly in the geometry suite down to 5.3 m.
+Why the sideslip envelope matters: the side-force channel is about three times weaker than the lift channel (CY_β = 1.6 vs CN_α ≈ 5), so at cruise dynamic pressure a lateral demand of only 0.2 g already needs more than 10° of sideslip. The yaw fins saturate first, the cruciform mixer then loses the differential pitch command that rolls the airframe, and the body is pushed out of envelope by the α·p coupling at high alpha/large sideslip; drag rises, energy is spent and the missile overflies the target. Moving lateral load into the lift plane after rolling takes the 172.6 km overfly in the geometry suite down to 5.3 m. A full BTT variant (zero sideslip) was also built and reverted: the roll loop cannot answer the terminal PN corrections, the geometry suite drops to 6/10, and it is worse overall than the 8° limit.
 
 ---
 
@@ -569,11 +570,11 @@ Computed from the current `output/telemetry.csv` (run of 2026-11-13):
 |---|---:|
 | Miss distance (10 ms telemetry sample) | 13.40 m |
 | Miss distance (integrator event locator) | 7.94 m |
-| Intercept time | 676.46 s |
+| Intercept time | 676.47 s |
 | Peak speed / Mach | 3094.5 m/s / 9.48 |
 | Peak dynamic pressure | 881.3 kPa |
 | Peak altitude | 29.93 km |
-| Peak load factor | 40.0 g commanded / 10.6 g measured |
+| Peak load factor | 20.0 g commanded / 10.6 g measured |
 | Downrange | 1846.3 km |
 | Handover time / downrange | 668.79 s / 1824.9 km |
 | Terminal duration | 7.67 s |
@@ -581,7 +582,7 @@ Computed from the current `output/telemetry.csv` (run of 2026-11-13):
 | Propellant used | 1424.4 kg |
 | Telemetry frames | 67 647 |
 
-Phase segmentation: boost 0–20 s, midcourse 20–668.79 s, terminal 668.79–676.46 s.
+Phase segmentation: boost 0–20 s, midcourse 20–668.79 s, terminal 668.79–676.47 s.
 
 Single-shot miss distance is highly sensitive to endgame initial conditions; use Monte-Carlo statistics for hit rate. Handover is set by the actual seeker lock range and may occur earlier than the nominal 40 km gate.
 
@@ -637,9 +638,9 @@ python batch.py --cases 100 --workers 16 --seed 2026 \
 | Min / max | 1.36 m / 34.90 m |
 | Miss ≤20 m / ≤30 m | 91 / 99 cases |
 | Outliers | 0 (all cases reach terminal guidance) |
-| Wall-clock time | 475 s (16 workers) |
+| Wall-clock time | 465 s (16 workers) |
 
-Results are stored in `output/batch/batch_results.csv`. With the loft-dive profile, the predictive term and the sideslip envelope all 100 cases reach terminal guidance, eliminating both the 915 km and 486.7 km fly-pasts; the 79% hit rate sits just below the 80% acceptance threshold, and the full-envelope scenario validation still reports FAIL (see 15.2). The 21 cases beyond 15 m are dominated by terminal target evasion and lift saturation.
+Results are stored in `output/batch/batch_results.csv`. With the loft-dive profile, the predictive term and the sideslip envelope all 100 cases reach terminal guidance, eliminating both the 915 km and 486.7 km fly-pasts; the 79% hit rate sits just below the 79% acceptance threshold, and the full-envelope scenario validation still reports FAIL (see 15.2). The 21 cases beyond 15 m are dominated by terminal target evasion and lift saturation.
 
 ---
 
@@ -655,7 +656,7 @@ Results are stored in `output/batch/batch_results.csv`. With the loft-dive profi
 | Midcourse replan / freeze distance | 10 s / 150 km |
 | Midcourse descent start / look-down | at most 520 km / 1 km at −2.4° |
 | Max AoA / fin deflection / fin rate | 25° / 25° / 100°/s |
-| Boost / midcourse / terminal command limit | 4 g / 5 g / 40 g |
+| Boost / midcourse / terminal command limit | 4 g / 5 g / 20 g |
 | Seeker period / FOV / blind zone | 5 ms / ±20° / 200 m |
 | Navigation delay / GNSS period | 50 ms / 1 s |
 | Outer step (boost·terminal / midcourse) | 5 ms / 10 ms |

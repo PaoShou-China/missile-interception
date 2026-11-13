@@ -126,6 +126,7 @@ dashboard) and are intentionally not tracked.
 
 ## Documentation
 
+- [技术总结报告 — 各子系统数据、算法与公式（中文，含参考文献）](TECHNICAL_REPORT.md)
 - [Technical reference — architecture, frames, models, telemetry dictionary](missile_intercept/README.md)
 - [English edition (legacy)](missile_intercept/README.en.md)
 - [Changelog](CHANGELOG.md) · [Contributing](CONTRIBUTING.md) · [Security policy](SECURITY.md)

@@ -32,7 +32,6 @@ class IMU(object):
         self.b_gyro = self.rng.normal(0.0, float(bias) * self.scale, 3)
         self.scale_axis = 1.0 + self.rng.normal(
             0.0, self.scale_err, 3) if self.scale > 0.0 else np.ones(3)
-        self.t_last = None
 
     # --------------------------------------------------------
     def gyro(self, omega_true, dt):

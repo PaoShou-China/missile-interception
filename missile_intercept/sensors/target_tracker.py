@@ -27,7 +27,6 @@ class TargetTracker(object):
         self.acc_psd = float(acc_psd)
         self.noise_scale = float(noise_scale)
         self.t_last = None
-        self.updates = 0
 
     # --------------------------------------------------------
     def predict(self, t):
@@ -112,7 +111,6 @@ class TargetTracker(object):
         A = np.eye(6) - K.dot(H)
         self.P = A.dot(self.P).dot(A.T) + K.dot(Rm).dot(K.T)
         self._stabilise()
-        self.updates += 1
         return True
 
     # --------------------------------------------------------
@@ -129,7 +127,6 @@ class TargetTracker(object):
         A = np.eye(6) - K
         self.P = A.dot(self.P).dot(A.T) + K.dot(Rm).dot(K.T)
         self._stabilise()
-        self.updates += 1
         return True
 
     # --------------------------------------------------------

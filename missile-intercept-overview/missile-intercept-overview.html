@@ -631,7 +631,7 @@ footer .meta { font-size: 12px; color: var(--muted); max-width: 380px; line-heig
                 <tr><td><span class="zh">目标</span><span class="en">Target</span></td><td class="num-cell">28.0°N / 126.0°E / 15 240 m</td></tr>
                 <tr><td><span class="zh">目标速度</span><span class="en">Target speed</span></td><td class="num-cell">Mach 1.6</td></tr>
                 <tr><td><span class="zh">交班</span><span class="en">Handover</span></td><td class="num-cell">668.79 s / 约 23 km</td></tr>
-                <tr><td><span class="zh">拦截</span><span class="en">Intercept</span></td><td class="num-cell">676.46 s / 13.40 m</td></tr>
+                <tr><td><span class="zh">拦截</span><span class="en">Intercept</span></td><td class="num-cell">676.47 s / 13.40 m</td></tr>
               </tbody>
             </table>
           </div>
@@ -871,7 +871,7 @@ python -m pytest -n auto       <span class="c"># tests</span></pre>
                 <td><b><span class="zh">制导</span><span class="en">Guidance</span></b></td>
                 <td><span class="zh">垂直发射后转重力转弯，指令限幅 4 g</span><span class="en">Vertical launch into a gravity turn, 4 g command limit</span></td>
                 <td><span class="zh">三维 Bezier 参考 + PN 增强 + 动压保持 + 抬升-俯冲角约束 + 预测补偿</span><span class="en">3D Bezier reference + PN enhancement + q-hold + loft-dive angle constraint + predictive correction</span></td>
-                <td><span class="zh">ZEM/APN，自适应 N，目标加速度前馈，40 g 限幅</span><span class="en">ZEM/APN with adaptive N, target-accel feedforward, 40 g limit</span></td>
+                <td><span class="zh">ZEM/APN，自适应 N，目标加速度前馈，20 g 限幅</span><span class="en">ZEM/APN with adaptive N, target-accel feedforward, 20 g limit</span></td>
               </tr>
               <tr>
                 <td><b><span class="zh">控制</span><span class="en">Control</span></b></td>
@@ -1195,7 +1195,7 @@ flowchart LR
             <li><span class="zh">导航延迟外推 + t_go = max(R/Vc, 下限)</span><span class="en">Nav-delay extrapolation, t_go = max(R/Vc, floor)</span></li>
             <li><span class="zh">ZEM 含目标加速度前馈，30 ms 低通</span><span class="en">ZEM includes target-acceleration feedforward, 30 ms LPF</span></li>
             <li><span class="zh">自适应 N：接近时提升 40%，下限 3</span><span class="en">Adaptive N: 40% boost near endgame, floor 3</span></li>
-            <li><span class="zh">40 g 限幅，FOV 边缘软保护</span><span class="en">40 g limit, soft FOV-edge protection</span></li>
+            <li><span class="zh">20 g 限幅，FOV 边缘软保护</span><span class="en">20 g limit, soft FOV-edge protection</span></li>
           </ul>
         </div>
       </div>
@@ -1232,11 +1232,12 @@ flowchart LR
             <table>
               <tbody>
                 <tr><td><span class="zh">虚拟攻角限幅</span><span class="en">Virtual AoA limit</span></td><td class="num-cell">±25°（包线 20°）</td></tr>
+                <tr><td><span class="zh">过载指令限幅</span><span class="en">Load-command limit</span></td><td class="num-cell">20 g / 末段 40 g</td></tr>
                 <tr><td><span class="zh">侧滑限幅</span><span class="en">Sideslip limit</span></td><td class="num-cell">8°@70 kPa，随动压放大</td></tr>
                 <tr><td><span class="zh">指令预滤波</span><span class="en">Command prefilter</span></td><td class="num-cell">ζ=0.707, 1–10 Hz</td></tr>
                 <tr><td><span class="zh">外环增益</span><span class="en">Outer-loop gains</span></td><td class="num-cell">Kpα=6.0, Kiα=0.75；Kpβ=3.6</td></tr>
                 <tr><td><span class="zh">角速率内环</span><span class="en">Rate-loop gains</span></td><td class="num-cell">Kpq=0.14, Kpp=0.035（q 调度）</td></tr>
-                <tr><td><span class="zh">滚转指令</span><span class="en">Roll command</span></td><td class="num-cell">4/s 对齐 + 0.25 s 平滑</td></tr>
+                <tr><td><span class="zh">滚转指令</span><span class="en">Roll command</span></td><td class="num-cell">4/s 角度对齐</td></tr>
                 <tr><td><span class="zh">舵偏 / 舵速率</span><span class="en">Fin deflection / rate</span></td><td class="num-cell">±25° / 150°/s</td></tr>
                 <tr><td><span class="zh">舵机时间常数</span><span class="en">Actuator time constant</span></td><td class="num-cell">10 ms</td></tr>
                 <tr><td><span class="zh">过载内环</span><span class="en">Load-factor loop</span></td><td class="num-cell">n_z PI + 0.06 s 超前</td></tr>
@@ -1368,7 +1369,7 @@ flowchart LR
         </figure>
         <figure class="chart-figure card">
           <figcaption><span class="zh">过载指令与实测</span><span class="en">Commanded vs measured load factor</span>
-            <span class="sub"><span class="zh">指令限幅 40 g，实测峰值约 10.6 g</span><span class="en">40 g command limit, about 10.6 g measured peak</span></span>
+            <span class="sub"><span class="zh">指令限幅 20 g，实测峰值约 10.6 g</span><span class="en">20 g command limit, about 10.6 g measured peak</span></span>
           </figcaption>
           <div id="chart-load" class="chart"></div>
         </figure>
@@ -1381,11 +1382,11 @@ flowchart LR
             <table>
               <tbody>
                 <tr><td><span class="zh">脱靶量（10 ms 遥测采样）</span><span class="en">Miss distance (10 ms telemetry)</span></td><td class="num-cell">13.40 m</td></tr>
-                <tr><td><span class="zh">拦截时间</span><span class="en">Intercept time</span></td><td class="num-cell">676.46 s</td></tr>
+                <tr><td><span class="zh">拦截时间</span><span class="en">Intercept time</span></td><td class="num-cell">676.47 s</td></tr>
                 <tr><td><span class="zh">最大速度 / 马赫</span><span class="en">Peak speed / Mach</span></td><td class="num-cell">3094.5 m/s / 9.48</td></tr>
                 <tr><td><span class="zh">最大动压</span><span class="en">Peak dynamic pressure</span></td><td class="num-cell">881.3 kPa</td></tr>
                 <tr><td><span class="zh">最大高度</span><span class="en">Peak altitude</span></td><td class="num-cell">29.93 km</td></tr>
-                <tr><td><span class="zh">最大过载</span><span class="en">Peak load factor</span></td><td class="num-cell">40.0 g cmd / 10.6 g act</td></tr>
+                <tr><td><span class="zh">最大过载</span><span class="en">Peak load factor</span></td><td class="num-cell">20.0 g cmd / 10.6 g act</td></tr>
                 <tr><td><span class="zh">航程</span><span class="en">Downrange</span></td><td class="num-cell">1846.3 km</td></tr>
                 <tr><td><span class="zh">交班时间 / 距离</span><span class="en">Handover time / range</span></td><td class="num-cell">668.79 s / 1824.9 km</td></tr>
                 <tr><td><span class="zh">末制导时长</span><span class="en">Terminal duration</span></td><td class="num-cell">7.67 s</td></tr>
@@ -1401,7 +1402,7 @@ flowchart LR
           <ul>
             <li><span class="zh">单发脱靶量对末段初始条件极敏感，命中率应看蒙特卡洛统计；积分器事件定位给出 7.94 m，表中为 10 ms 遥测采样值</span><span class="en">Single-shot miss is highly sensitive to endgame initial conditions; use Monte-Carlo statistics for hit rate. The event locator reports 7.94 m while the table uses the 10 ms telemetry sample</span></li>
             <li><span class="zh">交班由实际导引头锁定距离决定，可能早于 40 km 名义门限</span><span class="en">Handover is set by the actual seeker lock range and may occur earlier than the nominal 40 km gate</span></li>
-            <li><span class="zh">最大过载指令触及 40 g 限幅，但弹体实际峰值约 10.6 g</span><span class="en">The command limit hits 40 g while the airframe actually sees about 10.6 g</span></li>
+            <li><span class="zh">最大过载指令触及 20 g 限幅，但弹体实际峰值约 10.6 g</span><span class="en">The command limit hits 20 g while the airframe actually sees about 10.6 g</span></li>
             <li><span class="zh">6.4% 时间视场接近或超过 20°，末段几何仍有压力</span><span class="en">FOV approaches or exceeds 20° for 6.4% of the time, so the endgame geometry remains demanding</span></li>
           </ul>
         </div>
@@ -1445,7 +1446,7 @@ flowchart LR
                 <tr><td><span class="zh">均值 / 标准差</span><span class="en">Mean / std</span></td><td class="num-cell">10.11 m / 5.81 m</td></tr>
                 <tr><td><span class="zh">最小 / 最大</span><span class="en">Min / max</span></td><td class="num-cell">0.75 m / 34.90 m</td></tr>
                 <tr><td><span class="zh">离群样本</span><span class="en">Outliers</span></td><td class="num-cell"><span class="zh">0 例（全部成功进入末制导）</span><span class="en">0 (all cases reach terminal guidance)</span></td></tr>
-                <tr><td><span class="zh">总墙钟时间</span><span class="en">Wall-clock time</span></td><td class="num-cell">475 s / 16 workers</td></tr>
+                <tr><td><span class="zh">总墙钟时间</span><span class="en">Wall-clock time</span></td><td class="num-cell">466 s / 16 workers</td></tr>
               </tbody>
             </table>
           </div>
@@ -1454,8 +1455,8 @@ flowchart LR
 
       <div class="callout" style="margin-top:16px">
         <b><span class="zh">怎么读这组数：</span><span class="en">How to read it: </span></b>
-        <span class="zh">按 15 m 判据，100 例中 79 例命中；91 例 ≤20 m、99 例 ≤30 m，最大 34.9 m。没有出现未进入末制导的远距离离群，剩余脱靶主要来自末段目标规避与视线角速率饱和。标称散布战役的 79% 命中率高于 80% 验收标准；全包线场景验证仍为 FAIL（见“验证与边界”页）。</span>
-        <span class="en">With a 15 m criterion, 86 of 100 cases hit; 91 fall within 20 m and 98 within 30 m, with a 34.9 m worst case. There is no long-range fly-past outlier, and the remaining misses come from terminal evasion and LOS-rate saturation. The 79% hit rate clears the 80% acceptance threshold for the nominal dispersion campaign; the full-envelope scenario validation still reports FAIL (see the validation page).</span>
+        <span class="zh">按 15 m 判据，100 例中 79 例命中；91 例 ≤20 m、99 例 ≤30 m，最大 34.9 m。没有出现未进入末制导的远距离离群，剩余脱靶主要来自末段目标规避与视线角速率饱和。标称散布战役的 79% 命中率略低于 80% 验收标准；全包线场景验证仍为 FAIL（见“验证与边界”页）。</span>
+        <span class="en">With a 15 m criterion, 79 of 100 cases hit; 91 fall within 20 m and 99 within 30 m, with a 34.9 m worst case. There is no long-range fly-past outlier, and the remaining misses come from terminal evasion and LOS-rate saturation. The 79% hit rate sits just below the 80% acceptance threshold for the nominal dispersion campaign; the full-envelope scenario validation still reports FAIL (see the validation page).</span>
       </div>
     </div>
   </div>
@@ -1491,13 +1492,13 @@ flowchart LR
           </div>
           <div class="callout warn" style="margin-top:14px">
             <b><span class="zh">性能验证（output/validation）：</span><span class="en">Performance validation (output/validation): </span></b>
-            <span class="zh">6 个场景套件中目标速度、目标高度、组合工况达到 80%；基线 4/4 满足 ≤15 m（均值 10.70 m）；机动 50%、几何 70%（最差 44.3 m，不再出现 486.7 km 飞越），整体仍为 FAIL。单元测试全绿不等于全包线命中率达标。</span>
-            <span class="en">The target-speed, altitude and combined suites clear 80%; the baseline passes 4/4 at ≤15 m (10.70 m mean); maneuver 50% and geometry 70% (worst 44.3 m, no 486.7 km fly-past), so the overall verdict remains FAIL. Green unit tests do not imply full-envelope hit-rate compliance.</span>
+            <span class="zh">6 个场景套件中目标速度套件 100%，基线 4/4（均值 10.70 m）；目标高度 87.5%、组合工况 87.5%，交战几何 70%（最差 44.3 m，不再出现 486.7 km 飞越），机动 50%，整体仍为 FAIL。单元测试全绿不等于全包线命中率达标。</span>
+            <span class="en">The target-speed suite is 100% and the baseline 4/4 (10.70 m mean); altitude 87.5% and combined 87.5%, geometry 70% (worst 44.3 m, no 486.7 km fly-past), maneuver 50%, so the overall verdict remains FAIL. Green unit tests do not imply full-envelope hit-rate compliance.</span>
           </div>
           <div class="callout" style="margin-top:12px">
             <b><span class="zh">蒙特卡洛（100 例，种子 2026）：</span><span class="en">Monte Carlo (100 cases, seed 2026): </span></b>
-            <span class="zh"><b>79%</b> 命中（≤15 m，95% CI 70.0–85.8%），CEP50 <b>9.27 m</b>，CEP90 <b>17.96 m</b>；91 例 ≤20 m、99 例 ≤30 m，无远距离离群，最大 34.9 m。</span>
-            <span class="en"><b>79%</b> hit rate (≤15 m, 95% CI 70.0–85.8%), CEP50 <b>9.27 m</b>, CEP90 <b>17.96 m</b>; 91 cases within 20 m, 99 within 30 m, no long-range outlier, worst case 34.9 m.</span>
+            <span class="zh"><b>79%</b> 命中（≤15 m，95% CI 70.0–85.8%），CEP50 <b>9.27 m</b>，CEP90 <b>17.96 m</b>；91 例 ≤20 m、99 例 ≤30 m，全部进入末制导，最大 34.9 m。</span>
+            <span class="en"><b>79%</b> hit rate (≤15 m, 95% CI 70.0–85.8%), CEP50 <b>9.27 m</b>, CEP90 <b>17.96 m</b>; 91 cases within 20 m, 99 within 30 m, all reach terminal guidance, worst case 34.9 m.</span>
           </div>
         </div>
 

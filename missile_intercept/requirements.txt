@@ -1,8 +1,21 @@
-# Python 3.14
-numpy>=2.3
-numba>=0.60          # JIT for hot paths; falls back to pure Python when missing
-scipy>=1.16
-matplotlib>=3.10
-pyyaml>=6.0
-pytest>=8.0
-pytest-xdist>=3.0
+# 2000 公里级高超声速拦截器 — 6DOF 端到端仿真
+# Python >= 3.9（代码保留 3.6+ 语法兼容）
+# 安装: python -m pip install -r requirements.txt
+
+# ============================================================
+# 核心运行依赖（必需）
+# ============================================================
+numpy>=1.24          # 数值计算，所有模块均依赖
+
+# ============================================================
+# 可选加速 / 分析依赖（缺失时自动回退纯 Python）
+# ============================================================
+numba>=0.57          # JIT 编译热路径 (fastcore.py)；缺失时用纯 Python 运行
+scipy>=1.10          # Sobol 序列采样 (analysis.py: scipy.stats.qmc)；缺失时回退 numpy.random
+matplotlib>=3.7      # 批量仿真直方图与收敛图 (batch.py, validate_performance.py)
+
+# ============================================================
+# 测试依赖
+# ============================================================
+pytest>=8.0          # 单元测试框架
+pytest-xdist>=3.0    # 多进程并行测试 (pytest -n auto)

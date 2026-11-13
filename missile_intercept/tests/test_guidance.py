@@ -161,7 +161,7 @@ def test_midcourse_loft_then_dive_profile():
     mid.descent_active = True
 
     dh_at_entry, gamma_at_entry = mid._loft_dive_profile(r_entry)
-    r_h_eff = C.HANDOVER_RANGE + C.MIDCOURSE_LEVEL_LEAD
+    r_h_eff = C.HANDOVER_RANGE
     apex_range = r_h_eff + C.MIDCOURSE_LOFT_FRAC * (r_entry - r_h_eff)
     dh_at_apex, gamma_at_apex = mid._loft_dive_profile(apex_range)
     _, gamma_mid = mid._loft_dive_profile(60000.0)
@@ -175,13 +175,10 @@ def test_midcourse_loft_then_dive_profile():
     assert gamma_near == pytest.approx(mid.handover_gamma(), abs=0.3 * C.DEG)
 
 
-def test_handover_gamma_matches_configured_or_derived_value():
+def test_handover_gamma_is_derived_from_geometry():
     gamma = MidcourseGuidance.handover_gamma()
-    if C.MIDCOURSE_HANDOVER_GAMMA is None:
-        dh = max(C.MIDCOURSE_HANDOVER_DH, C.MIDCOURSE_DESCENT_DH_TARGET)
-        expected = -np.arctan2(dh, C.HANDOVER_RANGE)
-    else:
-        expected = C.MIDCOURSE_HANDOVER_GAMMA
+    dh = max(C.MIDCOURSE_HANDOVER_DH, C.MIDCOURSE_DESCENT_DH_TARGET)
+    expected = -np.arctan2(dh, C.HANDOVER_RANGE)
     assert gamma == pytest.approx(expected, abs=1e-9)
     assert gamma < 0.0
 
@@ -242,5 +239,5 @@ def test_terminal_guidance_corrects_los_offset():
                              range_rate=-1500.0)
     cmd = term.compute(0.0, nav, target_state, np.array([1.0, 0.0, 0.0, 0.0]), seeker)
     assert np.all(np.isfinite(cmd.a_cmd_eci))
-    assert 0.0 < np.linalg.norm(cmd.a_cmd_eci) <= 40.0 * C.G0 + 1e-6
+    assert 0.0 < np.linalg.norm(cmd.a_cmd_eci) <= C.MAX_LOAD_TERMINAL_G * C.G0 + 1e-6
     assert cmd.phase == "terminal"

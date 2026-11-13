@@ -21,19 +21,29 @@
   a{color:inherit;text-decoration:none}
   .wrap{max-width:var(--maxw);margin:0 auto;padding:0 24px}
 
+  html[lang="zh-CN"] .en{display:none}
+  html[lang="en"] .zh{display:none}
+
+  .lang-switch{position:fixed;top:18px;right:22px;z-index:20}
+  .lang-switch button{display:inline-flex;align-items:center;gap:7px;cursor:pointer;
+    padding:9px 16px;border-radius:999px;font:600 12.5px/1 var(--font);letter-spacing:.04em;
+    color:#f5f5f7;background:rgba(255,255,255,.10);border:1px solid rgba(255,255,255,.28);
+    backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);transition:.2s}
+  .lang-switch button:hover{background:rgba(255,255,255,.20)}
+
   /* hero */
   .hero{background:#000;color:#f5f5f7;padding:96px 0 72px;position:relative;overflow:hidden}
-  .hero::before{content:"";position:absolute;inset:0;background:url("assets/hero.jpg") center 42%/cover no-repeat;
-    opacity:.55;filter:saturate(1.05)}
+  .hero::before{content:"";position:absolute;inset:0;background:url("assets/hero.jpg") center 46%/cover no-repeat;
+    opacity:.62;filter:saturate(1.05)}
   .hero::after{content:"";position:absolute;inset:0;pointer-events:none;
-    background:linear-gradient(90deg,rgba(0,0,0,.92) 0%,rgba(0,0,0,.72) 46%,rgba(0,0,0,.30) 100%),
-               radial-gradient(900px 380px at 78% 8%,rgba(0,113,227,.28),transparent 62%)}
+    background:linear-gradient(90deg,rgba(0,0,0,.94) 0%,rgba(0,0,0,.78) 44%,rgba(0,0,0,.18) 100%),
+               radial-gradient(900px 380px at 78% 8%,rgba(0,113,227,.26),transparent 62%)}
   .hero .wrap{position:relative;z-index:1}
   .eyebrow{font:600 12px/1 var(--mono);letter-spacing:.16em;text-transform:uppercase;color:#86868b;margin-bottom:22px}
   .eyebrow b{color:var(--accent2);font-weight:600}
   h1{font-size:clamp(38px,5.4vw,64px);line-height:1.08;letter-spacing:-.022em;margin:0 0 18px;font-weight:700}
   h1 em{font-style:normal;background:linear-gradient(92deg,#4fb3ff,#30b0c7);-webkit-background-clip:text;background-clip:text;color:transparent}
-  .lede{max-width:740px;font-size:clamp(16px,1.6vw,20px);color:#a1a1a6;margin:0 0 34px}
+  .lede{max-width:740px;font-size:clamp(16px,1.6vw,20px);color:#b4b4ba;margin:0 0 34px}
   .cta{display:flex;flex-wrap:wrap;gap:12px}
   .btn{display:inline-flex;align-items:center;gap:8px;border-radius:999px;padding:13px 24px;
        font-size:15px;font-weight:600;transition:.2s ease;border:1px solid transparent}
@@ -47,7 +57,7 @@
            border-top:1px solid rgba(255,255,255,.12);margin-top:64px;border-radius:16px;overflow:hidden}
   .metric{background:#000;padding:22px 20px}
   .metric .v{font:700 26px/1.1 var(--font);letter-spacing:-.02em}
-  .metric .k{margin-top:6px;font-size:12.5px;color:#86868b;letter-spacing:.02em}
+  .metric .k{margin-top:6px;font-size:12.5px;color:#9a9aa0}
 
   /* sections */
   section{padding:76px 0}
@@ -89,26 +99,51 @@
   }
   @media(max-width:620px){
     .cards,.modules{grid-template-columns:1fr}
-    .hero{padding:72px 0 54px}
+    .hero{padding:76px 0 54px}
   }
 </style>
 </head>
 <body>
 
+<div class="lang-switch">
+  <button id="langToggle" type="button" aria-label="Switch language">EN</button>
+</div>
+
 <header class="hero">
   <div class="wrap">
-    <div class="eyebrow">2000 km class · 6DOF · <b>end-to-end simulation</b></div>
-    <h1>高超声速拦截器<br><em>六自由度仿真</em></h1>
-    <p class="lede">垂直冷发射、固体助推 + 超声速冲压组合循环动力、GNSS/INS 组合导航、雷达导引头、Bezier 中制导与 ZEM/APN 末制导、三回路姿态控制与蒙特卡洛打靶——纯 Python/NumPy 实现的模块化、可测试、可并行仿真。</p>
+    <div class="eyebrow">
+      <span class="zh">2000 km 级 · 6DOF · <b>端到端仿真</b></span>
+      <span class="en">2000 km class · 6DOF · <b>end-to-end simulation</b></span>
+    </div>
+    <h1>
+      <span class="zh">高超声速拦截器<br><em>六自由度仿真</em></span>
+      <span class="en">Hypersonic Interceptor<br><em>6DOF Simulation</em></span>
+    </h1>
+    <p class="lede">
+      <span class="zh">垂直冷发射、固体助推 + 超声速冲压组合循环动力、GNSS/INS 组合导航、雷达导引头、Bezier 中制导与 ZEM/APN 末制导、三回路姿态控制与蒙特卡洛打靶——纯 Python/NumPy 实现的模块化、可测试、可并行仿真。</span>
+      <span class="en">Vertical cold launch, solid boost plus supersonic ramjet combined cycle, GNSS/INS navigation, radar seeker, Bezier midcourse and ZEM/APN terminal guidance, three-loop attitude control and Monte-Carlo campaigns — a modular, testable and parallel simulation in pure Python/NumPy.</span>
+    </p>
     <div class="cta">
-      <a class="btn primary" href="#reports">查看仿真报告</a>
-      <a class="btn ghost" href="https://github.com/PaoShou-China/missile-interception" target="_blank" rel="noopener">GitHub 源码</a>
+      <a class="btn primary" href="#reports"><span class="zh">查看仿真报告</span><span class="en">View reports</span></a>
+      <a class="btn ghost" href="https://github.com/PaoShou-China/missile-interception" target="_blank" rel="noopener"><span class="zh">GitHub 源码</span><span class="en">Source on GitHub</span></a>
     </div>
     <div class="metrics">
-      <div class="metric"><div class="v">6DOF</div><div class="k">刚体动力学 + 姿态闭环</div></div>
-      <div class="metric"><div class="v">5 ms</div><div class="k">助推 / 末段积分步长</div></div>
-      <div class="metric"><div class="v">2000 km</div><div class="k">级射程工程外推</div></div>
-      <div class="metric"><div class="v">Monte-Carlo</div><div class="k">批量打靶与灵敏度分析</div></div>
+      <div class="metric">
+        <div class="v">6DOF</div>
+        <div class="k"><span class="zh">刚体动力学 + 姿态闭环</span><span class="en">Rigid-body dynamics + attitude loop</span></div>
+      </div>
+      <div class="metric">
+        <div class="v">5 ms</div>
+        <div class="k"><span class="zh">助推 / 末段积分步长</span><span class="en">Boost / terminal integration step</span></div>
+      </div>
+      <div class="metric">
+        <div class="v">2000 km</div>
+        <div class="k"><span class="zh">级射程工程外推</span><span class="en">Engineering-extrapolated range</span></div>
+      </div>
+      <div class="metric">
+        <div class="v">Monte-Carlo</div>
+        <div class="k"><span class="zh">批量打靶与灵敏度分析</span><span class="en">Batch campaigns and sensitivity</span></div>
+      </div>
     </div>
   </div>
 </header>
@@ -116,27 +151,27 @@
 <section id="reports">
   <div class="wrap">
     <div class="sec-head">
-      <h2>在线报告</h2>
-      <p>三份可直接在浏览器中打开的交互式报告，均由仿真输出数据生成。</p>
+      <h2><span class="zh">在线报告</span><span class="en">Online reports</span></h2>
+      <p><span class="zh">三份可直接在浏览器中打开的交互式报告，均由仿真输出数据生成。</span><span class="en">Three interactive reports generated from simulation output, open directly in the browser.</span></p>
     </div>
     <div class="cards">
       <a class="card" href="missile-intercept-overview/missile-intercept-overview.html">
         <div class="tag">Overview</div>
-        <h3>项目概览</h3>
-        <p>体系结构与全流程总览：弹道剖面、能量管理、制导交接、控制回路与关键指标的交互式展示。</p>
-        <div class="go">打开报告 <span>→</span></div>
+        <h3><span class="zh">项目概览</span><span class="en">Project overview</span></h3>
+        <p><span class="zh">体系结构与全流程总览：弹道剖面、能量管理、制导交接、控制回路与关键指标的交互式展示。</span><span class="en">Architecture and end-to-end walk-through: trajectory profile, energy management, handover, control loops and key metrics.</span></p>
+        <div class="go"><span class="zh">打开报告</span><span class="en">Open report</span> <span>→</span></div>
       </a>
       <a class="card" href="intercept-report/intercept-report.html">
         <div class="tag">Analysis</div>
-        <h3>拦截分析报告</h3>
-        <p>2000 km 级 6DOF 仿真分析：高度/马赫数剖面、视线角速度、脱靶量与蒙特卡洛统计分布。</p>
-        <div class="go">打开报告 <span>→</span></div>
+        <h3><span class="zh">拦截分析报告</span><span class="en">Intercept analysis</span></h3>
+        <p><span class="zh">2000 km 级 6DOF 仿真分析：高度/马赫数剖面、视线角速度、脱靶量与蒙特卡洛统计分布。</span><span class="en">2000 km-class 6DOF analysis: altitude/Mach profile, LOS rates, miss distance and Monte-Carlo dispersion.</span></p>
+        <div class="go"><span class="zh">打开报告</span><span class="en">Open report</span> <span>→</span></div>
       </a>
       <a class="card" href="test-report/missile_interceptor_test_report.html">
         <div class="tag">Verification</div>
-        <h3>全流程测试报告</h3>
-        <p>分系统与全链路测试汇总：气动锚点、导航、导引头、制导交接、控制律与数值一致性校验。</p>
-        <div class="go">打开报告 <span>→</span></div>
+        <h3><span class="zh">全流程测试报告</span><span class="en">Full-flow test report</span></h3>
+        <p><span class="zh">分系统与全链路测试汇总：气动锚点、导航、导引头、制导交接、控制律与数值一致性校验。</span><span class="en">Subsystem and end-to-end tests: aero anchors, navigation, seeker, handover, control laws and numeric consistency.</span></p>
+        <div class="go"><span class="zh">打开报告</span><span class="en">Open report</span> <span>→</span></div>
       </a>
     </div>
   </div>
@@ -145,16 +180,34 @@
 <section style="padding-top:0">
   <div class="wrap">
     <div class="sec-head">
-      <h2>仿真链路</h2>
-      <p>从发射到交会，每个环节都有独立模块与对应测试。</p>
+      <h2><span class="zh">仿真链路</span><span class="en">Simulation pipeline</span></h2>
+      <p><span class="zh">从发射到交会，每个环节都有独立模块与对应测试。</span><span class="en">From launch to intercept, every stage has its own module and tests.</span></p>
     </div>
     <div class="modules">
-      <div class="module"><h4><span class="dot"></span>组合动力</h4><p>固体助推接力超声速冲压，推力与耗量随高度、马赫数调度。</p></div>
-      <div class="module"><h4><span class="dot"></span>导航与导引</h4><p>GNSS/INS 组合导航、雷达导引头量测、目标跟踪与滤波。</p></div>
-      <div class="module"><h4><span class="dot"></span>制导与交接</h4><p>Bezier 中制导、ZEM/APN 末制导、多约束交接班管理。</p></div>
-      <div class="module"><h4><span class="dot"></span>姿态控制</h4><p>三回路自动驾驶仪、舵机限幅与速率约束、增益调度。</p></div>
-      <div class="module"><h4><span class="dot"></span>多速率积分</h4><p>不同飞行段自适应步长与事件处理，支持收敛性外推。</p></div>
-      <div class="module"><h4><span class="dot"></span>验证体系</h4><p>pytest 测试集、气动锚点校核、数值一致性与性能校验。</p></div>
+      <div class="module">
+        <h4><span class="dot"></span><span class="zh">组合动力</span><span class="en">Combined cycle</span></h4>
+        <p><span class="zh">固体助推接力超声速冲压，推力与耗量随高度、马赫数调度。</span><span class="en">Solid booster hands over to a supersonic ramjet, with thrust and flow scheduled by altitude and Mach.</span></p>
+      </div>
+      <div class="module">
+        <h4><span class="dot"></span><span class="zh">导航与导引</span><span class="en">Navigation &amp; seeker</span></h4>
+        <p><span class="zh">GNSS/INS 组合导航、雷达导引头量测、目标跟踪与滤波。</span><span class="en">GNSS/INS integration, radar seeker measurements, target tracking and filtering.</span></p>
+      </div>
+      <div class="module">
+        <h4><span class="dot"></span><span class="zh">制导与交接</span><span class="en">Guidance &amp; handover</span></h4>
+        <p><span class="zh">Bezier 中制导、ZEM/APN 末制导、多约束交接班管理。</span><span class="en">Bezier midcourse, ZEM/APN terminal guidance and multi-constraint handover management.</span></p>
+      </div>
+      <div class="module">
+        <h4><span class="dot"></span><span class="zh">姿态控制</span><span class="en">Attitude control</span></h4>
+        <p><span class="zh">三回路自动驾驶仪、舵机限幅与速率约束、增益调度。</span><span class="en">Three-loop autopilot, actuator deflection and rate limits, gain scheduling.</span></p>
+      </div>
+      <div class="module">
+        <h4><span class="dot"></span><span class="zh">多速率积分</span><span class="en">Multi-rate integration</span></h4>
+        <p><span class="zh">不同飞行段自适应步长与事件处理，支持收敛性外推。</span><span class="en">Stage-dependent adaptive steps and event handling, with convergence extrapolation.</span></p>
+      </div>
+      <div class="module">
+        <h4><span class="dot"></span><span class="zh">验证体系</span><span class="en">Verification suite</span></h4>
+        <p><span class="zh">pytest 测试集、气动锚点校核、数值一致性与性能校验。</span><span class="en">pytest suite, aerodynamic anchor checks, numeric consistency and performance validation.</span></p>
+      </div>
     </div>
   </div>
 </section>
@@ -162,21 +215,21 @@
 <section style="padding-top:0">
   <div class="wrap">
     <div class="sec-head">
-      <h2>快速开始</h2>
-      <p>克隆仓库后在 <code>missile_intercept/</code> 下运行。</p>
+      <h2><span class="zh">快速开始</span><span class="en">Quick start</span></h2>
+      <p><span class="zh">克隆仓库后在 <code>missile_intercept/</code> 下运行。</span><span class="en">Clone the repository and run from <code>missile_intercept/</code>.</span></p>
     </div>
     <div class="run">
       <span class="path">$ missile_intercept/</span>
-      <pre><span class="c"># 安装依赖</span>
+      <pre><span class="c"># install dependencies / 安装依赖</span>
 python -m pip install -r requirements.txt
 
-<span class="c"># 单发仿真（输出遥测 CSV 与图表）</span>
+<span class="c"># single run / 单发仿真（输出遥测 CSV 与图表）</span>
 python main.py
 
-<span class="c"># 蒙特卡洛打靶</span>
+<span class="c"># Monte-Carlo campaign / 蒙特卡洛打靶</span>
 python batch.py --cases 50 --workers 8 --seed 2026
 
-<span class="c"># 测试与数值验证</span>
+<span class="c"># tests and verification / 测试与数值验证</span>
 python -m pytest -n auto
 python verification.py</pre>
     </div>
@@ -186,12 +239,45 @@ python verification.py</pre>
 <footer>
   <div class="wrap">
     <div class="row">
-      <div>2000 km 级高超声速拦截器 · 6DOF 端到端仿真</div>
+      <div>
+        <span class="zh">2000 km 级高超声速拦截器 · 6DOF 端到端仿真</span>
+        <span class="en">2000 km-class Hypersonic Interceptor · 6DOF end-to-end simulation</span>
+      </div>
       <div><a href="https://github.com/PaoShou-China/missile-interception">github.com/PaoShou-China/missile-interception</a></div>
     </div>
-    <p class="disc">免责声明：公开的 2000 km 级拦截器数据有限，模型中的几何、质量、惯量、气动与动力参数为公开资料的工程外推，仅用于算法、软件与体系验证，不代表任何现役装备的实测数据或性能。</p>
+    <p class="disc">
+      <span class="zh">免责声明：公开的 2000 km 级拦截器数据有限，模型中的几何、质量、惯量、气动与动力参数为公开资料的工程外推，仅用于算法、软件与体系验证，不代表任何现役装备的实测数据或性能。</span>
+      <span class="en">Disclaimer: public data for a 2000 km-class interceptor are scarce. Geometry, mass, inertia, aerodynamic and propulsion parameters are an engineering extrapolation from public sources, intended for algorithm, software and architecture verification only — not measured data or performance of any fielded system.</span>
+    </p>
   </div>
 </footer>
+
+<script>
+(function () {
+  var root = document.documentElement;
+  var btn = document.getElementById('langToggle');
+  var titles = {
+    'zh-CN': '2000 km 级高超声速拦截器 · 6DOF 仿真',
+    'en': '2000 km-class Hypersonic Interceptor · 6DOF Simulation'
+  };
+
+  function apply(lang) {
+    root.lang = lang;
+    btn.textContent = lang === 'en' ? '中文' : 'EN';
+    document.title = titles[lang];
+    try { localStorage.setItem('lang', lang); } catch (e) {}
+  }
+
+  btn.addEventListener('click', function () {
+    apply(root.lang === 'en' ? 'zh-CN' : 'en');
+  });
+
+  var saved = null;
+  try { saved = localStorage.getItem('lang'); } catch (e) {}
+  var urlLang = new URLSearchParams(location.search).get('lang');
+  apply(urlLang === 'en' || urlLang === 'zh' ? (urlLang === 'en' ? 'en' : 'zh-CN') : (saved || 'zh-CN'));
+})();
+</script>
 
 </body>
 </html>

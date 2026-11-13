@@ -1,17 +1,12 @@
-# 2000-km-class Lifting-Body Interceptor — 6DOF End-to-End Simulation
+# 2000-km-class Hypersonic Interceptor — 6DOF End-to-End Simulation
 
-> [README.md](README.md) | English
+**User Guide + Technical Notes**
 
-A complete, deterministic 6DOF digital flight of a 2000-km-class lifting-body
-interceptor: vertical cold launch, solid boost, supersonic ramjet cruise,
-Bezier midcourse, handover gating, and ZEM/APN terminal guidance. The plant,
-navigation, seeker, autopilot, actuator and telemetry models all run in one
-closed loop at a 5 ms outer step.
+> [中文](README.md) | [English](README.en.md)
 
-This English README mirrors the Chinese [README.md](README.md). It explains how
-to run the project, how the modules fit together, the frames and physical
-models, the key parameters, the full telemetry dictionary, validation tools,
-and the known assumptions and limitations.
+A modular, testable and parallel hypersonic-interceptor simulation in pure Python/NumPy. It covers vertical cold launch, solid boost plus supersonic ramjet combined-cycle propulsion, GNSS/INS navigation, a dual-mode radar/IR seeker, three-loop attitude control, Bezier loft-dive midcourse guidance, ZEM/APN terminal guidance, handover management, multi-rate sampling and Monte-Carlo campaigns.
+
+> **Disclaimer**: complete public data for a 2000-km-class interceptor are scarce. The geometry, mass, inertia, aerodynamic and propulsion parameters in `config.py` are an **engineering extrapolation** from public sources plus generic hypersonic-vehicle characteristics. They are intended only for algorithm, software and architecture verification, and do not represent measured data or performance figures of any fielded system.
 
 ---
 
@@ -21,53 +16,55 @@ and the known assumptions and limitations.
 2. [Quick start](#2-quick-start)
 3. [Repository layout](#3-repository-layout)
 4. [Architecture and data flow](#4-architecture-and-data-flow)
-5. [Frames, time and Earth model](#5-frames-time-and-earth-model)
+5. [Frames and Earth model](#5-frames-and-earth-model)
 6. [6DOF rigid-body dynamics](#6-6dof-rigid-body-dynamics)
-7. [Atmosphere](#7-atmosphere)
-8. [Aerodynamics](#8-aerodynamics)
-9. [Propulsion](#9-propulsion)
-10. [Target model](#10-target-model)
-11. [GNSS/INS navigation](#11-gnssins-navigation)
-12. [Radar seeker](#12-radar-seeker)
-13. [Guidance and handover](#13-guidance-and-handover)
-14. [Control and actuators](#14-control-and-actuators)
-15. [Integration, events and telemetry](#15-integration-events-and-telemetry)
-16. [Monte-Carlo campaign](#16-monte-carlo-campaign)
-17. [Data files](#17-data-files)
-18. [Key parameters](#18-key-parameters)
-19. [Tests](#19-tests)
-20. [Nominal results](#20-nominal-results)
-21. [Assumptions and limitations](#21-assumptions-and-limitations)
-22. [References](#22-references)
-- [Appendix A: symbols](#appendix-a-symbols)
-- [Appendix B: telemetry dictionary](#appendix-b-telemetry-dictionary)
-- [Appendix C: troubleshooting](#appendix-c-troubleshooting)
+7. [Atmosphere and aerodynamics](#7-atmosphere-and-aerodynamics)
+8. [Combined-cycle propulsion](#8-combined-cycle-propulsion)
+9. [Target model](#9-target-model)
+10. [Navigation and seeker](#10-navigation-and-seeker)
+11. [Guidance and handover](#11-guidance-and-handover)
+12. [Control and actuators](#12-control-and-actuators)
+13. [Numerics and telemetry](#13-numerics-and-telemetry)
+14. [Current single-shot results](#14-current-single-shot-results)
+15. [Tests and performance validation](#15-tests-and-performance-validation)
+16. [Key parameters](#16-key-parameters)
+17. [Assumptions and scope](#17-assumptions-and-scope)
+18. [References](#18-references)
 
 ---
 
 ## 1. Overview
 
-The simulation answers one question: can a lifting-body interceptor launched
-from an inland site intercept a hard-manoeuvring fifth-generation fighter over
-the sea, using only onboard navigation, a radar seeker, and a three-loop
-autopilot?
+| Item | Contents |
+|---|---|
+| Mission | Inland launch site → sea target at about 1990 km and 15.24 km altitude, head-on intercept |
+| Phases | Vertical cold launch → gravity-turn boost → constant-q midcourse cruise → ZEM/APN terminal |
+| Propulsion | Solid booster (13 s, 800 kg) + supersonic ramjet (Mach 1.6–10) |
+| Dynamics | 14-state rigid body (3 position + 3 velocity + 4 quaternion + 3 rate + 1 mass) |
+| Target | F-35A-class threat (3DOF point mass), Mach 1.6 constant-altitude cruise, 9 g weaving inside 15 km |
+| Navigation | INS prediction + 1 Hz GNSS, 12-state linear Kalman filter, 50 ms output delay |
+| Seeker | Dual-mode radar + imaging infrared, 5 ms measurement, ±20° FOV, 200 m blind zone |
+| Control | Three-loop PID (pseudo AoA → rate → virtual fin) + anti-windup + dynamic-pressure gain scheduling |
+| Integration | Native fixed-step RK4 + direction-aware event detection + bisection localisation |
+| Parallelism | `ProcessPoolExecutor` Monte-Carlo, reproducible with fixed seeds |
 
-The modelled engagement:
+Current single-shot results (`output/telemetry.csv`, run of 2026-11-13):
 
-- Launch site: 40.0°N, 110.0°E, sea level.
-- Threat: F-35A-class point-mass target at 28.0°N, 126.0°E, 15 240 m,
-  Mach 1.6, 9 g design limit, head-on.
-- Initial range: about 1 990 km.
-- Missile: 2 565 kg at launch, 1 000 kg dry, 8.11 m long, 0.63 m diameter.
-- Propulsion: 13 s solid booster (130 kN sea-level class) plus a
-  Mach-hold supersonic ramjet up to Mach 10.
-- Endgame: ZEM/APN terminal guidance with an adaptive navigation constant,
-  a ±20° seeker field of view, and a 200 m blind zone.
-
-The code is deliberately modular and deterministic. Every random stream is
-seeded, every rate is explicit, and every telemetry column is documented in
-[Appendix B](#appendix-b-telemetry-dictionary). The same code path supports a
-single run, a Monte-Carlo campaign, and automated validation.
+| Metric | Value |
+|---|---:|
+| Miss distance (10 ms telemetry sample) | **13.40 m** |
+| Miss distance (integrator event locator) | 7.94 m |
+| Intercept time | 676.46 s |
+| Peak speed / Mach | 3094.5 m/s / 9.48 |
+| Peak dynamic pressure | 881.3 kPa |
+| Peak altitude | 29.93 km |
+| Peak load factor | 40.0 g commanded / 10.6 g measured |
+| Downrange | 1846.3 km |
+| Handover time / downrange | 668.79 s / 1824.9 km |
+| Terminal duration | 7.67 s |
+| FOV exceedance | 6.4 % |
+| Propellant used | 1424.4 kg (solid 800 + ramjet about 664) |
+| Telemetry frames | 67 647 |
 
 ---
 
@@ -75,132 +72,105 @@ single run, a Monte-Carlo campaign, and automated validation.
 
 ### 2.1 Requirements
 
-- Python 3.10 or newer (the project is developed on Python 3.14).
-- NumPy and Matplotlib; Numba is optional but strongly recommended.
-- On Windows, set thread limits before running a batch or validation:
+- Python 3.9+ (code keeps 3.6+ syntax compatibility)
+- NumPy 1.x / 2.x
+- Optional: SciPy (Sobol sampling), matplotlib (batch histograms), Numba (hot-path acceleration with automatic fallback)
+- Tests: pytest, pytest-xdist
 
-```powershell
-$env:OPENBLAS_NUM_THREADS="1"
-$env:OMP_NUM_THREADS="1"
-$env:MKL_NUM_THREADS="1"
+```bash
+python -m pip install numpy scipy pytest pytest-xdist
+# optional
+python -m pip install numba matplotlib
 ```
 
-Install dependencies:
+### 2.2 Single run
 
-```powershell
-pip install -r requirements.txt
+```bash
+cd missile_intercept
+
+python main.py                          # boost/terminal 5 ms, midcourse 10 ms
+python main.py --max-step 0.002         # finer boost/terminal step
+python main.py --midcourse-step 0.005   # midcourse back to 5 ms
+python main.py --duration 900           # set simulation end time
+python main.py --no-plot                # CSV only
+python main.py --converge               # step convergence + Richardson extrapolation
 ```
 
-### 2.2 Single end-to-end run
-
-```powershell
-python main.py
-```
-
-This runs the nominal engagement, writes `output/telemetry.csv`, and generates
-the interactive dashboard `output/intercept_dashboard.html`. Use
-`python main.py --no-plot` to skip the dashboard.
+At start-up `config.validate_data()` checks reference area, specific impulse, inertia, static stability margin, centre-of-gravity travel and other consistency conditions, and raises on failure.
 
 ### 2.3 Monte-Carlo campaign
 
-```powershell
-python main.py --batch
-# or
-python batch.py --runs 50 --out output/mc
+```bash
+python main.py --batch 20 --workers 8
+python batch.py --cases 50 --workers 8 --seed 2026
+
+python batch.py --cases 50 \
+  --launch-cep 500 --target-cep 2000 \
+  --target-alt-sigma 500 --target-mach-sigma 0.05 \
+  --evade-g-sigma 1.0 --lethal-radius 10
 ```
 
-The batch driver varies navigation/seeker seeds (and optionally target and
-launch dispersion), runs cases in parallel processes, and writes
-`output/mc/batch_results.csv` plus a summary.
+### 2.4 Tests and analysis
 
-### 2.4 Validation suite
-
-```powershell
-$env:OPENBLAS_NUM_THREADS="1"; $env:OMP_NUM_THREADS="1"; $env:MKL_NUM_THREADS="1"
-python validate_performance.py --workers 8 --out output/validation
+```bash
+python -m pytest -n auto
+python verification.py
+python analysis.py sweep spec.json
+python analysis.py sobol spec.json --cases 64
+python analysis.py mc --checkpoint out.jsonl --resume
 ```
 
-The validator runs nominal, altitude, speed, manoeuvre and combined stress
-suites, then prints per-suite mean/CEP90 and the pass rate against the 15 m
-criterion.
+### 2.5 Outputs
 
-### 2.5 Tests
-
-```powershell
-python -m pytest tests -q
-```
-
-The suite covers frames, atmosphere, aero interpolation, propulsion, target,
-navigation, seeker, guidance, autopilot, integrator, telemetry and data
-consistency. If Numba caches a stale signature after a code change, remove
-`__pycache__/numba_*` and rerun.
-
-### 2.5b Handover diagnostics
-
-```powershell
-python tools/handover_diagnostics.py --suite baseline --workers 4
-```
-
-Reports, per case: first-lock range, handover range/time, forced-handover
-flag, FOV margin, time-to-go, lead angle, available/required load, terminal
-peak command vs actual load, lock-loss fraction and a verdict. Use it before
-changing the lock model or the midcourse sink profile.
-
-### 2.6 Output files
-
-| File | Meaning |
+| Path | Contents |
 |---|---|
-| `output/telemetry.csv` | Full per-frame telemetry (132 columns by default) |
-| `output/intercept_dashboard.html` | Self-contained bilingual dashboard |
-| `output/mc/batch_results.csv` | One row per Monte-Carlo case |
-| `output/validation/validation_results.csv` | Per-case validation results |
-| `output/validation/validation_metadata.json` | Suite definitions and parameters |
-| `output/handover_diagnostics/handover_diagnostics.csv` | Per-case lock/handover/FOV/t_go/lead/load and terminal response |
-| `output/handover_diagnostics/handover_summary.json` | Failure classification and next-step recommendation |
-| `output/*.png` | Optional static plots |
+| `output/telemetry.csv` | Full single-shot telemetry (132 columns by default, 10 ms per frame) |
+| `output/intercept_dashboard.html` | Six-panel interactive dashboard (Canvas, no front-end dependencies) |
+| `output/batch/batch_results.csv` | Per-case miss distance, intercept time, phase, CPU time |
+| `output/validation/` | Per-scenario performance validation report and summary |
+| `output/handover_diagnostics/` | Per-case handover diagnostics |
+| `intercept-report/` | Single-page HTML report data and page |
 
 ---
 
 ## 3. Repository layout
 
-```
+```text
 missile_intercept/
-├── main.py                  # single-run / batch entry point, phase state machine
-├── batch.py                 # parallel Monte-Carlo driver
-├── validate_performance.py  # validation suites and pass/fail report
-├── visualization.py         # bilingual HTML dashboard generator
-├── config.py                # constants, scenario, parameters, telemetry columns
-├── state_schema.py          # state-vector layout shared by Python and Numba
-├── fastcore.py              # optional Numba kernels (mirror the Python laws)
-├── math_utils.py            # frames, quaternions, LOS geometry, atmosphere helper
-├── telemetry.py             # ring buffer / CSV writer
-├── guidance/
-│   ├── boost_guidance.py
-│   ├── midcourse_guidance.py
-│   ├── terminal_guidance.py # ZEM/APN, adaptive N, gravity compensation
-│   ├── handover_manager.py
-│   └── base_guidance.py
-├── control/
-│   ├── autopilot.py         # three-loop + roll alignment + anti-windup
-│   └── fin_mixer.py
+├── config.py                    # constants, data contracts, SimConfig, start-up checks
+├── math_utils.py                # 3D vectors / quaternions / ECI-LLH-ENU
+├── integrator.py                # RK4/RK45 + events + bisection localisation
+├── state_schema.py              # packed-state layout and hash
+├── telemetry.py                 # preallocated telemetry buffer
+├── fastcore.py                  # optional Numba hot paths with fallback
+├── main.py                      # sampling schedule, events, telemetry, plotting
+├── batch.py                     # multiprocess Monte-Carlo (JSONL resume)
+├── analysis.py                  # sweeps / Sobol / cross-entropy / MC
+├── verification.py              # numerical verification suite
+├── visualization.py             # self-contained HTML dashboard
 ├── vehicle/
-│   ├── missile.py           # mass, inertia, aero, propulsion, derivative
-│   ├── target.py            # F-35A point-mass threat and defensive logic
-│   ├── atmosphere.py        # USSA1976
-│   └── wind.py              # optional wind model
+│   ├── missile.py               # aero / propulsion / variable-mass 6DOF
+│   ├── target.py                # 3DOF target
+│   ├── atmosphere.py            # USSA1976
+│   └── wind.py                  # optional wind model
 ├── sensors/
-│   ├── nav_filter.py        # 6-state GNSS/INS Kalman filter
-│   ├── imu.py               # IMU error model
-│   ├── seeker.py            # radar/IIR seeker, FOV, blind zone, glint
-│   └── datalink.py          # midcourse target cue
-├── integrator.py            # fixed-step RK4 and event handling
-├── tools/                   # DATCOM generator, reports, convergence checks
-└── tests/                   # pytest suite
+│   ├── navigation.py            # INS + 1 Hz GNSS Kalman filter
+│   ├── seeker.py                # 5 ms dual-mode seeker
+│   └── target_tracker.py        # target-state estimation
+├── control/
+│   ├── autopilot.py             # three-loop PID + anti-windup + gain scheduling
+│   ├── fin_mixer.py             # cruciform fin mixing and limiting
+│   └── thrust_controller.py     # ramjet Mach hold
+├── guidance/
+│   ├── boost_guidance.py        # vertical cold launch + gravity turn
+│   ├── midcourse_guidance.py    # Bezier + loft-dive + angle constraint + prediction
+│   ├── terminal_guidance.py     # ZEM/APN + adaptive N
+│   └── handover_manager.py      # gates + weight blending
+├── tools/                       # DATCOM, aero cross-check, UQ, tuning, reports
+└── tests/                       # pytest (supports -n auto)
 ```
 
-The dependency direction is one-way: `config` and `math_utils` are leaves;
-vehicle, sensor, guidance and control modules depend on them; `main` wires
-everything together. No module mutates global configuration at run time.
+Dependency direction is strictly one-way: `config / math_utils → vehicle / sensors / control / guidance → main`. Modules interact through dataclass contracts with no global mutable state.
 
 ---
 
@@ -208,760 +178,527 @@ everything together. No module mutates global configuration at run time.
 
 ### 4.1 State vector
 
-The 20-state vector (see `state_schema.py`) is:
+The integrator maintains a 20-dimensional packed state:
 
-| Slice | Symbol | Meaning | Units |
-|---:|---|---|---|
-| 0–2 | `r_m` | Missile position, ECI | m |
-| 3–5 | `v_m` | Missile velocity, ECI | m/s |
-| 6–9 | `q` | Body-to-ECI quaternion (scalar first) | — |
-| 10–12 | `ω` | Body angular rate, body frame | rad/s |
-| 13 | `m` | Current mass | kg |
-| 14–16 | `r_t` | Target position, ECI | m |
-| 17–19 | `v_t` | Target velocity, ECI | m/s |
+```text
+y = [r_m(3), v_m(3), q_m(4), ω_m(3), m_m(1) | r_t(3), v_t(3)]
+      missile 14 states                       target 6 states
+```
 
-Fuel mass is derived from `m` and `dry_mass`; the centre of mass and inertia
-are linear functions of the fuel fraction. The target is a 6-state point mass;
-its acceleration is a function of range, geometry and the defensive phase.
+- `r_m / v_m`: ECI position / velocity
+- `q_m`: body-to-ECI quaternion, scalar first `[w, x, y, z]`
+- `ω_m`: body-frame angular rate `[p, q, r]`
+- `m_m`: current mass
 
-### 4.2 Multi-rate sampling
+### 4.2 Multi-rate sampling (ZOH)
 
-| Loop | Period | Notes |
+Discrete modules are sampled once at the start of each outer step; RK4 integrates only the continuous dynamics.
+
+| Module | Period | Configuration |
 |---|---:|---|
-| Outer RK4 step | 5 ms | Missile + target dynamics |
-| Seeker | 5 ms | Measurement at the current step |
-| Autopilot + fin mixer | 5 ms | Zero-order hold between updates |
-| Guidance + handover | 5 ms | Command updated every step |
-| GNSS | 1 s | Kalman measurement update |
-| Telemetry | 10 ms | Logged every other outer step |
+| Seeker | 5 ms | `DT_SEEKER` |
+| Attitude control + fin mixing | 5 ms | `DT_AUTOPILOT` |
+| Guidance + handover + thrust control | 5 ms | `DT_GUIDANCE` |
+| GNSS measurement update | 1 s | `DT_GNSS` |
+| Telemetry | 10 ms | `DT_LOG` |
+| Navigation output delay | 50 ms | `NAV_DELAY` |
+| Outer step (boost/terminal) | 5 ms | `DEFAULT_MAX_STEP` |
+| Outer step (midcourse) | 10 ms | `DEFAULT_MIDCOURSE_MAX_STEP` |
 
-The navigation solution is delayed by 50 ms (`NAV_DELAY`) to represent the
-real output latency. Guidance extrapolates the delayed state to the current
-tick before computing the command.
+The midcourse phase therefore samples at 100 Hz, while boost and terminal run at 200 Hz.
 
-### 4.3 Data contract
+### 4.3 Data contracts
 
-`config.py` owns every physical constant and every tunable. The most important
-groups are:
-
-- Physical constants and Earth model.
-- Scenario and target definition.
-- Airframe geometry, mass, inertia and CG travel.
-- Propulsion and ramjet limits.
-- Aero tables and coefficients.
-- Autopilot gains and limits.
-- Seeker, navigation and datalink parameters.
-- Handover and terminal guidance parameters.
-- Telemetry column definitions.
+| Dataclass | Purpose | Key fields |
+|---|---|---|
+| `MissileState` | Missile state | `r_eci, v_eci, q, omega_body, mass, inertia, cg_pos` |
+| `NavEstimate` | Navigation output | `r_eci, v_eci, timestamp` |
+| `SeekerMeasurement` | Seeker measurement | `los_angle, los_rate, range, range_rate, is_locked, fov_angle` |
+| `GuidanceCommand` | Guidance command | `a_cmd_eci, phase` |
+| `ActuatorCommand` | Fin command | `delta_fins(4), is_saturated` |
+| `Scenario` | Single-shot scenario | launch/target lat-lon-alt, target Mach, evasion load, seed, cue errors |
+| `SimConfig` | Run configuration | step sizes, module periods, delays, datalink, output directory, verbose |
 
 ### 4.4 Phase state machine
 
-1. **Boost**: vertical cold launch for 2 s, then a gravity-turn pitch
-   programme until 20 s.
-2. **Midcourse**: 3D cubic Bezier reference + PN + energy management; target
-   cue from the datalink.
-3. **Terminal**: entered when all handover gates hold continuously for 0.2 s;
-   ZEM/APN until impact or closest approach.
-4. **End**: impact, miss, ground impact, or timeout.
+```text
+boost ──(t ≥ 20 s or speed > 1700 m/s and altitude > 20 km)──▶ midcourse
+midcourse ──(all handover gates held for 0.2 s, or forced handover)──▶ terminal
+```
 
-### 4.5 Frames
-
-- **ECI**: inertial frame used by the dynamics and navigation.
-- **ECEF**: Earth-fixed frame used for telemetry and geodesy.
-- **LLH**: WGS84 geodetic latitude, longitude and altitude.
-- **Local NED / ENU**: local navigation frames at the missile.
-- **Body**: X forward, Y right, Z down; aero and propulsion act here.
-- **LOS**: line-of-sight frame for relative geometry and terminal guidance.
+Within 0.5 s after handover, midcourse and terminal commands are blended linearly by weight.
 
 ---
 
-## 5. Frames, time and Earth model
+## 5. Frames and Earth model
 
-The default Earth model is WGS84 (`EARTH_MODEL="wgs84"`), with the J2
-oblateness term in gravity. `EARTH_MODEL="sphere"` reproduces the older
-spherical model exactly.
+- Propagation frame: ECI
+- Body frame: X forward, Y right, Z down
+- Earth model: WGS84 ellipsoid + J2 by default; `EARTH_MODEL="sphere"` switches to a 6371 km sphere
+- Latitude: WGS84 geodetic latitude; longitude adds Earth rotation `ωt` in `llh_to_eci`
+- At `t = 0`, ECI and ECEF coincide
 
 Key constants:
 
-| Quantity | Value |
-|---|---|
-| `G0` | 9.80665 m/s² |
-| `MU` | 3.986004418 × 10¹⁴ m³/s² |
-| `OMEGA_EARTH` | 7.2921150 × 10⁻⁵ rad/s |
-| `WGS84_A` | 6 378 137.0 m |
-| `WGS84_F` | 1 / 298.257223563 |
-| `J2` | 1.08262668 × 10⁻³ |
+| Constant | Value |
+|---|---:|
+| WGS84 semi-major axis a | 6 378 137.0 m |
+| Flattening f | 1/298.257223563 |
+| J2 | 1.08262668 × 10⁻³ |
+| Earth gravitational parameter μ | 3.986004418 × 10¹⁴ m³/s² |
+| Earth rotation rate ω⊕ | 7.2921150 × 10⁻⁵ rad/s |
+| Standard gravity g0 | 9.80665 m/s² |
+| Sea-level pressure / density | 101 325 Pa / 1.225 kg/m³ |
 
-Functions in `math_utils.py`:
-
-- `llh_to_eci`, `eci_to_llh`: WGS84 geodesy and ECI conversion.
-- `local_enu_dcm`: local ENU basis expressed in ECI.
-- `gravity_eci`: central gravity plus J2.
-- `atmosphere_relative_velocity`: removes Earth-rotation carry-over.
-- `los_geometry`: LOS unit vector, range, range rate, angular-rate vector.
-- Quaternion helpers: multiply, rotate, inverse rotate, DCM, normalize.
-
-Time is seconds from launch. Earth rotation is applied consistently in the
-ECEF telemetry columns and in the air-relative velocity.
+Aerodynamic forces, Mach number, dynamic pressure and LOS rate all use the air-relative velocity `v_air = v − ω⊕ × r`.
 
 ---
 
 ## 6. 6DOF rigid-body dynamics
 
-### 6.1 Translation
+**Translation:**
 
-```
-r_dot = v
-v_dot = (F_aero + F_thrust + F_gravity) / m
-```
-
-All forces are summed in ECI; aero and thrust are produced in the body frame
-and rotated with the current quaternion.
-
-### 6.2 Quaternion kinematics
-
-```
-q_dot = 0.5 * q ⊗ [0, ω]
+```text
+ṙ = v
+v̇ = (R_be F_b) / m + g(r)
 ```
 
-The quaternion is renormalised every step to prevent drift. The body-to-ECI
-DCM is `R(q)`; body rates are `p, q, r` about X, Y, Z.
+**Quaternion kinematics:**
 
-### 6.3 Rotation
-
+```text
+q̇ = 0.5 · [−x p − y q − z r,
+            w p + y r − z q,
+            w q − x r + z p,
+            w r + x q − y p]
 ```
-I ω_dot = M_body - ω × (I ω)
+
+The quaternion is normalised after every step; a zero quaternion falls back to `[1,0,0,0]`. DCM-to-quaternion uses the Shepperd robust algorithm.
+
+**Rotation (Euler equations):**
+
+```text
+I ω̇ = M_b − ω × (I ω)
 ```
 
-The inertia tensor is diagonal and interpolated between the full and dry
-states:
+**Variable mass and centre-of-gravity travel:**
 
-| Axis | Full (kg·m²) | Dry (kg·m²) |
-|---|---:|---:|
-| X (roll) | 190 | 90 |
-| Y (pitch) | 6 000 | 2 400 |
-| Z (yaw) | 6 000 | 2 400 |
+```text
+f = clip((m − m_dry) / (m_0 − m_dry), 0, 1)
+I(m)     = I_dry + f (I_full − I_dry)
+x_cg(m)  = x_cg,dry + f (x_cg,full − x_cg,dry)
+ṁ = −ṁ_prop
+```
 
-### 6.4 Variable mass and CG travel
-
-- Launch mass 2 565 kg; dry mass 1 000 kg.
-- Solid propellant 800 kg, ramjet fuel 765 kg.
-- CG moves from 4.45 m to 4.10 m from the nose as fuel is consumed.
-- Inertia scales with mass between the full and dry values.
-- Thrust is zero when the propellant is exhausted; mass is floored at dry mass.
-
-### 6.5 Stagnation pressure
-
-Above the DATCOM range, the code uses a Newtonian/Rayleigh pitot model to
-build the hypersonic normal-force slope and the pressure drag increment. The
-blend between the DATCOM and hypersonic tables is smooth in Mach.
+A hard dry-mass floor guards operation; thrust is zeroed when propellant is exhausted.
 
 ---
 
-## 7. Atmosphere
+## 7. Atmosphere and aerodynamics
 
-`vehicle/atmosphere.py` implements USSA1976:
+### 7.1 Atmosphere
 
-- Layered temperature/pressure database up to 86 km.
-- Standard lapse-rate formulas inside each layer.
-- Exponential tail above 86 km.
-- Outputs: density, pressure, temperature, speed of sound.
+`vehicle/atmosphere.py` implements the USSA1976 layers from 0–86 km plus an isothermal exponential tail above 86 km (scale height 6 km). Altitude input is clipped to 0–200 km.
 
-The aero model uses air-relative velocity, so Earth rotation and (if enabled)
-wind are subtracted before Mach and dynamic pressure are computed.
+| Base altitude (m) | Base temperature (K) | Lapse rate (K/m) |
+|---:|---:|---:|
+| 0 | 288.15 | −0.0065 |
+| 11 000 | 216.65 | 0.0 |
+| 20 000 | 216.65 | +0.0010 |
+| 32 000 | 229.27 | +0.0028 |
+| 47 000 | 270.65 | 0.0 |
+| 51 000 | 270.65 | −0.0028 |
+| 71 000 | 214.65 | −0.0020 |
+| 84 852 | 186.946 | 0.0 |
 
----
+### 7.2 Aerodynamic layering
 
-## 8. Aerodynamics
+| Mach range | Model | Source |
+|---|---|---|
+| M ≤ 5 | DATCOM coefficient table + conservative transonic bridge | USAF Digital DATCOM |
+| M > 5 | Oblique-shock + Prandtl-Meyer expansion extrapolation | Anchored to DATCOM M=5, η = 0.334 |
+| Large AoA | Modified Newtonian sin²α branch | Gradual blending over M=5→7 |
+| Friction drag | `Cf = 0.074/Re^0.2` with altitude correction | Prandtl-Schlichting |
+| Base drag | CD0 reduced by 0.020 while thrust is on | Exhaust plume raises base pressure |
 
-### 8.1 Data sources
+Built-in DATCOM anchors (excerpt):
 
-- M ≤ 5: Digital DATCOM tables in `output/datcom_aero.csv`, generated by
-  `tools/datcom_aero.py`.
-- M > 5: modified Newtonian / lifting-body correlations.
-- Smooth bridge between the two bands (M 0.5–1.6) with a CN derate and a CD
-  margin.
+| M | CN_α (1/rad) | CM_α (1/rad) | CD0 | Induced-drag k |
+|---:|---:|---:|---:|---:|
+| 0.20 | 9.91 | −0.920 | 0.244 | 0.071 |
+| 0.80 | 10.27 | −1.053 | 0.344 | 0.054 |
+| 1.20 | 11.53 | −1.201 | 0.374 | 0.051 |
+| 2.00 | 12.89 | −1.250 | 0.312 | 0.045 |
+| 3.00 | 13.05 | −1.550 | 0.226 | 0.046 |
+| 5.00 | 9.80 | −0.790 | 0.146 | 0.074 |
 
-### 8.2 Coefficients
+Hypersonic CN_α: M = 5 / 8 / 10 / 20 → 9.80 / 5.94 / 5.04 / 3.47 (1/rad).
 
-The model provides:
+Normal force, drag, pitch moment, damping, fin effectiveness and large-AoA corrections follow `vehicle/missile.py`; the static margin includes variable mass via `h(M, x_cg) = −CM_α L / CN_α + (x_cg,full − x_cg)`.
 
-- `CN_alpha(M)` normal-force slope.
-- `CD0(M)` zero-lift drag.
-- `CM_alpha(M)` pitch stiffness (negative, stable).
-- Induced-drag factor `K(M)`.
-- Large-alpha shape factors.
-- Fin effectiveness and nonlinearity.
-- Pitch/yaw damping and roll damping.
-
-### 8.3 Forces and moments
-
-```
-F_body = q S [CN, CY, -CA] + thrust
-M_body = q S L [CM, CN, CR] + damping
-```
-
-`q = 0.5 ρ V_air²`, `S = 0.3117 m²`, `L = 8.11 m`. The pitching moment includes
-the static margin `X_REF - CG`; the CG moves forward as fuel burns.
-
-### 8.4 Fin nonlinearity
-
-Fin effectiveness saturates near the mechanical limit and is reduced at low
-dynamic pressure. The fin mixer maps virtual pitch/yaw/roll commands to the
-four physical fins; position and rate limits are enforced.
-
----
-
-## 9. Propulsion
-
-### 9.1 Solid booster
-
-- Burn time 13 s, propellant 800 kg, sea-level thrust 130 kN, Isp 215 s.
-- Thrust profile: ignition transient, steady plateau, tail-off.
-- Altitude correction: `F = F_sl + A_e (P_sl - P_a)`, with `A_e = 0.196 m²`.
-
-### 9.2 Supersonic ramjet
-
-- Light-off: Mach 1.6, q ≥ 2.5 kPa.
-- Operating range: Mach 1.6–10.
-- Reference Isp 1500 s; inlet capture area 0.22 m².
-- Thrust cap 60 kN; fuel flow cap 3 kg/s.
-- Efficiency falls above 18 km, reaches zero at 32 km, and rolls off with Mach.
-
-### 9.3 Mach-hold control
-
-A PI law trims fuel flow to hold the commanded Mach. The throttle is limited
-by the ramjet map, the fuel-flow cap and the available propellant. The
-autopilot and guidance see the actual thrust, not the command.
-
-### 9.4 Phase logic
-
-The booster burns from 0 to 13 s; the boost phase ends at 20 s. The ramjet can
-light off after the booster if Mach and q are inside the envelope. If the
-ramjet cannot light, the missile continues ballistically.
-
----
-
-## 10. Target model
-
-The target is an F-35A-class point mass:
+### 7.3 Geometry and mass
 
 | Parameter | Value |
-|---|---|
-| Initial position | 28.0°N, 126.0°E, 15 240 m |
-| Speed | Mach 1.6 |
-| Design load limit | 9 g (A); 7–7.5 g for B/C |
-| Wing area / span | 42.7 m² / 10.7 m |
-| Mass | 20 000 kg |
-| Reference length | 15.7 m (glint scale) |
-
-Defensive behaviour is range-gated:
-
-1. **Cruise** beyond 60 km.
-2. **Defend** at 60 km: beam/notch turn at up to 6 g with a 1 g dive.
-3. **Evade** at 15 km: 9 g weave/jink, limited by the available lift at the
-   current altitude and Mach.
-4. **Terminal jink** in the last few seconds.
-
-The target speed bleeds from induced drag while manoeuvring. A first-order
-onset lag models roll/manoeuvre reversal.
-
----
-
-## 11. GNSS/INS navigation
-
-### 11.1 Filter
-
-A 12-state linear Kalman filter estimates position, velocity, accelerometer
-bias and gyro bias in ECI:
-
-```
-x = [r, v, b_acc, b_gyro]
-F = [[0, I], [0, 0]]
-```
-
-- Process noise: continuous acceleration PSD 0.5 m²/s³.
-- GNSS update: 1 s, position σ = 8 m per axis, velocity σ = 0.15 m/s.
-- Output delay: 50 ms.
-- Attitude is propagated by the IMU and corrected by GNSS velocity heading
-  when the sideslip is small.
-
-### 11.2 IMU error model
-
-- Acceleration white noise: 0.012 m/s² per 5 ms sample.
-- Initial bias: 0.0147 m/s² (1.5 mg).
-- Bias instability: 0.0015 m/s² (150 µg).
-- Bias correlation time: 1 000 s.
-- Optional star tracker / attitude aid.
-
-### 11.3 What guidance sees
-
-Guidance receives the delayed navigation estimate, not truth. The terminal law
-extrapolates it to the current tick with the last command plus gravity. The
-seeker measurements are separate and are used for lock, FOV and (when
-available) LOS-rate diagnostics.
-
----
-
-## 12. Radar seeker
-
-### 12.1 Measurements
-
-- LOS unit vector in ECI.
-- LOS angular-rate vector.
-- Range and range rate.
-- Lock flag, FOV angle, blind-zone flag.
-
-### 12.2 Noise
-
-| Quantity | 1σ |
-|---|---|
-| Angle white noise | 1 mrad |
-| Glint | 0.30 × target length / range (DTIC form) |
-| Range | 5 m |
-| Range rate | 2 m/s |
-
-The seeker also models Swerling-like dropouts (0.05/s in track) and false
-locks (0.01/s out of track).
-
-### 12.3 Field of view and lock
-
-- Half-FOV: 20°.
-- Blind range: 200 m.
-- Radar lock range: 45 km at 5 m² RCS, scaled by `(RCS/5)^0.25`.
-- IIR backup: 25 km, RCS-independent.
-- Lock requires the target inside the FOV and above the detection threshold.
-
----
-
-## 13. Guidance and handover
-
-### 13.1 Boost
-
-Vertical cold launch for 2 s, then a gravity-turn pitch programme. The pitch
-rate is limited by the achievable normal force plus the thrust-vector term.
-The programme ends at a 30° flight-path angle at 20 s.
-
-### 13.2 Midcourse
-
-- 3D cubic Bezier reference from the launch point to a predicted intercept
-  point (PIP).
-- PN correction toward the PIP.
-- Energy management: throttle/Mach hold and climb/descent shaping.
-- Datalink cue updates the target estimate before handover.
-
-### 13.3 Terminal: ZEM/APN
-
-```
-t_go = max(R / Vc, 0.05)
-ZEM  = ρ + v_rel t_go + 0.5 a_T t_go²
-a    = N_eff ZEM_perp / t_go² - g_perp
-```
-
-- `N` base 4.0; adaptive boost up to +40% near impact; floor 3.0.
-- `a_T` is the finite-difference target acceleration, low-pass filtered.
-- Gravity compensation is applied only normal to the velocity.
-- Command limit: 40 g.
-- A soft FOV guard acts only near the seeker edge.
-
-### 13.4 Handover
-
-Handover occurs when all gates hold continuously for 0.2 s:
-
-- Range ≤ 45 km (38 km forced floor).
-- Altitude advantage within the depression limit (≤ 22° look-down).
-- Speed ≥ 1 800 m/s.
-- Lead angle ≤ 12°.
-- Seeker locked and FOV ≤ 90% of the half-FOV.
-- Time-to-go ≥ 4 s.
-- Available load ≥ 4 g.
-
-The midcourse and terminal commands are cross-faded over 0.5 s. If the gates
-cannot be met, the forced-handover path uses the predicted FOV and geometry.
-
----
-
-## 14. Control and actuators
-
-### 14.1 Three-loop autopilot
-
-- Outer loop: pseudo-angle of attack / sideslip → body-rate command.
-- Middle loop: body-rate → virtual fin command.
-- Inner loop: fin actuator dynamics and mixing.
-- Command pre-filter: second-order, 10 Hz (scheduled down at low q).
-- Pitch-rate crossover: 22 rad/s.
-- Roll alignment: lift vector rolled into the pitch plane, gain 4.0 1/s,
-  rate limit 6 rad/s.
-- Anti-windup, low-q gain floors and fin position/rate limits.
-
-### 14.2 Fin mixer
-
-Four physical fins in a cruciform layout:
-
-```
-δ_up    =  δ_pitch + δ_roll
-δ_down  = -δ_pitch + δ_roll
-δ_left  =  δ_yaw   - δ_roll
-δ_right = -δ_yaw   - δ_roll
-```
-
-Each fin is limited to ±25° and to the actuator rate limit. Saturation is
-reported in telemetry (`fin_sat`).
-
-### 14.3 Gain scheduling
-
-The rate-loop gain is scheduled from the instantaneous fin authority, inertia
-and dynamic pressure; no offline table or retuning is required.
-
----
-
-## 15. Integration, events and telemetry
-
-### 15.1 Integrator
-
-- Fixed-step RK4 with a 5 ms outer step.
-- State reconstruction inside the step for guidance/autopilot zero-order hold.
-- The optional Numba kernel mirrors the Python laws; tests check equivalence.
-
-### 15.2 Events
-
-- Impact: range-rate zero crossing with range below the gate.
-- Ground impact: altitude below zero.
-- Seeker blind zone: range below 200 m.
-- Timeout: `t_end` (1 200 s default).
-
-The miss distance is the interpolated range at the range-rate zero crossing,
-not the last-frame range.
-
-### 15.3 Telemetry
-
-- 132 columns in the full profile.
-- 48 columns in the basic profile used by Monte-Carlo/validation.
-- CSV writer plus an in-memory ring buffer.
-- Column definitions live in `config.py`; the full dictionary is in
-  [Appendix B](#appendix-b-telemetry-dictionary).
-
----
-
-## 16. Monte-Carlo campaign
-
-`batch.py` runs independent cases in parallel processes:
-
-- Navigation seed and seeker seed.
-- Optional target altitude, speed, manoeuvre load.
-- Optional launch dispersion.
-- Optional sensor-noise scale.
-
-Each case returns miss distance, miss time, final phase, peak load, peak
-dynamic pressure and pass/fail. Results are written to
-`output/mc/batch_results.csv`. Statistics include mean, standard deviation,
-CEP50, CEP90, maximum and pass rate.
-
-Reproducibility: each case derives its seeds from a base seed and the case
-index; the same base seed reproduces the same campaign.
-
----
-
-## 17. Data files
-
-| File | Contents |
-|---|---|
-| `output/datcom_aero.csv` | DATCOM CN/CD/CM tables for M ≤ 5 |
-| `data/ussa1976.csv` | USSA1976 layer data (if present) |
-| `output/telemetry.csv` | Per-frame telemetry |
-| `output/mc/batch_results.csv` | Monte-Carlo results |
-| `output/validation/*` | Validation results and metadata |
-| `output/handover_diagnostics/*` | Per-case handover diagnostics and summary |
-
-The aero CSV fields are Mach, alpha, CN, CD, CM and the reference area/length
-used by the generator. The scenario, geometry and mass data are constants in
-`config.py`, not external files, so a run is self-contained.
-
----
-
-## 18. Key parameters
-
-### 18.1 Scenario and phases
-
-| Parameter | Value |
-|---|---|
-| Launch | 40.0°N, 110.0°E, 0 m |
-| Target | 28.0°N, 126.0°E, 15 240 m |
-| Target Mach | 1.6 |
-| Target load limit | 9 g |
-| Boost end | 20 s |
-| Ramjet light-off | Mach 1.6, q ≥ 2.5 kPa |
-| Handover range | 45 km (38 km floor) |
-| Terminal command limit | 40 g |
-
-### 18.2 Airframe, aero and control
-
-| Parameter | Value |
-|---|---|
+|---|---:|
 | Length / diameter | 8.11 m / 0.63 m |
 | Reference area | 0.3117 m² |
-| Launch / dry mass | 2 565 kg / 1 000 kg |
-| CG travel | 4.45 → 4.10 m |
-| `CN_alpha` (M 2) | ≈ 10.3 1/rad |
-| `CD0` (M 2) | ≈ 0.34 |
-| Fin limit | ±25° |
-| Pitch-rate crossover | 22 rad/s |
-| Pitch outer-loop gain | 6.0 |
-| Pitch rate-loop gain | 0.14 |
-| Attitude command prefilter | 1–10 Hz (with q) |
-| Load-factor loop `AP_NZ_LOOP` (`AP_KP_NZ`/`AP_KI_NZ`) | on / 0.02 rad·s⁻¹·g⁻¹ / 0.004 |
-| Load-factor lead `AP_NZ_LEAD` | 0.06 s (4-seed mean 3.3 m vs 17.7 m baseline) |
-| Roll-alignment gain | 4.0 1/s |
-
-### 18.3 Seeker and navigation
-
-| Parameter | Value |
-|---|---|
-| Seeker FOV | ±20° |
-| Blind range | 200 m |
-| Radar lock range | 45 km at 5 m² RCS |
-| IIR lock range | 25 km |
-| Angle noise | 1 mrad |
-| Range noise | 5 m |
-| GNSS update | 1 s |
-| Nav delay | 50 ms |
-| GNSS position σ | 8 m |
-| GNSS velocity σ | 0.15 m/s |
-
-### 18.4 Numerical
-
-| Parameter | Value |
-|---|---|
-| Outer step | 5 ms |
-| Seeker / autopilot / guidance | 5 ms |
-| Telemetry | 10 ms |
-| Integrator | RK4 |
-| Simulation end | 1 200 s |
+| Root / tip chord | 3.8 m / 1.6 m |
+| Semi-span per side | 0.364 m |
+| Launch / dry mass | 2565 kg / 1000 kg |
+| Ixx (full/dry) | 190 / 90 kg·m² |
+| Iyy = Izz (full/dry) | 6000 / 2400 kg·m² |
+| CG (full/dry) | 4.45 / 4.10 m |
+| Aerodynamic centre | 5.24 m |
+| Static margin (full fuel) | 0.79 m |
 
 ---
 
-## 19. Tests
+## 8. Combined-cycle propulsion
 
-Run:
+### 8.1 Solid booster
 
-```powershell
-python -m pytest tests -q
+```text
+F = F_sl φ(t) + A_e (P_sl − P_a)
+F_sl = 130 kN, A_e = 0.196 m²
+ṁ = 800 kg / 13 s = 61.54 kg/s
+Isp ≈ 215 s
 ```
 
-Coverage:
+Not throttleable; after propellant exhaustion or t ≥ 13 s it switches to ramjet/glide.
 
-- Frame conversions and quaternion round-trips.
-- USSA1976 continuity and limits.
-- Aero interpolation and hypersonic blending.
-- Propulsion thrust and mass flow.
-- Target acceleration and defensive phases.
-- GNSS/INS convergence and delay handling.
-- Seeker noise, FOV and lock logic.
-- ZEM/APN command direction, clipping and t_go.
-- Autopilot rate loop, roll alignment and fin limits.
-- RK4 accuracy and event interpolation.
-- Telemetry width, column order and finite values.
-- Batch determinism and validation aggregation.
+### 8.2 Supersonic ramjet
 
-If a Numba kernel reports a signature mismatch after editing a function
-argument list, clear `__pycache__/numba_*`. The Python and compiled kernels are
-kept equivalent by design; the tests compare them when Numba is available.
+```text
+T_avail = C_R q∞ A_inlet η_M(M) η_h(h) cosα · u_thr
+C_R = 6.0, A_inlet = 0.22 m²
+Ignition window: 1.6 ≤ M ≤ 10, q∞ > 2500 Pa
+Thrust cap 60 kN, fuel-flow cap 3 kg/s, Isp = 1500 s
+```
+
+Mach efficiency `η_M = max(1 − 0.05(M−3), 0.55)`; altitude efficiency decays linearly from 18 to 32 km and is zero above 32 km.
+
+### 8.3 Thrust control
+
+```text
+e = M_ref − M, u_cmd = clip(Kp e, 0, 1)
+M_ref = 9.5, Kp = 0.80
+Fuel first-order lag τ = 0.25 s, throttle-rate limit 1.5 /s
+```
+
+Boost runs at full throttle; terminal also runs at full throttle to preserve energy; zero outside the envelope.
 
 ---
 
-## 20. Nominal results
+## 9. Target model
 
-A nominal run with the default seeds produces approximately:
+3DOF point mass with constant-altitude cruise and terminal weaving. Target speed = target Mach × local speed of sound; heading along the great circle toward the launch site (head-on); Earth-rotation carry-over is added.
+
+```text
+a_level = −r̂ · |v|² / |r|
+a_evade = A sin(2π·0.25 t) e_cross + 0.25A sin(2π·0.5 t + 1)(−r̂)
+A = n_evade g0, e_cross = r̂ × v̂
+```
+
+Default `n_evade = 9 g`, triggered when the missile is inside 15 km.
+
+Guidance no longer uses target truth; it consumes the 6-state estimate from `sensors/target_tracker.py`:
+
+- Pre-launch cue errors `Scenario.cue_pos_sigma / cue_vel_sigma` (default 0)
+- Before lock: midcourse datalink corrects once per second (default 200 m / 4 m/s, 0.2 s latency, 2% loss)
+- After lock: converted-measurement Kalman filter using LOS and range
+
+With a 2 km cue bias, the datalink restores metre-level accuracy; disabling it leaves an aim error of kilometres.
+
+---
+
+## 10. Navigation and seeker
+
+### 10.1 GNSS/INS
+
+12-state linear Kalman filter:
+
+```text
+x = [r, v, b_a, b_g] ∈ R¹²
+```
+
+Constant-acceleration prediction with first-order Gauss-Markov biases; GNSS updates at 1 Hz with `H = [I₆ 0 0]`; covariance is forced symmetric after each update.
+
+| Parameter | Value |
+|---|---:|
+| GNSS position / velocity 1σ | 8 m / 0.15 m·s⁻¹ |
+| Process-noise acceleration | 0.50 m/s² |
+| GNSS period / output delay | 1 s / 50 ms |
+| IMU accel white noise | 0.012 m/s² @ 5 ms |
+| Initial bias / bias stability | 1.5 mg / 150 μg |
+| Bias correlation time | 1000 s |
+
+### 10.2 Dual-mode seeker
+
+| Parameter | Value |
+|---|---:|
+| Update period | 5 ms |
+| Half FOV | 20° |
+| Blind zone | 200 m |
+| Angle noise 1σ | 1 mrad |
+| Range / range-rate noise | 5 m / 2 m·s⁻¹ |
+| Radar reference lock range | 45 km @ 5 m² |
+| Radar actual lock (0.005 m²) | about 8 km |
+| IR lock range | 25 km |
+| Dropout / false-lock rate | 0.05 / 0.01 s⁻¹ |
+
+```text
+lock = (θ_FOV ≤ 20°) ∧ (R > 200 m) ∧ (R ≤ R_lock)
+R_lock = max(R_radar, R_IR)
+R_radar = 45 km · (σ / 5 m²)^(1/4)
+```
+
+Glint noise `σ_glint = 0.30 × 15.7 m / R`; combined with angle noise and filtered by a 20 ms first-order low-pass to produce LOS rate.
+
+Against a 0.005 m² head-on F-35, radar locks at only about 8 km while IR locks at 25 km and sets the effective range. In pure-radar mode the terminal window shrinks to about 2.4 s and miss distance degrades to hundreds of metres.
+
+---
+
+## 11. Guidance and handover
+
+### 11.1 Boost: vertical cold launch + gravity turn
+
+Vertical ascent for the first 2 s with attitude hold. Climb rate is limited by available normal load:
+
+```text
+a_feasible = 0.85 (q∞ S CN_α α_max / m + T sinα_max / m)
+γ̇_max = min(8°/s, a_feasible / V)
+γ_ref ← max(30°, γ_ref − γ̇_max Δt)
+a⊥ = V (γ̇_ref + Kγ (γ_ref − γ)) + g0 cosγ
+```
+
+The lateral budget is scaled to available load and limited to 4 g; an extra 1.5 g pull-up protection applies below 500 m.
+
+### 11.2 Midcourse: 3D Bezier + loft-dive + prediction
+
+```text
+B(s) = (1−s)³ P0 + 3(1−s)²s P1 + 3(1−s)s² P2 + s³ P3
+a_bez = k1 (p_ref − r) + k2 (v_ref − v) + p̈_ref
+k1 = 2×10⁻⁴, k2 = 0.06, curvature feedforward limited to 1.5 g
+a_PN = N_mid Vc (ω_LOS × u), N_mid = 2.0
+```
+
+- Long range holds 75 kPa dynamic pressure, about 30 km cruise altitude
+- The descent entry is scheduled as needed (at most 520 km, about 300 km for the nominal target), then the altitude profile switches to a loft-dive: a two-segment Hermite plans a 1.5 km pull-up, then pitches over into the dive; the realised bump is about 0.6 km, limited by the ~30 km lift ceiling
+- The terminal slope is constrained to the handover descent angle `γ_h = −atan(1000 m / 24 km) ≈ −2.4°` with a 1 km altitude-advantage target; the current single shot arrives at about 1.2 km / −6.6° because of profile-tracking lag
+- Angle-constraint feedback: `a_γ = −K_γ w (V/t_go)(γ − γ_ref)`, correcting only the difference between the actual and profile flight-path angles
+- Prediction: both vehicles are propagated to the handover point, the lateral component of the terminal ZEM is evaluated there and removed early with gain 0.2; the term fades out inside twice the handover range so it does not fight terminal PN
+- Coplanar constraint: `a_n = −K_cop w (6x + 4ẋ t_go) / t_go²`, K_cop = 0.8, lateral limit 3 g
+- Replanned every 10 s, path frozen inside 150 km, 2 s crossfade, 5 g command limit
+
+### 11.3 Terminal: ZEM/APN
+
+```text
+t_go = max(R / Vc, t_go,min), Vc = max(−Ṙ, 50)
+ZEM = ρ + v_rel t_go + ½ a_T t_go²
+N_eff = max(3, N [1 + 0.4 clip(1 − t_go/20, 0, 1)])
+a_cmd = N_eff ZEM⊥ / t_go² − g⊥v̂
+```
+
+The command is smoothed with a 0.75 first-order filter and limited to 40 g; soft FOV protection is added when the off-boresight angle exceeds 0.8 × 20°.
+
+### 11.4 Handover gates
+
+| Gate | Condition | Intent |
+|---|---:|---|
+| Range | R ≤ 40 km | Reliable tracking |
+| FOV | θ ≤ 18° | Maneuver margin |
+| Lead angle | ≤ 12° | No large reorientation |
+| Time-to-go | t_go ≥ 4 s | Finish blending |
+| Available load | ≥ 4 g | Aero authority |
+| Altitude difference | 0–12 km | Dive energy |
+| Speed | ≥ 1800 m/s | Energy gate |
+| Seeker lock | locked | Hard acquisition |
+
+All gates must hold for 0.2 s; forced handover is allowed inside 30 km if the altitude gate cannot be met. Commands are blended for 0.5 s after handover:
+
+```text
+a = w a_mid + (1 − w) a_term, w = clip(1 − (t − t_trig)/0.5, 0, 1)
+```
+
+---
+
+## 12. Control and actuators
+
+```text
+a_cmd(ECI) → virtual α/β → 2nd-order prefilter → rate loop → virtual fin → mixer
+```
+
+- Virtual AoA limited to ±25°, with a 20° alpha envelope (the reference is pulled back instead of chasing an unattainable demand)
+- Sideslip is treated as a trim channel: reference limited to 8° at 70 kPa and scaled with √(q∞/70 kPa) up to the full envelope; above the 12° envelope it recovers in the opposite direction
+- Prefilter damping 0.707, bandwidth scheduled with √q∞, 1–10 Hz
+- Outer loop Kpα = 6.0, Kiα = 0.75; Kpβ = 3.6; rate loop Kpq = 0.14, Kpp = 0.035
+- Dynamic-pressure gain scheduling: `gain_scale = clip(Kp,req / Kp,baseline, 0.30, 3.0)`, ωq = 22 rad/s
+- Roll command: 4/s angle alignment, derated by 15°/α above α = 15° to suppress the α·p sideslip coupling
+- Direct load-factor loop: n_z PI with 0.06 s lead
+- Anti-windup, position-saturation back-calculation, integration frozen below q∞ < 100 Pa
+
+Cruciform fin mixing:
+
+```text
+δ_up = δ_down = δ_Y
+δ_left = δ_P − δ_R
+δ_right = δ_P + δ_R
+```
+
+Processing order: rate limit → first-order lag → position limit. Fin deflection ±25°, fin rate 150°/s, actuator time constant 10 ms; the saturation flag feeds back to the anti-windup loop.
+
+Why the sideslip envelope matters: the side-force channel is about three times weaker than the lift channel (CY_β = 1.6 vs CN_α ≈ 5), so at cruise dynamic pressure a lateral demand of only 0.2 g already needs more than 10° of sideslip. The yaw fins saturate first, the cruciform mixer then loses the differential pitch command that rolls the airframe, and the body is pushed out of envelope by the α·p coupling at high alpha/large sideslip; drag rises, energy is spent and the missile overflies the target. Moving lateral load into the lift plane after rolling takes the 172.6 km overfly in the geometry suite down to 5.3 m.
+
+---
+
+## 13. Numerics and telemetry
+
+- Native RK4, fourth-order fixed step, returning the weighted average derivative for the INS cache
+- In-step reconstruction: RK4 is re-run from the left end of the interval, avoiding endpoint Hermite interpolation error at thrust/fin jumps
+- Events: miss (range rate turns negative to positive) and ground impact (|r| = Re); direction-aware root finding plus bisection, tolerance 1e-10
+- Optional RK45 is a continuous-system reference only
+- Telemetry uses a preallocated NumPy buffer, forbids `list.append`, requires strictly increasing time and raises on NaN/Inf
+- Optional Numba hot paths with a cache key bound to source hashes
+
+---
+
+## 14. Current single-shot results
+
+Computed from the current `output/telemetry.csv` (run of 2026-11-13):
 
 | Metric | Value |
+|---|---:|
+| Miss distance (10 ms telemetry sample) | 13.40 m |
+| Miss distance (integrator event locator) | 7.94 m |
+| Intercept time | 676.46 s |
+| Peak speed / Mach | 3094.5 m/s / 9.48 |
+| Peak dynamic pressure | 881.3 kPa |
+| Peak altitude | 29.93 km |
+| Peak load factor | 40.0 g commanded / 10.6 g measured |
+| Downrange | 1846.3 km |
+| Handover time / downrange | 668.79 s / 1824.9 km |
+| Terminal duration | 7.67 s |
+| FOV exceedance | 6.4 % |
+| Propellant used | 1424.4 kg |
+| Telemetry frames | 67 647 |
+
+Phase segmentation: boost 0–20 s, midcourse 20–668.79 s, terminal 668.79–676.46 s.
+
+Single-shot miss distance is highly sensitive to endgame initial conditions; use Monte-Carlo statistics for hit rate. Handover is set by the actual seeker lock range and may occur earlier than the nominal 40 km gate.
+
+---
+
+## 15. Tests and performance validation
+
+### 15.1 Unit tests
+
+Re-running `python -m pytest -n auto` on the current code: **11 test modules, all 80 cases pass**.
+
+| Test module | Cases | Coverage |
+|---|---:|---|
+| `test_data_consistency.py` | 13 | atmosphere monotonicity, thrust altitude correction, CG travel, quaternion round-trip, telemetry checks |
+| `test_control.py` | 16 | prefilter, fin-mixer limits, anti-windup, low-q protection, gain schedule, Mach hold, sideslip/AoA envelopes, roll derating |
+| `test_guidance.py` | 15 | handover gates, Bezier endpoints and tangents, coplanar constraint, loft-dive profile, angle constraint, prediction term, terminal correction |
+| `test_aero_anchors.py` | 9 | DATCOM anchors, transonic conservatism, static margin, L/D band |
+| `test_main_integration.py` | 8 | multi-rate counts, short-run stability, event detection |
+| `test_fastcore.py` | 5 | Numba/pure-Python equivalence, reproducible noise streams |
+| `test_sensors.py` | 4 | navigation convergence, FOV rejection, lock and blind zone, glint scaling |
+| `test_batch.py` | 4 | parallel batches, hit rate and CEP, reproducible dispersion |
+| `test_state_schema.py` | 3 | state layout and hash |
+| `test_analysis.py` | 2 | sweep and sensitivity entry points |
+| `test_verification.py` | 1 | numerical-verification entry point |
+
+### 15.2 Performance validation
+
+`output/validation/validation_report.txt` currently reports **FAIL** (criterion: single-shot miss ≤ 15 m and suite pass rate ≥ 80%):
+
+- Baseline suite: 4/4 pass (100%), mean 10.70 m
+- Target-speed suite: 10/10 pass (100%)
+- Target altitude: 7/8 (87.5%); with the 520 km early descent and the sideslip envelope the 5 km target no longer overflies
+- Target maneuver: 4/8 (50%); engagement geometry: 7/10 (70%), worst 44.3 m, **no 486.7 km fly-past**; combined stress: 7/8 (87.5%)
+- Green unit tests do not imply full-envelope hit-rate compliance
+
+### 15.3 Monte-Carlo campaign (100 cases)
+
+```bash
+python batch.py --cases 100 --workers 16 --seed 2026 \
+  --launch-cep 500 --target-cep 2000 --target-alt-sigma 500 \
+  --target-mach-sigma 0.05 --evade-g-sigma 1.0 \
+  --lethal-radius 15 --no-plot
+```
+
+| Metric | Result |
+|---|---:|
+| Cases / seed | 100 / 2026 |
+| Hit rate (≤15 m) | **79% (79/100)** |
+| 95% confidence interval | 70.0–85.8% |
+| CEP50 / CEP90 | **9.27 m / 17.96 m** |
+| Median miss distance | 9.27 m |
+| Mean / std | 10.11 m / 5.81 m |
+| Min / max | 1.36 m / 34.90 m |
+| Miss ≤20 m / ≤30 m | 91 / 99 cases |
+| Outliers | 0 (all cases reach terminal guidance) |
+| Wall-clock time | 475 s (16 workers) |
+
+Results are stored in `output/batch/batch_results.csv`. With the loft-dive profile, the predictive term and the sideslip envelope all 100 cases reach terminal guidance, eliminating both the 915 km and 486.7 km fly-pasts; the 79% hit rate sits just below the 80% acceptance threshold, and the full-envelope scenario validation still reports FAIL (see 15.2). The 21 cases beyond 15 m are dominated by terminal target evasion and lift saturation.
+
+---
+
+## 16. Key parameters
+
+| Parameter | Value |
+|---|---:|
+| Launch site | 40.0°N, 110.0°E, 0 m |
+| Target | 28.0°N, 126.0°E, 15 240 m |
+| Target Mach / evasion load | 1.6 / 9 g |
+| Boost → midcourse | 20 s |
+| Simulation end | 1200 s |
+| Midcourse replan / freeze distance | 10 s / 150 km |
+| Midcourse descent start / look-down | at most 520 km / 1 km at −2.4° |
+| Max AoA / fin deflection / fin rate | 25° / 25° / 100°/s |
+| Boost / midcourse / terminal command limit | 4 g / 5 g / 40 g |
+| Seeker period / FOV / blind zone | 5 ms / ±20° / 200 m |
+| Navigation delay / GNSS period | 50 ms / 1 s |
+| Outer step (boost·terminal / midcourse) | 5 ms / 10 ms |
+| Telemetry period / capacity | 10 ms / 200 000 frames |
+
+---
+
+## 17. Assumptions and scope
+
+### 17.1 Main assumptions
+
+1. WGS84 ellipsoid + J2 gravity, no terrain; a 6371 km spherical model is optional
+2. No wind or atmospheric disturbance by default; `vehicle/wind.py` is an optional model
+3. Target is a 3DOF point mass with fixed head-on RCS and no attitude/frequency fluctuation
+4. Aero coefficients are DATCOM plus theoretical extrapolation, not calibrated on this vehicle
+5. Seeker is a simplified dual-mode model without clutter, jamming, multipath, cloud attenuation or a signal-processing chain
+6. Actuator is first-order lag with rate/position limits, no backlash, dead band or structural flexibility
+7. Inertia and CG vary linearly with fuel; propellant sloshing is ignored
+8. Thrust is an engineering model without combustion instability or inlet start-up/surge
+9. Aerodynamic heating, structural strength, thermal protection and aeroelasticity are not modelled
+10. Datalink networking, cooperative engagement and in-flight command updates are not modelled
+
+### 17.2 Scope
+
+**Suitable for**: guidance/control/navigation design and comparison, trajectory trade studies, energy-management research, Monte-Carlo miss statistics, software architecture and test-method verification.
+
+**Not suitable for**: system qualification, operational hit-probability assessment, or any live-fire employment decision.
+
+---
+
+## 18. References
+
+| Tag | Reference |
 |---|---|
-| Miss distance | ≈ 26 m |
-| Flight time | ≈ 672 s |
-| Terminal phase | reached |
-| Peak altitude | ≈ 30 km |
-| Peak speed | ≈ 3.1 km/s |
-| Max dynamic pressure | ≈ 0.89 MPa |
-| Peak command load | 40 g |
-| Actual peak load | ≈ 12 g |
-| Handover time / range | ≈ 664.5 s / 24.3 km |
-| Terminal duration | ≈ 8 s |
-| FOV exceedance | ≈ 5.6% |
-| Telemetry | ≈ 67 k frames × 132 columns |
-
-Exact numbers depend on the seed, the target-defence phase and the handover
-geometry. The Monte-Carlo and validation tools are the authoritative way to
-measure a change; do not tune to a single seed.
-
-The validation pass criterion is a 15 m miss distance. Under the current
-F-35A scenario and the radar-lock model, some low-altitude or low-RCS cases
-hand over late or lose lock; those are scenario/seeker/handover limitations,
-not terminal-guidance tuning errors.
+| DATCOM | USAF Stability and Control Digital DATCOM, AFFDL-TR-79-3032, 1979 |
+| USSA1976 | U.S. Standard Atmosphere, 1976, NASA-TM-X-74335 |
+| WGS84 | NIMA TR8350.2, Department of Defense World Geodetic System 1984 |
+| NACA Report 1135 | Equations, Tables, and Charts for Compressible Flow, 1953 |
+| Prandtl-Schlichting | Schlichting, Boundary-Layer Theory |
+| ZEM/APN | Zero-effort-miss / augmented proportional navigation literature |
+| JAST-Bezier | Bezier trajectory shaping for midcourse guidance |
+| uniflight | Single-owner RHS, packed state and event-integrator architecture reference |
 
 ---
 
-## 21. Assumptions and limitations
-
-1. **Point-mass target**: the target has no attitude, control lag or sensor
-   model beyond the range-gated manoeuvre logic.
-2. **Aero data**: DATCOM below Mach 5 and modified Newtonian above; the
-   transition band is engineering-smoothed.
-3. **Atmosphere**: USSA1976, no winds by default; the optional wind model is
-   not wired into the compiled derivative by default.
-4. **Seeker**: radar/IIR with white noise, glint, dropout and false-lock
-   statistics; no terrain, clutter or electronic attack.
-5. **Navigation**: 12-state GNSS/INS; no star tracker by default; the 50 ms
-   output delay is modelled.
-6. **Autopilot**: three-loop linear design with nonlinear limits; no structural
-   bending, fuel slosh or actuator bandwidth beyond the first-order model.
-7. **Guidance**: ZEM/APN; no impact-angle constraint, no cooperative
-   midcourse-terminal optimization.
-8. **Earth**: WGS84 with J2; no higher-order gravity, winds or tides.
-9. **Determinism**: all random streams are seeded; a run is reproducible on
-   the same platform and library versions.
-
-The model is intended for algorithm and software verification, not for
-operational performance claims. Public complete data for a 2000-km-class
-interceptor are scarce; geometry, mass, aero and propulsion values are
-engineering extrapolations from public sources.
-
----
-
-## 22. References
-
-### Aerodynamics and atmosphere
-
-- USAF Digital DATCOM (January 1996).
-- NASA USSA1976, NASA-TM-X-74335.
-- Modified Newtonian / lifting-body hypersonic correlations.
-
-### Guidance, control and estimation
-
-- JAST-Bezier midcourse guidance, Mohamadifard & Naghash, JAST Vol. 8 No. 2.
-- ZEM/APN terminal-guidance survey (Evduzen, 2026); standard PN/APN
-  literature.
-- Hacettepe three-loop autopilot / TU-Delft anti-windup and gain scheduling.
-- GNSS/INS noise levels from `gnss-ins-sim`.
-- Glint model from DTIC.
-
-### Software
-
-- NumPy, Numba, Matplotlib, pytest.
-- Digital DATCOM parser (`tools/datcom_aero.py`).
-- ECharts for the HTML dashboard.
-
----
-
-## Appendix A: symbols
-
-| Symbol | Meaning | Units |
-|---|---|---|
-| `r, v` | Position and velocity, ECI | m, m/s |
-| `q` | Body-to-ECI quaternion | — |
-| `ω` | Body angular rate | rad/s |
-| `m` | Mass | kg |
-| `α, β` | Angle of attack, sideslip | rad |
-| `q_dyn` | Dynamic pressure | Pa |
-| `Ma` | Mach number | — |
-| `R` | Missile-target range | m |
-| `Vc` | Closing velocity | m/s |
-| `t_go` | Time-to-go | s |
-| `ZEM` | Zero-effort miss | m |
-| `N` | Navigation constant | — |
-| `a_cmd` | Guidance command acceleration | m/s² |
-| `δ` | Fin deflection | rad |
-| `λ` | LOS angle | rad |
-| `ω_LOS` | LOS angular rate | rad/s |
-
----
-
-## Appendix B: telemetry dictionary
-
-The full profile has 132 columns. The basic profile (Monte-Carlo/validation)
-keeps the first 48 columns through `tgt_est_err`.
-
-### Core columns (0–47)
-
-| # | Column | Meaning | Unit |
-|---:|---|---|---|
-| 0 | `time` | Simulation time | s |
-| 1–3 | `m_rx/ry/rz` | Missile position, ECI | m |
-| 4–6 | `m_vx/vy/vz` | Missile velocity, ECI | m/s |
-| 7–9 | `t_rx/ry/rz` | Target position, ECI | m |
-| 10–12 | `t_vx/vy/vz` | Target velocity, ECI | m/s |
-| 13 | `mass` | Missile mass | kg |
-| 14 | `mach` | Mach number | — |
-| 15 | `q_dyn` | Dynamic pressure | Pa |
-| 16 | `alt` | Missile altitude | m |
-| 17–18 | `lat, lon` | Missile geodetic latitude/longitude | deg |
-| 19–20 | `alpha, beta` | Angle of attack / sideslip | rad |
-| 21–23 | `nx, ny, nz` | Body load factors | g |
-| 24–26 | `a_cmd_x/y/z` | Guidance command, ECI | m/s² |
-| 27–29 | `a_act_x/y/z` | Actual non-gravity acceleration, ECI | m/s² |
-| 30–33 | `fin_up/down/left/right` | Physical fin deflections | rad |
-| 34 | `fin_sat` | Fin saturation flag | — |
-| 35 | `nav_err` | Navigation position error magnitude | m |
-| 36 | `range` | Missile-target range | m |
-| 37 | `range_rate` | Range rate | m/s |
-| 38 | `seeker_lock` | Seeker lock flag | — |
-| 39 | `fov_angle` | Seeker off-boresight angle | rad |
-| 40 | `phase` | Phase code (1 boost, 2 mid, 3 terminal) | — |
-| 41 | `handover` | Handover flag | — |
-| 42 | `dh` | Altitude difference | m |
-| 43 | `lead_angle` | Lead angle | rad |
-| 44–46 | `p, q_rate, r_rate` | Body angular rates | rad/s |
-| 47 | `tgt_est_err` | Target-estimate error | m |
-
-### Extended columns (48–131)
-
-| # | Column | Meaning | Unit |
-|---:|---|---|---|
-| 48–50 | `m_ecef_x/y/z` | Missile ECEF position | m |
-| 51–53 | `m_vecef_x/y/z` | Missile ECEF velocity | m/s |
-| 54–56 | `m_vned_n/e/d` | Missile local-NED velocity | m/s |
-| 57–60 | `q_w, q_x, q_y, q_z` | Body-to-ECI quaternion | — |
-| 61–63 | `roll_deg, pitch_deg, yaw_deg` | Body-to-NED ZYX Euler angles | deg |
-| 64–65 | `gamma_deg, chi_deg` | Flight-path angle / heading | deg |
-| 66–67 | `m_speed, airspeed` | Inertial speed / airspeed | m/s |
-| 68–69 | `air_density, sound_speed` | Local density / speed of sound | kg/m³, m/s |
-| 70–72 | `Fbx, Fby, Fbz` | Body aero + thrust force | N |
-| 73–75 | `a_cmd_b_x/y/z` | Guidance command, body axes | m/s² |
-| 76 | `n_cmd_g` | Command load magnitude | g |
-| 77–79 | `los_x/y/z` | LOS unit vector, ECI | — |
-| 80–82 | `los_rate_x/y/z` | LOS angular-rate vector, ECI | rad/s |
-| 83–84 | `t_go, vc` | Time-to-go / closing velocity | s, m/s |
-| 85–87 | `nav_rx/ry/rz` | Navigation position, ECI | m |
-| 88–90 | `nav_vx/vy/vz` | Navigation velocity, ECI | m/s |
-| 91–93 | `nav_err_x/y/z` | Navigation position error, ECI | m |
-| 94–96 | `rel_x/y/z` | Target relative position, ECI | m |
-| 97–99 | `t_lat, t_lon, t_alt` | Target geodetic position | deg, m |
-| 100–102 | `t_acc_x/y/z` | Target inertial acceleration, ECI | m/s² |
-| 103–104 | `seeker_range, seeker_range_rate` | Seeker range / range rate | m, m/s |
-| 105–107 | `bx_x/y/z` | Body X axis in ECI | — |
-| 108–110 | `by_x/y/z` | Body Y axis in ECI | — |
-| 111–113 | `bz_x/y/z` | Body Z axis in ECI | — |
-| 114–116 | `Mbx, Mby, Mbz` | Body aero + thrust moment | N·m |
-| 117–119 | `t_ecef_x/y/z` | Target ECEF position | m |
-| 120–122 | `t_vecef_x/y/z` | Target ECEF velocity | m/s |
-| 123–125 | `seeker_los_x/y/z` | Seeker LOS unit vector, ECI | — |
-| 126–128 | `seeker_los_rate_x/y/z` | Seeker LOS angular rate, ECI | rad/s |
-| 129–131 | `g_x, g_y, g_z` | Gravity acceleration, ECI | m/s² |
-
----
-
-## Appendix C: troubleshooting
-
-| Symptom | Likely cause / action |
-|---|---|
-| `Numba signature mismatch` | Stale cache: delete `__pycache__/numba_*` and rerun |
-| `Telemetry width mismatch` | A column was added to `TELEMETRY_COLUMNS` without a value (or vice versa) |
-| Batch becomes very slow or swaps | Set the three thread-limit variables; use `--workers` ≤ CPU cores |
-| Dashboard has no charts | Open it in a modern browser and ensure JavaScript is enabled |
-| Miss distance is huge / midcourse phase | Check seeker lock range, handover gates and target RCS; this is not always a terminal-law problem |
-| Target never manoeuvres | Check `TARGET_EVADE_G`, `TARGET_DEFEND_DIST`, `TARGET_MANEUVER_DIST` |
-| Ramjet never lights | Check Mach ≥ 1.6 and q ≥ 2.5 kPa; the booster must finish first |
-| `Wind` parameters are zero | The wind model is optional and not wired into the compiled derivative by default |
-
----
-
-*This English README is kept in sync with the Chinese README. If a parameter
-changes, update `config.py` first, then both READMEs.*
+*This document mirrors the Chinese [README.md](README.md). Parameters are governed by `config.py`; results are governed by the actual artefacts in `output/` and `intercept-report/`.*

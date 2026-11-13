@@ -361,6 +361,25 @@ AP_PREFILTER_HZ_MIN = 1.0    # Low-q floor of the scheduled pre-filter Hz
 AP_REF_GOV_ACCEL_MARGIN = 0.45  # Usable fraction of the moment-limited alpha_ddot
 AP_KI_LOW_Q_FLOOR = 0.35     # Minimum integral-gain scale at low dynamic pressure
 
+# Sideslip envelope.  The side-force channel is ~3x weaker than the normal-force
+# channel (CY_BETA 1.6 vs CN_ALPHA ~5 at M2), so at cruise q (~75 kPa) a lateral
+# demand of only ~0.2 g already needs more than 10 deg of beta and puts the yaw
+# fins on their stops.  With pitch and yaw both saturated the cruciform mixer
+# has no authority left for the differential pitch command that rolls the
+# airframe, so the bank never establishes: the missile then flies the rest of
+# the midcourse at maximum alpha and beta, burns its energy and overflies.
+# Lateral load therefore has to be carried in the lift (alpha) plane after
+# rolling, and beta is kept as a small trim channel.
+AP_BETA_MAX = 8.0 * DEG       # Sideslip reference limit at the reference q rad
+AP_BETA_ENV = 12.0 * DEG      # Measured-sideslip envelope (recovery above) rad
+AP_BETA_Q_REF = 70000.0       # Dynamic pressure at which AP_BETA_MAX applies Pa
+# High-alpha roll-rate capability: the kinematic coupling builds sideslip at
+# roughly alpha * p, so rolling at 6 rad/s with 25 deg alpha generates 150 deg/s
+# of beta.  The roll command is tapered with the measured alpha.
+AP_ALPHA_ROLL_REF = 15.0 * DEG  # alpha at which the roll-rate limit starts to taper
+AP_ROLL_ALPHA_FLOOR = 0.25    # Minimum roll-rate scale at large alpha
+AP_ALPHA_ENV = 20.0 * DEG    # Angle-of-attack envelope (reference recovery above)
+
 # Direct normal-load-factor (n_z) feedback.  The outer alpha loop only sees the
 # pseudo-angle; the measured body -Z load factor is the quantity the guidance
 # command actually asks for, so a dedicated PI on n_z removes the residual lag
@@ -418,7 +437,7 @@ HANDOVER_DH_NOMINAL = 0.0    # Altitude advantage targeted at the handover point
 # The hold advantage is no longer a constant: it is captured at the descent
 # entry range below, so a low target (cruised far above the fixed 14 km band)
 # gets a descent slope sized to the advantage it actually has.
-MIDCOURSE_DESCENT_RANGE = 220000.0  # Start the pre-handover descent profile m
+MIDCOURSE_DESCENT_RANGE = 520000.0  # Start the pre-handover descent profile m
 MIDCOURSE_FREEZE_RANGE = 150000.0   # Freeze the Bezier path inside this range m
 # Energy-optimal cruise: holding q near 75 kPa puts the missile at ~30 km and
 # alpha ~ 6 deg, near the best L/D of the corrected polar.  q error maps to a
@@ -436,8 +455,36 @@ MIDCOURSE_GAMMA_DAMP = 0.22     # vertical-velocity damping 1/s
 MIDCOURSE_DESCENT_GAMMA = 9.0 * DEG   # max descent flight-path angle rad
 MIDCOURSE_DESCENT_ACC_MAX = 2.5 * G0  # vertical acceleration budget in the dive m/s^2
 MIDCOURSE_DESCENT_DH_TARGET = 800.0   # small positive look-down aimed for at handover m
+# Handover look-down: a positive advantage keeps the target below the velocity
+# vector at handover, and the shaped dive's terminal slope is aligned with that
+# LOS.  A non-zero MIDCOURSE_LEVEL_LEAD would level the profile off that many
+# metres before handover; zero holds the angle-constrained slope to handover.
+MIDCOURSE_HANDOVER_DH = 1000.0        # altitude advantage targeted at handover m
+MIDCOURSE_HANDOVER_GAMMA = None       # None = derive from the look-down geometry
+MIDCOURSE_LEVEL_LEAD = 0.0            # level-off range before handover m
+# Loft-then-dive shaping: the pre-handover profile first pulls up by
+# MIDCOURSE_LOFT_DH above the descent-entry altitude, then follows a cubic
+# Hermite dive whose terminal slope is the desired handover flight-path angle.
+# The bump buys the vertical room needed to establish that angle without
+# exceeding the airframe's descent gradient.
+MIDCOURSE_LOFT_DH = 1500.0            # pull-up height above the descent entry m
+MIDCOURSE_LOFT_FRAC = 0.70            # apex position as a fraction of entry->handover span
+# In-plane angle-constrained guidance: the flight-path-angle error relative to
+# the loft-dive profile is fed back with a V/t_go weight, ramped in late and
+# capped.  The cross-plane channel is owned by coplanar_bias, so this term
+# only refines the vertical-angle constraint at handover.
+MIDCOURSE_ANGLE_RANGE = 180000.0      # range where the in-plane term ramps in m
+MIDCOURSE_ANGLE_GAIN = 1.0            # impact-angle loop gain
+MIDCOURSE_ANGLE_ACC_MAX = 2.0 * G0    # in-plane authority cap m/s^2
+# Predictive terminal-error feedback: propagate both vehicles to the predicted
+# handover, evaluate the terminal ZEM there, and remove a fraction of it now.
+# This is what makes the midcourse actively minimise the endgame miss instead
+# of only tracking a geometric path.
+MIDCOURSE_PREDICT_RANGE = 500000.0    # range where the prediction term ramps in m
+MIDCOURSE_PREDICT_GAIN = 0.2          # fraction of the predicted ZEM removed
+MIDCOURSE_PREDICT_ACC_MAX = 1.5 * G0  # predictive authority cap m/s^2
 # The descent entry range is derived from the altitude that must actually be
-# removed at the feasible gradient, plus this margin, instead of a fixed 220 km.
+# removed at the feasible gradient, plus this margin.
 MIDCOURSE_DESCENT_MARGIN = 10000.0    # extra range before the dive m
 # Preview horizon used to predict handover geometry and start the dive early
 # when the lead angle/altitude would otherwise be infeasible.

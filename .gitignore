@@ -27,3 +27,6 @@ missile_intercept/tools/datcom/*.exe
 Thumbs.db
 .idea/
 .vscode/
+
+# Local tuning scratch files
+missile_intercept/_tune_*

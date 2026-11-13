@@ -1,4 +1,4 @@
-"""Midcourse guidance: 3D Bezier trajectory shaping (JAST method).
+"""Midcourse guidance: 3D Bezier trajectory shaping with a loft-dive handover.
 
 Key points
 ----------
@@ -8,11 +8,20 @@ Key points
    the curve cannot degenerate as t_go shrinks;
 3. A new path is cross-faded over tau ~ 2 s to avoid command chattering;
 4. The handover point is defined by an altitude advantage the airframe can
-   actually hold (HANDOVER_DH_NOMINAL above the predicted intercept), and
-   the vertical channel follows a range-to-go altitude profile instead of a
-   fixed cruise altitude.
+   actually hold (MIDCOURSE_HANDOVER_DH above the predicted intercept);
+5. Loft-then-dive shaping: the pre-handover altitude profile first pulls up
+   above the descent-entry altitude, then follows a cubic Hermite dive whose
+   terminal slope equals the desired handover flight-path angle.  This gives
+   the terminal loop an already-established dive angle instead of asking PN
+   to pitch the airframe over inside the seeker field of view;
+6. Angle-constrained guidance: an impact-angle style feedback term drives the
+   flight-path-angle error to zero at handover, on top of the profile;
+7. Predictive terminal-error feedback: both vehicles are propagated to the
+   predicted handover, the terminal ZEM is evaluated there, and a fraction of
+   it is removed during midcourse.
 
-Ref: JAST-Bezier (Mohamadifard & Naghash, JAST Vol.8 No.2).
+Ref: JAST-Bezier (Mohamadifard & Naghash, JAST Vol.8 No.2); impact-angle
+guidance (double-integrator terminal profile).
 """
 
 import math
@@ -71,10 +80,10 @@ class MidcourseGuidance(BaseGuidance):
     def _build_path(self, nav, target_state):
         r = np.asarray(nav.r_eci, dtype=float)
         v = np.asarray(nav.v_eci, dtype=float)
-        # The handover point is offset by the altitude advantage the vehicle
-        # can actually hold (HANDOVER_DH_NOMINAL), not by an aspirational
-        # 20 km: at M~10 and 30 km the airframe is already lift-limited, so a
-        # higher aim point only produces a persistent tracking error.
+        # The handover point is offset by the look-down advantage the vehicle
+        # can actually hold (MIDCOURSE_HANDOVER_DH).  The Bezier arrival
+        # tangent then points down at the target, so the path itself carries
+        # the terminal flight-path-angle lead instead of arriving flat.
         p3, t_go = self.lead_point(nav, target_state)
         duration = float(np.clip(t_go, 30.0, 900.0))
 
@@ -100,11 +109,30 @@ class MidcourseGuidance(BaseGuidance):
         """Predictive handover point: the target's future position.
 
         The aim point is the predicted intercept advanced along the target
-        velocity by the current time-to-go, plus the altitude advantage.  It
+        velocity by the current time-to-go, plus the look-down advantage.  It
         is re-evaluated every guidance cycle, so the midcourse command keeps
         a live lead angle instead of chasing a frozen endpoint.
         """
-        return self.handover_point(nav, target_state, C.HANDOVER_DH_NOMINAL)
+        return self.handover_point(nav, target_state,
+                                   C.MIDCOURSE_HANDOVER_DH)
+
+    # --------------------------------------------------------
+    @staticmethod
+    def handover_gamma():
+        """Desired flight-path angle at handover (negative = descending).
+
+        By default it is derived from the look-down advantage and the handover
+        range, so the velocity is aligned with the LOS the terminal seeker
+        will use.  An explicit ``MIDCOURSE_HANDOVER_GAMMA`` overrides it,
+        bounded by the descending gradient the airframe can fly.
+        """
+        if C.MIDCOURSE_HANDOVER_GAMMA is not None:
+            return max(float(C.MIDCOURSE_HANDOVER_GAMMA),
+                       -C.MIDCOURSE_DESCENT_GAMMA)
+        dh = max(C.MIDCOURSE_HANDOVER_DH, C.MIDCOURSE_DESCENT_DH_TARGET)
+        return -min(math.atan2(dh, C.HANDOVER_RANGE),
+                    C.MIDCOURSE_DESCENT_GAMMA)
+
 
     # --------------------------------------------------------
     @staticmethod
@@ -178,6 +206,132 @@ class MidcourseGuidance(BaseGuidance):
         return a_n * n
 
     # --------------------------------------------------------
+    def _loft_dive_profile(self, R_los):
+        """Range-to-go altitude reference: pull up, then dive.
+
+        The profile is a two-segment cubic Hermite in range-to-go:
+        entry -> apex is a level-in/level-out pull-up of ``LOFT_DH``, and
+        apex -> handover is a dive that starts level and ends with the
+        handover flight-path angle.  Zero slope at the apex keeps the
+        pull-over smooth; the terminal slope is the angle constraint that the
+        terminal seeker inherits.
+        """
+        r_entry, dh_entry = self.descent_ref
+        r_h = C.HANDOVER_RANGE + C.MIDCOURSE_LEVEL_LEAD
+        dh_hand = max(C.MIDCOURSE_HANDOVER_DH,
+                      C.MIDCOURSE_DESCENT_DH_TARGET)
+        gamma_h = self.handover_gamma()
+        span = max(r_entry - r_h, 1000.0)
+        frac = float(np.clip((R_los - r_h) / span, 0.0, 1.0))
+        f_apex = float(np.clip(C.MIDCOURSE_LOFT_FRAC, 0.05, 0.95))
+        dh_apex = dh_entry + C.MIDCOURSE_LOFT_DH
+
+        if frac >= f_apex:
+            # Climb segment: level at the entry and level at the apex.
+            u = (frac - f_apex) / max(1.0 - f_apex, 1e-6)
+            u2, u3 = u * u, u * u * u
+            dh_des = (2.0 * u3 - 3.0 * u2 + 1.0) * dh_apex \
+                + (-2.0 * u3 + 3.0 * u2) * dh_entry
+            dd_dfrac = (6.0 * u2 - 6.0 * u) * (dh_apex - dh_entry) \
+                / max(1.0 - f_apex, 1e-6)
+        else:
+            # Dive segment: level at the apex, terminal slope tan(-gamma_h).
+            u = frac / f_apex
+            u2, u3 = u * u, u * u * u
+            m0 = f_apex * span * math.tan(-gamma_h)
+            dh_des = (2.0 * u3 - 3.0 * u2 + 1.0) * dh_hand \
+                + (u3 - 2.0 * u2 + u) * m0 \
+                + (-2.0 * u3 + 3.0 * u2) * dh_apex
+            dd_dfrac = ((6.0 * u2 - 6.0 * u) * (dh_hand - dh_apex)
+                        + (3.0 * u2 - 4.0 * u + 1.0) * m0) / f_apex
+
+        slope = float(np.clip(dd_dfrac / span, 0.0,
+                              math.tan(C.MIDCOURSE_DESCENT_GAMMA)))
+        return dh_des, -math.atan(slope)
+
+    # --------------------------------------------------------
+    @staticmethod
+    def angle_constraint_bias(r, v, target_state, gamma_ref, t_h):
+        """Flight-path-angle constraint feedback in the vertical plane.
+
+        The angle error relative to the reference profile is turned into a
+        lift-direction acceleration weighted by ``V / t_go``, i.e. the terminal
+        angle loop.  It is ramped in from ``MIDCOURSE_ANGLE_RANGE`` and capped
+        so it only refines, never overrides, the profile.
+        """
+        r_t = BaseGuidance.target_position(target_state)
+        R = MU.norm3(r_t - r)
+        span = max(C.MIDCOURSE_ANGLE_RANGE - C.HANDOVER_RANGE, 1.0)
+        w = float(np.clip((C.MIDCOURSE_ANGLE_RANGE - R) / span, 0.0, 1.0))
+        if w <= 0.0:
+            return np.zeros(3)
+
+        up = MU.local_up(r)
+        v_air = MU.atmosphere_relative_velocity(r, v)
+        V = max(MU.norm3(v_air), 100.0)
+        v_hat = MU.normalize(v_air, fallback=up)
+        gamma = float(np.arcsin(np.clip(np.dot(v_air, up) / V, -1.0, 1.0)))
+        # Lift direction: local up made perpendicular to the velocity.
+        u_lift = MU.perpendicular(up, v_hat)
+        if MU.norm3(u_lift) < 1e-6:
+            return np.zeros(3)
+        u_lift = MU.normalize(u_lift)
+
+        a = -C.MIDCOURSE_ANGLE_GAIN * w * \
+            (V / max(t_h, C.HANDOVER_TGO_MIN)) * (gamma - gamma_ref)
+        a = float(np.clip(a, -C.MIDCOURSE_ANGLE_ACC_MAX,
+                          C.MIDCOURSE_ANGLE_ACC_MAX))
+        return a * u_lift
+
+    # --------------------------------------------------------
+    @staticmethod
+    def predictive_terminal_error(r, v, target_state):
+        """Lateral terminal ZEM predicted at the handover point.
+
+        Both vehicles are propagated to the predicted handover (missile with
+        gravity, target at constant velocity), the terminal guidance ZEM is
+        evaluated there, and a fraction of the acceleration needed to remove
+        it is applied now.  Only the horizontal component is used: the
+        vertical terminal error is owned by the loft-dive profile, so the two
+        channels do not fight.  The term is faded out inside a few handover
+        ranges, where its 1/t_h^2 gain would saturate and fight the terminal
+        PN.
+        """
+        r_t = BaseGuidance.target_position(target_state)
+        v_t = BaseGuidance.target_velocity(target_state)
+        R = MU.norm3(r_t - r)
+        span = max(C.MIDCOURSE_PREDICT_RANGE - C.HANDOVER_RANGE, 1.0)
+        w = float(np.clip((C.MIDCOURSE_PREDICT_RANGE - R) / span, 0.0, 1.0))
+        # Fade out before the terminal loop takes over: inside a few handover
+        # ranges the 1/t_h^2 gain would saturate and fight PN.
+        w *= float(np.clip((R - 2.0 * C.HANDOVER_RANGE)
+                           / max(C.HANDOVER_RANGE, 1.0), 0.0, 1.0))
+        if w <= 0.0 or R < 1.0:
+            return np.zeros(3)
+
+        _, t_go = MU.predict_intercept(r, v, r_t, v_t)
+        geo = MU.los_geometry(r, v, r_t, v_t)
+        vc = max(-float(geo["range_rate"]), 100.0)
+        t_h = max(float(t_go) - C.HANDOVER_RANGE / vc, 10.0)
+
+        g = MU.gravity_eci(r)
+        r_m_h = r + v * t_h + 0.5 * g * t_h * t_h
+        v_m_h = v + g * t_h
+        rho = (r_t + v_t * t_h) - r_m_h
+        R_h = MU.norm3(rho)
+        if R_h < 1.0:
+            return np.zeros(3)
+        u = rho / R_h
+        v_rel = v_t - v_m_h
+        t_go_h = max(R_h / max(-float(np.dot(v_rel, u)), 100.0), 0.0)
+        zem = rho + v_rel * t_go_h
+        zem_perp = MU.perpendicular(zem, u)
+
+        a = -C.MIDCOURSE_PREDICT_GAIN * 2.0 * w * zem_perp / (t_h * t_h)
+        a = MU.perpendicular(a, MU.local_up(r))
+        return MU.clip_norm(a, C.MIDCOURSE_PREDICT_ACC_MAX)
+
+    # --------------------------------------------------------
     @staticmethod
     def handover_feasibility(nav, target_state):
         """Predict the geometry at handover to warn of an infeasible endgame.
@@ -201,7 +355,7 @@ class MidcourseGuidance(BaseGuidance):
         R_h = MU.norm3(rho)
         lead = MU.angle_between(v, MU.normalize(rho)) if R_h > 1.0 else 0.0
         dh = MU.altitude(r_m_h) - MU.altitude(r_t_h)
-        need = max(dh - C.MIDCOURSE_DESCENT_DH_TARGET, 0.0)
+        need = max(dh - C.MIDCOURSE_HANDOVER_DH, 0.0)
         feasible_speed = max(MU.norm3(v), 100.0) * math.tan(
             C.MIDCOURSE_DESCENT_GAMMA)
         return {
@@ -296,34 +450,27 @@ class MidcourseGuidance(BaseGuidance):
         gamma = float(np.arcsin(np.clip(np.dot(v_rel, up) / V_air, -1.0, 1.0)))
 
         # Range-to-go altitude profile.  The airframe is lift-limited above
-        # ~26 km at M10, so the cruise is q-held; at MIDCOURSE_DESCENT_RANGE
-        # the advantage actually held is captured and the missile follows a
-        # smooth descent to a modest look-down at HANDOVER_RANGE.
+        # ~26 km at M10, so the cruise is q-held; at the descent entry range
+        # the advantage actually held is captured, then the missile pulls up
+        # (loft) and trades that height in a shaped dive.  The dive ends with
+        # the desired handover flight-path angle, so the terminal loop starts
+        # with the LOS already inside its lead-angle budget.
         r_t = self.target_position(target_state)
         R_los = MU.norm3(r_t - r)
         alt_t = MU.altitude(r_t)
         r_h = C.HANDOVER_RANGE
-        # Aim just above the target, not exactly at it: a small positive
-        # look-down keeps the handover altitude gate satisfied even with
-        # tracking overshoot, and the gate rejects a missile that is below
-        # the target.
-        dh_hand = max(C.HANDOVER_DH_NOMINAL, C.MIDCOURSE_DESCENT_DH_TARGET)
+        dh_hand = max(C.MIDCOURSE_HANDOVER_DH,
+                      C.MIDCOURSE_DESCENT_DH_TARGET)
         dh_now = alt - alt_t
         tan_desc = math.tan(C.MIDCOURSE_DESCENT_GAMMA)
 
-        # Descent is a straight range-to-go altitude line, anchored once at the
-        # fixed entry range on the advantage the missile actually has there.
-        # The slope is therefore adaptive (a low target is cruised much higher
-        # above it) but the line no longer chases the instantaneous height,
-        # which kept re-triggering during the cruise phugoid.  The line is
-        # bounded by the feasible descent gradient.
-        # Entry range is derived from the altitude that actually has to be
-        # removed at the feasible gradient.  A fixed 220 km entry either dives
-        # too late (advantage too large) or wastes energy on low targets.
-        # Start the dive with margin: the flight-path angle has to be built up
-        # and the airframe only uses part of the geometric gradient on
-        # average, so budget at half the maximum slope.
-        need_h = max(dh_now - dh_hand, 0.0) / max(0.5 * tan_desc, 1e-6)
+        # Descent entry is derived from the altitude that actually has to be
+        # removed (including the loft bump) at the feasible gradient.  Only a
+        # fraction of the maximum slope is budgeted: the flight-path angle has
+        # to be built up and the airframe does not use the full geometric
+        # gradient on average.
+        need_h = max(dh_now + C.MIDCOURSE_LOFT_DH - dh_hand, 0.0) \
+            / max(0.35 * tan_desc, 1e-6)
         entry_range = min(
             C.MIDCOURSE_DESCENT_RANGE,
             max(C.HANDOVER_RANGE + need_h + C.MIDCOURSE_DESCENT_MARGIN,
@@ -333,19 +480,7 @@ class MidcourseGuidance(BaseGuidance):
             self.descent_active = True
 
         if self.descent_active:
-            r_entry, dh_entry = self.descent_ref
-            # Smoothstep altitude line: zero slope at both ends.  Starting
-            # level avoids a step in the flight-path command, and ending level
-            # means the terminal loop inherits no residual descent rate (a
-            # residual vertical ZEM that the endgame could not null).
-            span = max(r_entry - r_h, 1000.0)
-            frac = float(np.clip((R_los - r_h) / span, 0.0, 1.0))
-            dh_delta = dh_entry - dh_hand
-            dh_des = dh_hand + dh_delta * (3.0 * frac * frac
-                                           - 2.0 * frac * frac * frac)
-            slope = 6.0 * dh_delta * frac * (1.0 - frac) / span
-            slope = float(np.clip(slope, 0.0, tan_desc))
-            gamma_ff = -math.atan(slope)
+            dh_des, gamma_ff = self._loft_dive_profile(R_los)
             alt_err = (alt_t + dh_des) - alt
             gamma_corr = math.atan2(alt_err, max(R_los - r_h, 2000.0))
             gamma_des = gamma_ff + gamma_corr
@@ -391,6 +526,23 @@ class MidcourseGuidance(BaseGuidance):
         if n_pl is not None:
             a_cmd = a_cmd - MU.dot3(a_cmd, n_pl) * n_pl
         a_cmd = a_cmd + a_cross
+
+        # Angle-constrained guidance: track the profile's flight-path angle
+        # with a terminal-time weighting, so the handover gamma is enforced
+        # (not merely scheduled) despite autopilot lag and the q-hold
+        # transient.  The gain grows as the handover approaches.
+        v_t_now = self.target_velocity(target_state)
+        u_los = MU.normalize(r_t - r)
+        vc_los = max(-float(np.dot(v_t_now - v, u_los)), 100.0)
+        t_h = max((R_los - r_h) / vc_los, C.HANDOVER_TGO_MIN)
+        a_cmd = a_cmd + self.angle_constraint_bias(
+            r, v, target_state, gamma_des, t_h)
+
+        # Predictive terminal-error feedback: propagate both vehicles to the
+        # predicted handover, evaluate the terminal ZEM there and remove part
+        # of it now.  The lateral channel is used so it does not fight the
+        # vertical loft-dive profile.
+        a_cmd = a_cmd + self.predictive_terminal_error(r, v, target_state)
 
         # Cross-fade from the previous command over blend_time after a replan;
         # the first command of the run has no predecessor to fade from.

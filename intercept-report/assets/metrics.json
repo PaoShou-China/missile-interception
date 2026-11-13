@@ -1,19 +1,19 @@
 {
-  "miss_distance_m": 1185.030958,
-  "impact_time_s": 677.1,
-  "max_speed_ms": 3101.2551305678808,
-  "max_mach": 9.704673,
-  "max_q_kpa": 790.958528579,
-  "max_load_g": 40.00000007466181,
-  "max_alt_km": 29.958798144,
-  "fuel_used_kg": 1409.911782,
-  "downrange_km": 1846.9442301231197,
-  "handover_time_s": 669.43,
-  "handover_downrange_km": 1826.991542559941,
+  "miss_distance_m": 24.267596,
+  "impact_time_s": 676.46,
+  "max_speed_ms": 3094.5306207328313,
+  "max_mach": 9.47526,
+  "max_q_kpa": 881.260821224,
+  "max_load_g": 40.00000002810323,
+  "max_alt_km": 29.931586025,
+  "fuel_used_kg": 1424.357453,
+  "downrange_km": 1846.302017354257,
+  "handover_time_s": 668.79,
+  "handover_downrange_km": 1824.8910687211435,
   "terminal_phase": true,
-  "fov_exceed_ratio": 0.05532335957229992,
-  "samples": 67711,
-  "duration_s": 677.1,
+  "fov_exceed_ratio": 0.05855396395996866,
+  "samples": 67647,
+  "duration_s": 676.46,
   "phase_segments": [
     {
       "name": "Boost",
@@ -23,18 +23,18 @@
     {
       "name": "Midcourse",
       "start": 20.0,
-      "end": 669.43
+      "end": 668.79
     },
     {
       "name": "Terminal",
-      "start": 669.43,
-      "end": 677.1
+      "start": 668.79,
+      "end": 676.46
     }
   ],
   "miss_point": {
-    "east_km": 1581.2510199606581,
-    "north_km": -954.3836760226263,
-    "alt_km": 15.019564306
+    "east_km": 1580.64320261061,
+    "north_km": -954.1478948922297,
+    "alt_km": 13.966480152
   },
   "launch": {
     "lat": 40.0,

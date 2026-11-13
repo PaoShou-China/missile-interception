@@ -153,6 +153,79 @@ def test_midcourse_coplanar_bias_drives_into_target_plane():
     assert np.allclose(a_far, 0.0)
 
 
+def test_midcourse_loft_then_dive_profile():
+    """The pre-handover profile pulls up first, then dives at the handover angle."""
+    mid = MidcourseGuidance()
+    r_entry, dh_entry = 200000.0, 15000.0
+    mid.descent_ref = (r_entry, dh_entry)
+    mid.descent_active = True
+
+    dh_at_entry, gamma_at_entry = mid._loft_dive_profile(r_entry)
+    r_h_eff = C.HANDOVER_RANGE + C.MIDCOURSE_LEVEL_LEAD
+    apex_range = r_h_eff + C.MIDCOURSE_LOFT_FRAC * (r_entry - r_h_eff)
+    dh_at_apex, gamma_at_apex = mid._loft_dive_profile(apex_range)
+    _, gamma_mid = mid._loft_dive_profile(60000.0)
+    _, gamma_near = mid._loft_dive_profile(C.HANDOVER_RANGE + 1000.0)
+
+    assert dh_at_entry == pytest.approx(dh_entry, abs=1.0)
+    assert abs(gamma_at_entry) < 1e-3
+    assert dh_at_apex > dh_entry + 0.5 * C.MIDCOURSE_LOFT_DH
+    assert abs(gamma_at_apex) < 1e-3
+    assert gamma_mid < 0.0
+    assert gamma_near == pytest.approx(mid.handover_gamma(), abs=0.3 * C.DEG)
+
+
+def test_handover_gamma_matches_configured_or_derived_value():
+    gamma = MidcourseGuidance.handover_gamma()
+    if C.MIDCOURSE_HANDOVER_GAMMA is None:
+        dh = max(C.MIDCOURSE_HANDOVER_DH, C.MIDCOURSE_DESCENT_DH_TARGET)
+        expected = -np.arctan2(dh, C.HANDOVER_RANGE)
+    else:
+        expected = C.MIDCOURSE_HANDOVER_GAMMA
+    assert gamma == pytest.approx(expected, abs=1e-9)
+    assert gamma < 0.0
+
+
+def test_angle_constraint_bias_pushes_towards_reference_gamma():
+    """A level missile must be pushed down towards the descending handover gamma."""
+    mid = MidcourseGuidance()
+    r_m = MU.llh_to_eci(40.0, 110.0, 30000.0, 0.0)
+    up = MU.normalize(r_m)
+    h = MU.normalize(MU.perpendicular(np.array([0.0, 1.0, 0.0]), up))
+    r_t = r_m + h * 80000.0 - up * 15000.0
+    t_state = np.concatenate([r_t, -h * 500.0])
+    v_m = h * 2000.0
+    gamma_ref = -7.0 * C.DEG
+
+    a = mid.angle_constraint_bias(r_m, v_m, t_state, gamma_ref, 30.0)
+    u_lift = MU.normalize(MU.perpendicular(up, MU.normalize(v_m)))
+    assert np.dot(a, u_lift) < 0.0
+    assert np.linalg.norm(a) <= C.MIDCOURSE_ANGLE_ACC_MAX + 1e-6
+
+    v_aligned = MU.normalize(h * np.cos(gamma_ref) + up * np.sin(gamma_ref)) * 2000.0
+    a0 = mid.angle_constraint_bias(r_m, v_aligned, t_state, gamma_ref, 30.0)
+    assert np.linalg.norm(a0) < 1.0
+
+
+def test_predictive_terminal_error_is_lateral_and_bounded():
+    mid = MidcourseGuidance()
+    r_m = MU.llh_to_eci(40.0, 110.0, 30000.0, 0.0)
+    up = MU.local_up(r_m)
+    h = MU.normalize(MU.perpendicular(np.array([0.0, 1.0, 0.0]), up))
+    side = MU.normalize(MU.cross3(h, up))
+    r_t = r_m + h * 100000.0 + side * 3000.0 - up * 15000.0
+    t_state = np.concatenate([r_t, -h * 500.0])
+
+    a = mid.predictive_terminal_error(r_m, h * 2000.0, t_state)
+    assert np.linalg.norm(a) > 0.0
+    assert abs(np.dot(a, up)) < 1e-6
+    assert np.linalg.norm(a) <= C.MIDCOURSE_PREDICT_ACC_MAX + 1e-6
+
+    r_far = r_m + h * (C.MIDCOURSE_PREDICT_RANGE + 100000.0)
+    a_far = mid.predictive_terminal_error(r_far, h * 2000.0, t_state)
+    assert np.allclose(a_far, 0.0)
+
+
 def test_terminal_guidance_corrects_los_offset():
     """Terminal guidance issues a non-zero correction command for a target off the line of sight, within the load limit."""
     term = TerminalGuidance()

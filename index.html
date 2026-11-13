@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>2000 km 级高超声速拦截器 · 6DOF 仿真</title>
+<style>
+  :root{
+    --bg:#f5f5f7; --bg2:#ffffff; --ink:#1d1d1f; --muted:#6e6e73;
+    --accent:#0071e3; --accent2:#30b0c7; --line:rgba(0,0,0,.09);
+    --radius:22px; --maxw:1120px;
+    --font:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI","PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
+    --mono:ui-monospace,"SF Mono","JetBrains Mono",Consolas,monospace;
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--font);
+       -webkit-font-smoothing:antialiased;line-height:1.6}
+  a{color:inherit;text-decoration:none}
+  .wrap{max-width:var(--maxw);margin:0 auto;padding:0 24px}
+
+  /* hero */
+  .hero{background:#000;color:#f5f5f7;padding:96px 0 72px;position:relative;overflow:hidden}
+  .hero::after{content:"";position:absolute;inset:0;pointer-events:none;
+    background:radial-gradient(900px 380px at 78% 8%,rgba(0,113,227,.30),transparent 62%),
+               radial-gradient(620px 300px at 12% 92%,rgba(48,176,199,.22),transparent 66%)}
+  .hero .wrap{position:relative;z-index:1}
+  .eyebrow{font:600 12px/1 var(--mono);letter-spacing:.16em;text-transform:uppercase;color:#86868b;margin-bottom:22px}
+  .eyebrow b{color:var(--accent2);font-weight:600}
+  h1{font-size:clamp(38px,5.4vw,64px);line-height:1.08;letter-spacing:-.022em;margin:0 0 18px;font-weight:700}
+  h1 em{font-style:normal;background:linear-gradient(92deg,#4fb3ff,#30b0c7);-webkit-background-clip:text;background-clip:text;color:transparent}
+  .lede{max-width:740px;font-size:clamp(16px,1.6vw,20px);color:#a1a1a6;margin:0 0 34px}
+  .cta{display:flex;flex-wrap:wrap;gap:12px}
+  .btn{display:inline-flex;align-items:center;gap:8px;border-radius:999px;padding:13px 24px;
+       font-size:15px;font-weight:600;transition:.2s ease;border:1px solid transparent}
+  .btn.primary{background:var(--accent);color:#fff}
+  .btn.primary:hover{background:#0077ed;transform:translateY(-1px)}
+  .btn.ghost{border-color:rgba(255,255,255,.26);color:#f5f5f7}
+  .btn.ghost:hover{background:rgba(255,255,255,.09)}
+
+  /* metrics */
+  .metrics{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:rgba(255,255,255,.12);
+           border-top:1px solid rgba(255,255,255,.12);margin-top:64px;border-radius:16px;overflow:hidden}
+  .metric{background:#000;padding:22px 20px}
+  .metric .v{font:700 26px/1.1 var(--font);letter-spacing:-.02em}
+  .metric .k{margin-top:6px;font-size:12.5px;color:#86868b;letter-spacing:.02em}
+
+  /* sections */
+  section{padding:76px 0}
+  .sec-head{margin-bottom:34px}
+  .sec-head h2{font-size:clamp(26px,3vw,38px);letter-spacing:-.02em;margin:0 0 10px}
+  .sec-head p{color:var(--muted);margin:0;font-size:16px}
+
+  .cards{display:grid;grid-template-columns:repeat(3,1fr);gap:20px}
+  .card{background:var(--bg2);border:1px solid var(--line);border-radius:var(--radius);
+        padding:26px 24px 22px;display:flex;flex-direction:column;transition:.24s ease}
+  .card:hover{transform:translateY(-4px);box-shadow:0 18px 42px rgba(0,0,0,.10);border-color:rgba(0,113,227,.35)}
+  .card .tag{font:600 11px/1 var(--mono);letter-spacing:.12em;text-transform:uppercase;color:var(--accent);margin-bottom:14px}
+  .card h3{font-size:20px;margin:0 0 10px;letter-spacing:-.01em}
+  .card p{color:var(--muted);font-size:14.5px;margin:0 0 20px}
+  .card .go{margin-top:auto;font-size:14px;font-weight:600;color:var(--accent);display:inline-flex;align-items:center;gap:6px}
+  .card .go span{transition:transform .2s}
+  .card:hover .go span{transform:translateX(3px)}
+
+  .modules{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+  .module{background:var(--bg2);border:1px solid var(--line);border-radius:16px;padding:20px 20px 18px}
+  .module h4{margin:0 0 6px;font-size:15.5px}
+  .module p{margin:0;color:var(--muted);font-size:13.5px}
+  .module .dot{display:inline-block;width:7px;height:7px;border-radius:50%;
+               background:linear-gradient(140deg,var(--accent),var(--accent2));margin-right:8px;vertical-align:1px}
+
+  .run{background:var(--bg2);border:1px solid var(--line);border-radius:var(--radius);padding:8px 22px 22px}
+  pre{margin:0;overflow:auto;font:13px/1.85 var(--mono);color:#2b2b2f}
+  pre .c{color:#8a8a8f}
+  .run .path{display:inline-block;margin:14px 0 8px;font:600 12px/1 var(--mono);color:var(--muted)}
+
+  footer{border-top:1px solid var(--line);padding:34px 0 48px;color:var(--muted);font-size:13px}
+  footer .row{display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap}
+  footer a{color:var(--accent)}
+  .disc{max-width:760px;margin-top:10px;line-height:1.7}
+
+  @media(max-width:900px){
+    .cards,.modules{grid-template-columns:1fr 1fr}
+    .metrics{grid-template-columns:1fr 1fr}
+  }
+  @media(max-width:620px){
+    .cards,.modules{grid-template-columns:1fr}
+    .hero{padding:72px 0 54px}
+  }
+</style>
+</head>
+<body>
+
+<header class="hero">
+  <div class="wrap">
+    <div class="eyebrow">2000 km class · 6DOF · <b>end-to-end simulation</b></div>
+    <h1>高超声速拦截器<br><em>六自由度仿真</em></h1>
+    <p class="lede">垂直冷发射、固体助推 + 超声速冲压组合循环动力、GNSS/INS 组合导航、雷达导引头、Bezier 中制导与 ZEM/APN 末制导、三回路姿态控制与蒙特卡洛打靶——纯 Python/NumPy 实现的模块化、可测试、可并行仿真。</p>
+    <div class="cta">
+      <a class="btn primary" href="#reports">查看仿真报告</a>
+      <a class="btn ghost" href="https://github.com/PaoShou-China/missile-interception" target="_blank" rel="noopener">GitHub 源码</a>
+    </div>
+    <div class="metrics">
+      <div class="metric"><div class="v">6DOF</div><div class="k">刚体动力学 + 姿态闭环</div></div>
+      <div class="metric"><div class="v">5 ms</div><div class="k">助推 / 末段积分步长</div></div>
+      <div class="metric"><div class="v">2000 km</div><div class="k">级射程工程外推</div></div>
+      <div class="metric"><div class="v">Monte-Carlo</div><div class="k">批量打靶与灵敏度分析</div></div>
+    </div>
+  </div>
+</header>
+
+<section id="reports">
+  <div class="wrap">
+    <div class="sec-head">
+      <h2>在线报告</h2>
+      <p>三份可直接在浏览器中打开的交互式报告，均由仿真输出数据生成。</p>
+    </div>
+    <div class="cards">
+      <a class="card" href="missile-intercept-overview/missile-intercept-overview.html">
+        <div class="tag">Overview</div>
+        <h3>项目概览</h3>
+        <p>体系结构与全流程总览：弹道剖面、能量管理、制导交接、控制回路与关键指标的交互式展示。</p>
+        <div class="go">打开报告 <span>→</span></div>
+      </a>
+      <a class="card" href="intercept-report/intercept-report.html">
+        <div class="tag">Analysis</div>
+        <h3>拦截分析报告</h3>
+        <p>2000 km 级 6DOF 仿真分析：高度/马赫数剖面、视线角速度、脱靶量与蒙特卡洛统计分布。</p>
+        <div class="go">打开报告 <span>→</span></div>
+      </a>
+      <a class="card" href="test-report/missile_interceptor_test_report.html">
+        <div class="tag">Verification</div>
+        <h3>全流程测试报告</h3>
+        <p>分系统与全链路测试汇总：气动锚点、导航、导引头、制导交接、控制律与数值一致性校验。</p>
+        <div class="go">打开报告 <span>→</span></div>
+      </a>
+    </div>
+  </div>
+</section>
+
+<section style="padding-top:0">
+  <div class="wrap">
+    <div class="sec-head">
+      <h2>仿真链路</h2>
+      <p>从发射到交会，每个环节都有独立模块与对应测试。</p>
+    </div>
+    <div class="modules">
+      <div class="module"><h4><span class="dot"></span>组合动力</h4><p>固体助推接力超声速冲压，推力与耗量随高度、马赫数调度。</p></div>
+      <div class="module"><h4><span class="dot"></span>导航与导引</h4><p>GNSS/INS 组合导航、雷达导引头量测、目标跟踪与滤波。</p></div>
+      <div class="module"><h4><span class="dot"></span>制导与交接</h4><p>Bezier 中制导、ZEM/APN 末制导、多约束交接班管理。</p></div>
+      <div class="module"><h4><span class="dot"></span>姿态控制</h4><p>三回路自动驾驶仪、舵机限幅与速率约束、增益调度。</p></div>
+      <div class="module"><h4><span class="dot"></span>多速率积分</h4><p>不同飞行段自适应步长与事件处理，支持收敛性外推。</p></div>
+      <div class="module"><h4><span class="dot"></span>验证体系</h4><p>pytest 测试集、气动锚点校核、数值一致性与性能校验。</p></div>
+    </div>
+  </div>
+</section>
+
+<section style="padding-top:0">
+  <div class="wrap">
+    <div class="sec-head">
+      <h2>快速开始</h2>
+      <p>克隆仓库后在 <code>missile_intercept/</code> 下运行。</p>
+    </div>
+    <div class="run">
+      <span class="path">$ missile_intercept/</span>
+      <pre><span class="c"># 安装依赖</span>
+python -m pip install -r requirements.txt
+
+<span class="c"># 单发仿真（输出遥测 CSV 与图表）</span>
+python main.py
+
+<span class="c"># 蒙特卡洛打靶</span>
+python batch.py --cases 50 --workers 8 --seed 2026
+
+<span class="c"># 测试与数值验证</span>
+python -m pytest -n auto
+python verification.py</pre>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <div class="row">
+      <div>2000 km 级高超声速拦截器 · 6DOF 端到端仿真</div>
+      <div><a href="https://github.com/PaoShou-China/missile-interception">github.com/PaoShou-China/missile-interception</a></div>
+    </div>
+    <p class="disc">免责声明：公开的 2000 km 级拦截器数据有限，模型中的几何、质量、惯量、气动与动力参数为公开资料的工程外推，仅用于算法、软件与体系验证，不代表任何现役装备的实测数据或性能。</p>
+  </div>
+</footer>
+
+</body>
+</html>

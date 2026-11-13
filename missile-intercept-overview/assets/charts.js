@@ -1,4 +1,4 @@
-// Repository overview charts — data from assets/data.js (window.REPORT_DATA)
+// Result charts with bilingual axes. Data comes from assets/data.js.
 (function () {
   if (!window.REPORT_DATA || !window.echarts) return;
 
@@ -10,15 +10,34 @@
   var rule = style.getPropertyValue('--rule').trim();
   var bg2 = style.getPropertyValue('--bg2').trim();
 
-  var D = window.REPORT_DATA;
-  var S = D.series;
+  var S = window.REPORT_DATA.series;
+  var MC = window.MC_DATA || null;
+  var lang = document.body.classList.contains('lang-en') ? 'en' : 'zh';
+  var instances = {};
+  var rendered = {};
 
-  // Fresh option object for every axis (ECharts mutates options it receives).
+  var TEXT = {
+    zh: {
+      alt: { x: '航程 (km)', y: '高度 (km)', tipX: '航程', tipY: '高度', phases: ['助推', '中制导', '末制导'] },
+      speed: { x: '时间 (s)', y1: '速度 (m/s)', y2: '动压 (kPa)', legend: ['速度', '动压'] },
+      track: { x: '东向 (km)', y: '北向 (km)', legend: ['导弹', '目标'] },
+      load: { x: '时间 (s)', y: '过载 (g)', legend: ['指令过载', '实际过载'] },
+      mc: { x: '脱靶量区间', y: '样本数', unit: '例' }
+    },
+    en: {
+      alt: { x: 'Downrange (km)', y: 'Altitude (km)', tipX: 'Downrange', tipY: 'Altitude', phases: ['Boost', 'Midcourse', 'Terminal'] },
+      speed: { x: 'Time (s)', y1: 'Speed (m/s)', y2: 'Dynamic pressure (kPa)', legend: ['Speed', 'Q'] },
+      track: { x: 'East (km)', y: 'North (km)', legend: ['Missile', 'Target'] },
+      load: { x: 'Time (s)', y: 'Load factor (g)', legend: ['Commanded', 'Measured'] },
+      mc: { x: 'Miss-distance bin', y: 'Case count', unit: 'cases' }
+    }
+  };
+
   function axis(extra) {
     return Object.assign({
       axisLine: { lineStyle: { color: rule } },
       axisTick: { show: false },
-      axisLabel: { color: muted, fontSize: 11 },
+      axisLabel: { color: muted, fontSize: 10.5 },
       splitLine: { lineStyle: { color: rule } }
     }, extra);
   }
@@ -34,38 +53,51 @@
     }, extra);
   }
 
-  function init(id) {
+  function instance(id) {
     var el = document.getElementById(id);
     if (!el) return null;
-    return echarts.init(el, null, { renderer: 'svg' });
+    if (!instances[id]) instances[id] = echarts.init(el, null, { renderer: 'svg' });
+    return instances[id];
   }
 
-  // ---------- 1. altitude vs downrange ----------
-  var altData = S.downrange_km.map(function (x, i) { return [x, S.alt_km[i]]; });
-  var c1 = init('chart-alt');
-  if (c1) {
-    c1.setOption({
+  function phaseBounds() {
+    var ph = S.phase;
+    var dr = S.downrange_km;
+    var i1 = -1, i2 = -1;
+    for (var i = 0; i < ph.length; i++) {
+      if (i1 < 0 && ph[i] >= 1) i1 = i;
+      if (i2 < 0 && ph[i] >= 2) { i2 = i; break; }
+    }
+    var end = dr[dr.length - 1];
+    return {
+      b1: i1 >= 0 ? dr[i1] : end,
+      b2: i2 >= 0 ? dr[i2] : end,
+      end: end
+    };
+  }
+
+  function altOption(t) {
+    var data = S.downrange_km.map(function (x, i) { return [x, S.alt_km[i]]; });
+    var pb = phaseBounds();
+    return {
       animation: false,
-      grid: { left: 48, right: 20, top: 24, bottom: 42 },
+      grid: { left: 48, right: 18, top: 30, bottom: 40 },
       tooltip: tip({
         formatter: function (p) {
           var v = p[0].value;
-          return '航程 ' + v[0].toFixed(0) + ' km<br/>高度 ' + v[1].toFixed(1) + ' km';
+          return t.tipX + ' ' + v[0].toFixed(0) + ' km<br/>' + t.tipY + ' ' + v[1].toFixed(1) + ' km';
         }
       }),
       xAxis: axis({
-        type: 'value', name: '航程 (km)', nameTextStyle: { color: muted, fontSize: 11 },
-        nameLocation: 'middle', nameGap: 28, min: 0
+        type: 'value', name: t.x, nameTextStyle: { color: muted, fontSize: 10.5 },
+        nameLocation: 'middle', nameGap: 27, min: 0
       }),
       yAxis: axis({
-        type: 'value', name: '高度 (km)', nameTextStyle: { color: muted, fontSize: 11 },
-        nameGap: 38, min: 0
+        type: 'value', name: t.y, nameTextStyle: { color: muted, fontSize: 10.5 },
+        nameGap: 36, min: 0
       }),
       series: [{
-        type: 'line',
-        data: altData,
-        showSymbol: false,
-        smooth: true,
+        type: 'line', data: data, showSymbol: false, smooth: true,
         lineStyle: { color: accent, width: 2.2 },
         areaStyle: {
           color: {
@@ -75,146 +107,187 @@
               { offset: 1, color: accent + '05' }
             ]
           }
+        },
+        markArea: {
+          silent: true,
+          label: { show: true, position: 'insideTop', color: muted, fontSize: 11 },
+          data: [
+            [{ name: t.phases[0], xAxis: 0, itemStyle: { color: accent + '12' } }, { xAxis: pb.b1 }],
+            [{ name: t.phases[1], xAxis: pb.b1, itemStyle: { color: accent2 + '12' } }, { xAxis: pb.b2 }],
+            [{ name: t.phases[2], xAxis: pb.b2, itemStyle: { color: ink + '0d' } }, { xAxis: pb.end }]
+          ]
         }
       }]
-    });
-    window.addEventListener('resize', function () { c1.resize(); });
+    };
   }
 
-  // ---------- 2. speed & dynamic pressure ----------
-  var c2 = init('chart-speed');
-  if (c2) {
-    c2.setOption({
+  function speedOption(t) {
+    return {
       animation: false,
-      grid: { left: 52, right: 56, top: 34, bottom: 42 },
+      grid: { left: 50, right: 56, top: 32, bottom: 40 },
       tooltip: tip(),
       legend: {
-        data: ['速度', '动压'],
-        top: 0, right: 0,
-        itemWidth: 14, itemHeight: 8,
-        textStyle: { color: muted, fontSize: 11 }
+        data: t.legend, top: 0, right: 0, itemWidth: 14, itemHeight: 8,
+        textStyle: { color: muted, fontSize: 10.5 }
       },
       xAxis: axis({
         type: 'category', data: S.time, boundaryGap: false,
-        name: '时间 (s)', nameTextStyle: { color: muted, fontSize: 11 },
-        nameLocation: 'middle', nameGap: 28
+        name: t.x, nameTextStyle: { color: muted, fontSize: 10.5 },
+        nameLocation: 'middle', nameGap: 27
       }),
       yAxis: [
         axis({
-          type: 'value', name: '速度 (m/s)', nameTextStyle: { color: muted, fontSize: 11 },
-          nameGap: 40, min: 0
+          type: 'value', name: t.y1, nameTextStyle: { color: muted, fontSize: 10.5 },
+          nameGap: 38, min: 0
         }),
         axis({
-          type: 'value', name: '动压 (kPa)', nameTextStyle: { color: muted, fontSize: 11 },
+          type: 'value', name: t.y2, nameTextStyle: { color: muted, fontSize: 10.5 },
           nameGap: 38, min: 0, splitLine: { show: false }
         })
       ],
       series: [
-        {
-          name: '速度', type: 'line', data: S.speed, showSymbol: false, smooth: true,
-          lineStyle: { color: accent, width: 2.2 }
-        },
-        {
-          name: '动压', type: 'line', yAxisIndex: 1, data: S.q_kpa, showSymbol: false, smooth: true,
-          lineStyle: { color: accent2, width: 1.8 }, areaStyle: { color: accent2 + '18' }
-        }
+        { name: t.legend[0], type: 'line', data: S.speed, showSymbol: false, smooth: true,
+          lineStyle: { color: accent, width: 2.2 } },
+        { name: t.legend[1], type: 'line', yAxisIndex: 1, data: S.q_kpa, showSymbol: false, smooth: true,
+          lineStyle: { color: accent2, width: 1.7 }, areaStyle: { color: accent2 + '18' } }
       ]
-    });
-    window.addEventListener('resize', function () { c2.resize(); });
+    };
   }
 
-  // ---------- 3. ground track ----------
-  var missileTrack = S.miss_east_km.map(function (x, i) { return [x, S.miss_north_km[i]]; });
-  var targetTrack = S.tgt_east_km.map(function (x, i) { return [x, S.tgt_north_km[i]]; });
-  var c3 = init('chart-track');
-  if (c3) {
-    c3.setOption({
+  function trackOption(t) {
+    var missile = S.miss_east_km.map(function (x, i) { return [x, S.miss_north_km[i]]; });
+    var target = S.tgt_east_km.map(function (x, i) { return [x, S.tgt_north_km[i]]; });
+    return {
       animation: false,
-      grid: { left: 56, right: 24, top: 34, bottom: 44 },
+      grid: { left: 54, right: 22, top: 32, bottom: 42 },
       tooltip: tip({
         formatter: function (p) {
           var v = p.value;
-          return p.seriesName + '<br/>东向 ' + v[0].toFixed(0) + ' km<br/>北向 ' + v[1].toFixed(0) + ' km';
+          return p.seriesName + '<br/>' + t.x + ' ' + v[0].toFixed(0) + ' km<br/>' + t.y + ' ' + v[1].toFixed(0) + ' km';
         }
       }),
       legend: {
-        data: ['导弹', '目标'],
-        top: 0, right: 0,
-        itemWidth: 14, itemHeight: 8,
-        textStyle: { color: muted, fontSize: 11 }
+        data: t.legend, top: 0, right: 0, itemWidth: 14, itemHeight: 8,
+        textStyle: { color: muted, fontSize: 10.5 }
       },
       xAxis: axis({
-        type: 'value', name: '东向 (km)', nameTextStyle: { color: muted, fontSize: 11 },
-        nameLocation: 'middle', nameGap: 28, scale: true
+        type: 'value', name: t.x, nameTextStyle: { color: muted, fontSize: 10.5 },
+        nameLocation: 'middle', nameGap: 27, scale: true
       }),
       yAxis: axis({
-        type: 'value', name: '北向 (km)', nameTextStyle: { color: muted, fontSize: 11 },
-        nameGap: 42, scale: true
+        type: 'value', name: t.y, nameTextStyle: { color: muted, fontSize: 10.5 },
+        nameGap: 40, scale: true
       }),
       series: [
-        {
-          name: '导弹', type: 'line', data: missileTrack, showSymbol: false, smooth: true,
-          lineStyle: { color: accent, width: 2.4 },
-          markPoint: {
-            symbolSize: 34,
-            label: { color: bg2, fontSize: 10, fontWeight: 600 },
-            data: [{ type: 'max', name: '终点', valueIndex: -1 }]
-          }
-        },
-        {
-          name: '目标', type: 'line', data: targetTrack, showSymbol: false, smooth: true,
-          lineStyle: { color: accent2, width: 1.6, type: 'dashed' }
-        }
+        { name: t.legend[0], type: 'line', data: missile, showSymbol: false, smooth: true,
+          lineStyle: { color: accent, width: 2.4 } },
+        { name: t.legend[1], type: 'line', data: target, showSymbol: false, smooth: true,
+          lineStyle: { color: accent2, width: 1.6, type: 'dashed' } }
       ]
-    });
-    window.addEventListener('resize', function () { c3.resize(); });
+    };
   }
 
-  // ---------- 4. lines of code by module ----------
-  var loc = [
-    { name: 'tools', value: 1501 },
-    { name: 'fastcore', value: 1334 },
-    { name: 'tests', value: 967 },
-    { name: 'vehicle', value: 912 },
-    { name: 'guidance', value: 880 },
-    { name: 'config', value: 852 },
-    { name: 'main', value: 774 },
-    { name: 'sensors', value: 629 },
-    { name: 'control', value: 574 },
-    { name: 'visualization', value: 459 },
-    { name: 'validate_performance', value: 456 },
-    { name: 'batch', value: 453 },
-    { name: 'analysis', value: 403 },
-    { name: 'math_utils', value: 380 },
-    { name: 'integrator', value: 303 },
-    { name: 'verification', value: 223 }
-  ];
-  var c4 = init('chart-loc');
-  if (c4) {
-    c4.setOption({
+  function loadOption(t) {
+    return {
       animation: false,
-      grid: { left: 132, right: 46, top: 12, bottom: 20 },
+      grid: { left: 50, right: 22, top: 32, bottom: 40 },
+      tooltip: tip(),
+      legend: {
+        data: t.legend, top: 0, right: 0, itemWidth: 14, itemHeight: 8,
+        textStyle: { color: muted, fontSize: 10.5 }
+      },
+      xAxis: axis({
+        type: 'category', data: S.time, boundaryGap: false,
+        name: t.x, nameTextStyle: { color: muted, fontSize: 10.5 },
+        nameLocation: 'middle', nameGap: 27
+      }),
+      yAxis: axis({
+        type: 'value', name: t.y, nameTextStyle: { color: muted, fontSize: 10.5 },
+        nameGap: 38, min: 0
+      }),
+      series: [
+        { name: t.legend[0], type: 'line', data: S.load_cmd, showSymbol: false,
+          lineStyle: { color: accent, width: 1.6 } },
+        { name: t.legend[1], type: 'line', data: S.load_act, showSymbol: false,
+          lineStyle: { color: accent2, width: 1.8 } }
+      ]
+    };
+  }
+
+  function mcOption(t) {
+    var bins = (MC && MC.meta.bins) || [];
+    var cats = bins.map(function (b) { return lang === 'zh' ? b.zh : b.en; });
+    var vals = bins.map(function (b) { return b.count; });
+    return {
+      animation: false,
+      grid: { left: 48, right: 18, top: 24, bottom: 46 },
       tooltip: tip({
         trigger: 'item',
-        formatter: function (p) { return p.name + '<br/>' + p.value + ' 行'; }
+        formatter: function (p) { return p.name + '<br/>' + p.value + ' ' + t.unit; }
       }),
-      xAxis: axis({ type: 'value', minInterval: 200 }),
+      xAxis: axis({
+        type: 'category', data: cats,
+        name: t.x, nameTextStyle: { color: muted, fontSize: 10.5 },
+        nameLocation: 'middle', nameGap: 30
+      }),
       yAxis: axis({
-        type: 'category',
-        data: loc.map(function (d) { return d.name; }),
-        axisLabel: { color: muted, fontSize: 11, fontFamily: 'SF Mono, Consolas, monospace' }
+        type: 'value', name: t.y, nameTextStyle: { color: muted, fontSize: 10.5 },
+        nameGap: 36, min: 0, minInterval: 1
       }),
       series: [{
         type: 'bar',
-        data: loc.map(function (d) { return d.value; }),
-        barWidth: 13,
-        itemStyle: {
-          color: accent + 'cc',
-          borderRadius: [0, 4, 4, 0]
-        },
-        label: { show: true, position: 'right', color: muted, fontSize: 10 }
+        data: vals,
+        barMaxWidth: 46,
+        itemStyle: { color: accent + 'cc', borderRadius: [6, 6, 0, 0] },
+        label: { show: true, position: 'top', color: muted, fontSize: 11 }
       }]
-    });
-    window.addEventListener('resize', function () { c4.resize(); });
+    };
   }
+
+  var DEFS = [
+    { id: 'chart-alt', type: 'alt' },
+    { id: 'chart-alt2', type: 'alt' },
+    { id: 'chart-speed', type: 'speed' },
+    { id: 'chart-track', type: 'track' },
+    { id: 'chart-load', type: 'load' },
+    { id: 'chart-mc', type: 'mc' }
+  ];
+
+  function renderVisible() {
+    var t = TEXT[lang];
+    DEFS.forEach(function (def) {
+      var el = document.getElementById(def.id);
+      if (!el || !el.offsetWidth) return; // hidden page: render when it becomes active
+      if (def.type === 'mc' && !MC) return;
+      var chart = instance(def.id);
+      if (!chart) return;
+      var opt = def.type === 'alt' ? altOption(t.alt)
+        : def.type === 'speed' ? speedOption(t.speed)
+        : def.type === 'track' ? trackOption(t.track)
+        : def.type === 'load' ? loadOption(t.load)
+        : mcOption(t.mc);
+      chart.setOption(opt, true);
+      chart.resize();
+    });
+  }
+
+  function resizeVisible() {
+    DEFS.forEach(function (def) {
+      if (instances[def.id]) instances[def.id].resize();
+    });
+  }
+
+  window.addEventListener('overview:lang', function (e) {
+    lang = e.detail === 'en' ? 'en' : 'zh';
+    renderVisible();
+    setTimeout(resizeVisible, 60);
+  });
+
+  window.addEventListener('overview:page', function () {
+    setTimeout(renderVisible, 60);
+  });
+
+  window.addEventListener('resize', resizeVisible);
+
+  renderVisible();
 })();

@@ -1164,6 +1164,15 @@ def autopilot_update(q, omega, a_cmd, mass, q_dyn, cn_alpha,
             p_cmd = C.AP_ROLL_RATE_MAX
         elif p_cmd < -C.AP_ROLL_RATE_MAX:
             p_cmd = -C.AP_ROLL_RATE_MAX
+        # High-alpha roll-rate taper: the kinematic coupling builds sideslip at
+        # roughly alpha * p, so the full roll rate at large alpha would generate
+        # beta far faster than the weak yaw channel can trim it.
+        roll_scale = C.AP_ALPHA_ROLL_REF / max(abs(alpha_trim), 1.0e-3)
+        if roll_scale > 1.0:
+            roll_scale = 1.0
+        elif roll_scale < C.AP_ROLL_ALPHA_FLOOR:
+            roll_scale = C.AP_ROLL_ALPHA_FLOOR
+        p_cmd *= roll_scale
     else:
         p_cmd = 0.0
 
@@ -1175,10 +1184,29 @@ def autopilot_update(q, omega, a_cmd, mass, q_dyn, cn_alpha,
         alpha_cmd = alpha_max
     elif alpha_cmd < -alpha_max:
         alpha_cmd = -alpha_max
-    if beta_cmd > alpha_max:
-        beta_cmd = alpha_max
-    elif beta_cmd < -alpha_max:
-        beta_cmd = -alpha_max
+    # Angle-of-attack envelope: no guidance demand is allowed to hold the body
+    # beyond the usable lift line.  Inside the envelope this is inert.
+    if alpha_trim > C.AP_ALPHA_ENV and alpha_cmd > C.AP_ALPHA_ENV:
+        alpha_cmd = C.AP_ALPHA_ENV
+    elif alpha_trim < -C.AP_ALPHA_ENV and alpha_cmd < -C.AP_ALPHA_ENV:
+        alpha_cmd = -C.AP_ALPHA_ENV
+    # Sideslip is a trim channel, not a load channel.  The limit grows with
+    # dynamic pressure because the yaw channel authority does: at cruise q it
+    # is a small value, at terminal q the full airframe envelope is available.
+    beta_max = C.AP_BETA_MAX * math.sqrt(max(q_dyn, 1.0) / C.AP_BETA_Q_REF)
+    if beta_max > alpha_max:
+        beta_max = alpha_max
+    elif beta_max < C.AP_BETA_MAX:
+        beta_max = C.AP_BETA_MAX
+    if beta_cmd > beta_max:
+        beta_cmd = beta_max
+    elif beta_cmd < -beta_max:
+        beta_cmd = -beta_max
+    if abs(beta_trim) > C.AP_BETA_ENV:
+        if beta_trim > 0.0:
+            beta_cmd = -beta_max
+        else:
+            beta_cmd = beta_max
 
     # Feasible reference shaping: bandwidth and acceleration budget follow
     # the dynamic pressure so a low-q airframe is never asked for an

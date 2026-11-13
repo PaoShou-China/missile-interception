@@ -7,6 +7,7 @@ import numpy as np
 import pytest
 
 import config as C
+import fastcore as FC
 from control.autopilot import Autopilot, SecondOrderFilter
 from control.fin_mixer import FinMixer
 from control.thrust_controller import ThrustController
@@ -120,6 +121,65 @@ def test_back_calculation_bounds_rate_integral():
         ap.update(k * 0.005, q, np.zeros(3), a_cmd, 2000.0, 2.0e5, 10.0,
                   alpha_trim=0.0, is_saturated=False, dt=0.005)
     assert abs(ap.int_rate_p) < 2.0
+
+
+# ============================================================
+# Sideslip envelope (cruciform bank-to-turn)
+# ============================================================
+def _beta_reference(ap):
+    """Current beta reference, whichever path (compiled or Python) is active."""
+    if FC.NUMBA_AVAILABLE:
+        return float(ap._state[3])
+    return float(ap.beta_f.x)
+
+
+def test_sideslip_reference_is_limited():
+    """A strong lateral demand must not saturate the sideslip reference.
+
+    The side-force channel is ~3x weaker than the lift channel, so without the
+    limit a small lateral demand drives beta to alpha_max and parks both fin
+    pairs on their stops.
+    """
+    ap = Autopilot()
+    q = np.array([1.0, 0.0, 0.0, 0.0])
+    a_cmd = np.array([0.0, 60.0, -10.0])
+    for k in range(600):
+        ap.update(k * 0.005, q, np.zeros(3), a_cmd, 2000.0, 60000.0, 5.0,
+                  alpha_trim=0.0, dt=0.005)
+    assert abs(_beta_reference(ap)) <= C.AP_BETA_MAX * 1.05
+    assert C.AP_BETA_MAX < C.AP_BETA_ENV
+
+
+def test_sideslip_envelope_recovers():
+    """Beyond the envelope the reference is driven to the opposite side."""
+    ap = Autopilot()
+    q = np.array([1.0, 0.0, 0.0, 0.0])
+    beta_trim = 20.0 * C.DEG
+    for k in range(800):
+        ap.update(k * 0.005, q, np.zeros(3), np.zeros(3), 2000.0, 60000.0, 5.0,
+                  alpha_trim=0.0, beta_trim=beta_trim, dt=0.005)
+    assert _beta_reference(ap) < -0.5 * C.AP_BETA_MAX
+
+
+def test_roll_rate_tapered_at_high_alpha():
+    """The roll command is reduced at high alpha (alpha*p sideslip coupling)."""
+    q = np.array([1.0, 0.0, 0.0, 0.0])
+    a_cmd = np.array([0.0, 3.0, -10.0])
+    args = (0.0, q, np.zeros(3), a_cmd, 2000.0, 60000.0, 5.0)
+    lo = Autopilot().update(*args, alpha_trim=0.0, dt=0.005)
+    hi = Autopilot().update(*args, alpha_trim=25.0 * C.DEG, dt=0.005)
+    assert abs(hi[2]) < 0.75 * abs(lo[2])
+
+
+def test_alpha_envelope_limits_reference():
+    """A guidance demand beyond the envelope must not hold alpha past it."""
+    ap = Autopilot()
+    q = np.array([1.0, 0.0, 0.0, 0.0])
+    a_cmd = np.array([0.0, 0.0, -300.0])
+    for k in range(400):
+        ap.update(k * 0.005, q, np.zeros(3), a_cmd, 2000.0, 60000.0, 5.0,
+                  alpha_trim=25.0 * C.DEG, dt=0.005)
+    assert ap._state[0] <= C.AP_ALPHA_ENV * 1.02
 
 
 # ============================================================

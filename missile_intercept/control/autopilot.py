@@ -356,6 +356,12 @@ class Autopilot:
         if roll_align and (ay * ay + az * az) > 1.0e-2:
             p_cmd = C.AP_ROLL_ANGLE_GAIN * float(np.arctan2(ay, -az))
             p_cmd = float(np.clip(p_cmd, -C.AP_ROLL_RATE_MAX, C.AP_ROLL_RATE_MAX))
+            # High-alpha roll-rate taper (see fastcore): alpha * p coupling
+            # builds sideslip far faster than the yaw channel can trim it.
+            roll_scale = float(np.clip(
+                C.AP_ALPHA_ROLL_REF / max(abs(float(alpha_trim)), 1.0e-3),
+                C.AP_ROLL_ALPHA_FLOOR, 1.0))
+            p_cmd *= roll_scale
         else:
             p_cmd = 0.0
 
@@ -365,7 +371,18 @@ class Autopilot:
         alpha_cmd = -a_b[2] * mass / (qS * cn_a)
         beta_cmd = -a_b[1] * mass / (qS * abs(C.CY_BETA))
         alpha_cmd = float(min(max(alpha_cmd, -self.alpha_max), self.alpha_max))
-        beta_cmd = float(min(max(beta_cmd, -self.alpha_max), self.alpha_max))
+        # Angle-of-attack envelope: inert inside the usable lift line.
+        if float(alpha_trim) > C.AP_ALPHA_ENV and alpha_cmd > C.AP_ALPHA_ENV:
+            alpha_cmd = C.AP_ALPHA_ENV
+        elif float(alpha_trim) < -C.AP_ALPHA_ENV and alpha_cmd < -C.AP_ALPHA_ENV:
+            alpha_cmd = -C.AP_ALPHA_ENV
+        # Sideslip is a trim channel; its limit grows with the yaw authority.
+        beta_max = float(np.clip(
+            C.AP_BETA_MAX * np.sqrt(max(q_dyn, 1.0) / C.AP_BETA_Q_REF),
+            C.AP_BETA_MAX, self.alpha_max))
+        beta_cmd = float(min(max(beta_cmd, -beta_max), beta_max))
+        if abs(float(beta_trim)) > C.AP_BETA_ENV:
+            beta_cmd = -beta_max if float(beta_trim) > 0.0 else beta_max
 
         if not self.initialized:
             self.alpha_f.reset(alpha_trim)

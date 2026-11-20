@@ -1,6 +1,17 @@
 import { useState } from "react";
 import { useAppStore } from "../state/store";
 import { fmt, formatClock } from "../utils/format";
+import { useI18n } from "../i18n";
+
+const EVENT_KEYS: Record<string, string> = {
+  LAUNCH: "event.launch",
+  MIDCOURSE: "event.midcourse",
+  APOGEE: "event.apogee",
+  "SEEKER LOCK": "event.seeker_lock",
+  TERMINAL: "event.terminal",
+  "TERMINAL HANDOVER": "event.terminal_handover",
+  INTERCEPT: "event.intercept",
+};
 
 export function MissionPanel() {
   const runtime = useAppStore((s) => s.runtime);
@@ -9,6 +20,7 @@ export function MissionPanel() {
   const panels = useAppStore((s) => s.panels);
   const togglePanel = useAppStore((s) => s.togglePanel);
   const [showChecks, setShowChecks] = useState(false);
+  const { t } = useI18n();
 
   if (!runtime) return null;
   const m = runtime.manifest.metrics;
@@ -18,7 +30,7 @@ export function MissionPanel() {
     <section className={`panel mission-panel ${open ? "" : "is-collapsed"}`}>
       <button type="button" className="panel__header" onClick={() => togglePanel("mission")}>
         <div>
-          <span className="panel__eyebrow">MISSION</span>
+          <span className="panel__eyebrow">{t("mission.eyebrow")}</span>
           <h2>{runtime.manifest.title}</h2>
         </div>
         <span className="panel__chevron">{open ? "−" : "+"}</span>
@@ -30,26 +42,26 @@ export function MissionPanel() {
 
           <div className="hero-metrics">
             <div>
-              <span className="metric__label">INTERCEPT</span>
+              <span className="metric__label">{t("mission.intercept")}</span>
               <strong>{formatClock(m.interceptTimeS)}</strong>
             </div>
             <div>
-              <span className="metric__label">MISS DISTANCE</span>
+              <span className="metric__label">{t("mission.miss")}</span>
               <strong>{fmt(m.missDistanceM, 1)}<em> m</em></strong>
             </div>
             <div>
-              <span className="metric__label">PEAK MACH</span>
+              <span className="metric__label">{t("mission.peakMach")}</span>
               <strong>{fmt(m.maxMach, 2)}</strong>
             </div>
           </div>
 
           <dl className="metric-grid">
-            <div><dt>Max speed</dt><dd>{fmt(m.maxSpeedMS / 1000, 3)} <em>km/s</em></dd></div>
-            <div><dt>Apogee</dt><dd>{fmt(m.maxAltitudeM / 1000, 2)} <em>km</em></dd></div>
-            <div><dt>Downrange</dt><dd>{fmt(m.downrangeKM, 1)} <em>km</em></dd></div>
-            <div><dt>Max q</dt><dd>{fmt(m.maxDynamicPressurePa / 1000, 1)} <em>kPa</em></dd></div>
-            <div><dt>Max load</dt><dd>{fmt(m.maxLoadG, 2)} <em>g</em></dd></div>
-            <div><dt>Duration</dt><dd>{fmt(m.flightDurationS, 1)} <em>s</em></dd></div>
+            <div><dt>{t("mission.maxSpeed")}</dt><dd>{fmt(m.maxSpeedMS / 1000, 3)} <em>km/s</em></dd></div>
+            <div><dt>{t("mission.apogee")}</dt><dd>{fmt(m.maxAltitudeM / 1000, 2)} <em>km</em></dd></div>
+            <div><dt>{t("mission.downrange")}</dt><dd>{fmt(m.downrangeKM, 1)} <em>km</em></dd></div>
+            <div><dt>{t("mission.maxQ")}</dt><dd>{fmt(m.maxDynamicPressurePa / 1000, 1)} <em>kPa</em></dd></div>
+            <div><dt>{t("mission.maxLoad")}</dt><dd>{fmt(m.maxLoadG, 2)} <em>g</em></dd></div>
+            <div><dt>{t("mission.duration")}</dt><dd>{fmt(m.flightDurationS, 1)} <em>s</em></dd></div>
           </dl>
 
           <div className="phase-strip">
@@ -59,15 +71,15 @@ export function MissionPanel() {
                 type="button"
                 className={`phase-chip phase-chip--${p.phase} ${time >= p.startT && time <= p.endT ? "is-current" : ""}`}
                 onClick={() => seek(p.startT)}
-                title={`${p.label}: ${formatClock(p.startT)} → ${formatClock(p.endT)}`}
+                title={`${t(`phase.${p.phase}`)}: ${formatClock(p.startT)} → ${formatClock(p.endT)}`}
               >
-                {p.label}
+                {t(`phase.${p.phase}`)}
               </button>
             ))}
           </div>
 
           <div className="event-list">
-            <div className="section-label">TIMELINE EVENTS</div>
+            <div className="section-label">{t("mission.events")}</div>
             {runtime.manifest.events.map((e) => (
               <button
                 type="button"
@@ -76,25 +88,27 @@ export function MissionPanel() {
                 onClick={() => seek(e.t)}
               >
                 <span className="event-row__time">{formatClock(e.t)}</span>
-                <span className="event-row__label">{e.label}</span>
+                <span className="event-row__label">{EVENT_KEYS[e.label] ? t(EVENT_KEYS[e.label]) : e.label}</span>
               </button>
             ))}
           </div>
 
           <div className="provenance">
-            <div className="section-label">DATA PROVENANCE</div>
-            <div className="provenance__row"><span>Source</span><b>6-DoF simulation telemetry</b></div>
-            <div className="provenance__row"><span>Frame</span><b>WGS84 ECEF · SI units</b></div>
-            <div className="provenance__row"><span>Samples</span><b>{runtime.manifest.time.sampleCount} / {runtime.manifest.time.sourceRows} rows</b></div>
-            <div className="provenance__row"><span>Schema</span><b>v{runtime.manifest.schemaVersion}</b></div>
-            <div className="provenance__row"><span>Track</span><b>symbolic width · exact centreline</b></div>
+            <div className="section-label">{t("mission.provenance")}</div>
+            <div className="provenance__row"><span>{t("mission.source")}</span><b>{t("mission.sourceValue")}</b></div>
+            <div className="provenance__row"><span>{t("mission.frame")}</span><b>{t("mission.frameValue")}</b></div>
+            <div className="provenance__row"><span>{t("mission.samples")}</span><b>{runtime.manifest.time.sampleCount} / {runtime.manifest.time.sourceRows}</b></div>
+            <div className="provenance__row"><span>{t("mission.schema")}</span><b>v{runtime.manifest.schemaVersion}</b></div>
+            <div className="provenance__row"><span>{t("common.sourceCommit")}</span><b><code>{runtime.manifest.source.commit}</code></b></div>
+            <div className="provenance__row"><span>{t("mission.demoUtc")}</span><b>{runtime.manifest.time.demoUtc}</b></div>
+            <div className="provenance__row"><span>{t("mission.track")}</span><b>{t("mission.trackValue")}</b></div>
             <button
               type="button"
               className={`validation-toggle ${runtime.manifest.validation.status === "PASS" ? "is-ok" : "is-bad"}`}
               onClick={() => setShowChecks((v) => !v)}
             >
               <span className="status-pill__dot" />
-              {runtime.manifest.validation.status === "PASS" ? "SCIENTIFIC VALIDATION PASS" : "VALIDATION FAILED"}
+              {runtime.manifest.validation.status === "PASS" ? t("mission.validationPass") : t("mission.validationFail")}
               <span className="validation-toggle__chevron">{showChecks ? "▾" : "▸"}</span>
             </button>
             {showChecks && (

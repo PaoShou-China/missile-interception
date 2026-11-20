@@ -1,9 +1,10 @@
-import { useMemo, useRef } from "react";
+import { useMemo, useRef, type RefObject } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
 import { useTexture } from "@react-three/drei";
 import * as THREE from "three";
-import { EARTH_A_KM, EARTH_B_KM, SUN_DIR, ASSET_BASE, COLORS } from "./constants";
-import { useAppStore } from "../state/store";
+import { EARTH_A_KM, EARTH_B_KM, ASSET_BASE, COLORS } from "./constants";
+import { simClock, useAppStore } from "../state/store";
+import { skyStateAt } from "../scientific/astronomy";
 
 /** WGS84 ellipsoid with the source day texture; poles aligned to ECEF +Z. */
 function EarthSurface() {
@@ -62,11 +63,13 @@ function EarthSurface() {
  * Two-layer atmospheric shell: a thin fresnel rim plus a wide outer glow.
  * Additive blending keeps the limb bright without occluding the surface.
  */
-function Atmosphere() {
+function Atmosphere({ sunDir }: { sunDir: RefObject<THREE.Vector3> }) {
   const shell = useRef<THREE.Group>(null);
+  const wide = useRef<THREE.ShaderMaterial>(null);
+
   const material = useMemo(() => new THREE.ShaderMaterial({
     uniforms: {
-      uSun: { value: new THREE.Vector3(SUN_DIR.x, SUN_DIR.y, SUN_DIR.z) },
+      uSun: { value: new THREE.Vector3(0, 0, 1) },
       uDay: { value: new THREE.Color("#8fc8ff") },
       uNight: { value: new THREE.Color("#0a1c3d") },
       uIntensity: { value: 1.0 },
@@ -104,9 +107,14 @@ function Atmosphere() {
     depthWrite: false,
   }), []);
 
-  // From inside the shell the additive back faces would wash the whole frame;
-  // the limb effect is only meaningful when viewed from outside the atmosphere.
   useFrame(({ camera }) => {
+    const dir = sunDir.current;
+    if (dir) {
+      material.uniforms.uSun.value.copy(dir);
+      if (wide.current) wide.current.uniforms.uSun.value.copy(dir);
+    }
+    // From inside the shell the additive back faces would wash the whole frame;
+    // the limb effect is only meaningful when viewed from outside the atmosphere.
     if (shell.current) {
       shell.current.visible = camera.position.length() > EARTH_A_KM * 1.016;
     }
@@ -121,12 +129,13 @@ function Atmosphere() {
       <mesh scale={EARTH_A_KM * 1.062}>
         <sphereGeometry args={[1, 64, 48]} />
         <shaderMaterial
+          ref={wide}
           transparent
           depthWrite={false}
           blending={THREE.AdditiveBlending}
           side={THREE.BackSide}
           uniforms={{
-            uSun: { value: new THREE.Vector3(SUN_DIR.x, SUN_DIR.y, SUN_DIR.z) },
+            uSun: { value: new THREE.Vector3(0, 0, 1) },
           }}
           vertexShader={/* glsl */ `
             varying vec3 vWorldNormal;
@@ -204,22 +213,78 @@ function StarField() {
   );
 }
 
+/**
+ * Sun, moon and the moving directional light. Everything is driven by the
+ * declared demo UTC plus elapsed simulation time; no data is modified.
+ */
+function Astronomy({ sunDir }: { sunDir: RefObject<THREE.Vector3> }) {
+  const light = useRef<THREE.DirectionalLight>(null);
+  const sunRef = useRef<THREE.Group>(null);
+  const moonRef = useRef<THREE.Group>(null);
+  const acc = useRef(0);
+
+  useFrame((_, dt) => {
+    const rt = useAppStore.getState().runtime;
+    const demo = rt?.manifest.time.demoUtc ?? "2026-11-20T02:00:00Z";
+    const site = rt?.manifest.launchSite ?? { latDeg: 40, lonDeg: 110 };
+    acc.current += dt;
+    if (acc.current < 0.25) return;
+    acc.current = 0;
+    const sky = skyStateAt(demo, simClock.time, site);
+    sunDir.current?.set(sky.sun.x, sky.sun.y, sky.sun.z);
+    const D = 90000;
+    const sunPos = new THREE.Vector3(sky.sun.x * D, sky.sun.y * D, sky.sun.z * D);
+    if (light.current) light.current.position.copy(sunPos);
+    if (sunRef.current) sunRef.current.position.copy(sunPos);
+    if (moonRef.current) {
+      moonRef.current.position.set(sky.moon.x * 52000, sky.moon.y * 52000, sky.moon.z * 52000);
+    }
+  });
+
+  return (
+    <>
+      <directionalLight ref={light} position={[90000, 0, 0]} intensity={3.0} color="#fff4e0" />
+      <group ref={sunRef}>
+        <mesh>
+          <sphereGeometry args={[700, 16, 12]} />
+          <meshBasicMaterial color="#fff6d8" />
+        </mesh>
+        <mesh scale={2.2}>
+          <sphereGeometry args={[700, 16, 12]} />
+          <meshBasicMaterial color="#ffd98a" transparent opacity={0.16} blending={THREE.AdditiveBlending} depthWrite={false} />
+        </mesh>
+        <mesh scale={4.5}>
+          <sphereGeometry args={[700, 16, 12]} />
+          <meshBasicMaterial color="#ffbe5c" transparent opacity={0.06} blending={THREE.AdditiveBlending} depthWrite={false} />
+        </mesh>
+      </group>
+      <group ref={moonRef}>
+        {/* Symbolic size and distance; direction is computed from the demo epoch. */}
+        <mesh>
+          <sphereGeometry args={[420, 24, 16]} />
+          <meshStandardMaterial color="#c9d3de" roughness={1} metalness={0} />
+        </mesh>
+        <mesh scale={1.012}>
+          <sphereGeometry args={[420, 24, 16]} />
+          <meshBasicMaterial color="#8fa6bd" transparent opacity={0.12} blending={THREE.AdditiveBlending} depthWrite={false} />
+        </mesh>
+      </group>
+    </>
+  );
+}
+
 export function SpaceEnvironment() {
-  // Keep the light following the camera-independent sun direction.
-  const sunPos = useMemo(() => {
-    const d = 90000;
-    return [SUN_DIR.x * d, SUN_DIR.y * d, SUN_DIR.z * d] as [number, number, number];
-  }, []);
+  const sunDir = useRef(new THREE.Vector3(1, 0, 0).normalize());
 
   return (
     <>
       <color attach="background" args={[COLORS.space]} />
-      <ambientLight intensity={0.24} />
-      <hemisphereLight args={["#7fb2ff", "#0a0f1c", 0.22]} />
-      <directionalLight position={sunPos} intensity={3.0} color="#fff4e0" />
+      <ambientLight intensity={0.2} />
+      <hemisphereLight args={["#7fb2ff", "#0a0f1c", 0.2]} />
+      <Astronomy sunDir={sunDir} />
       <StarField />
       <EarthSurface />
-      <Atmosphere />
+      <Atmosphere sunDir={sunDir} />
     </>
   );
 }

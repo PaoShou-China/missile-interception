@@ -1,4 +1,4 @@
-# Acceptance report — Aerospace Vision Web V1
+# Acceptance report — Aerospace Vision Web V4
 
 Run date: 2026-11-20 (Asia/Shanghai)
 Environment: Windows, Node 24.19.0, npm 11.17.0, Python 3.14.10,
@@ -6,9 +6,67 @@ Vite 8.3.8, Three.js 0.187.0, React 19.3.1, ECharts 6.1.0.
 Browser used for E2E: Microsoft Edge 157.0.4341.60 (Chromium engine), headless,
 1280 × 720. Bundled Playwright Chromium download was blocked by the network;
 the Edge channel exercises the same Chromium engine stack and is recorded here
-as such. Firefox and Safari: **NOT RUN**.
+as such. Bundled Firefox and WebKit were installed locally and run.
 
-## Gate status
+> **V4 update (2026-11-20).** The platform is now a bilingual academic site at
+> `/` with the 3D explorer at `#/explore`. Schema is **1.1.0** (fin deflection,
+> body rates, experiment manifest, demo UTC). Camera modes are **10**,
+> astronomy is sun/moon/day-night, and the cinematic timeline is an independent
+> **180 s** presentation clock. The V1 gate table below is retained as history;
+> see “V4 acceptance” at the end for current evidence.
+
+## V4 acceptance
+
+| Item | Result | Evidence |
+| --- | --- | --- |
+| Academic home + navigation | PASS | `#/`, `#/methodology`, `#/results`, `#/verification`, `#/resources`; E2E asserts nav and explorer CTA |
+| Bilingual zh/en | PASS | Language switch persists in `localStorage`; `document.lang` becomes `zh-CN`; E2E reload check |
+| Frozen data contract | PASS | schema 1.1.0; `finDeflectionsRad`, `bodyRatesRadS`, `experiment`, `time.demoUtc`; unit test asserts recorded actuator channels |
+| Ten cameras incl. close-ups | PASS | Earth, Plan, Chase, Launch, Intercept, Free, Fin, Engine, Attitude, Seeker; browser agent visually confirmed the fin/attitude close-ups |
+| Sun / moon / day-night | PASS | `src/scientific/astronomy.ts`, 6 unit tests (equinox, solstice, day/night, launch-site elevation, elapsed-time drift); dynamic light and atmosphere uniform |
+| Three-minute cinematic | PASS | Independent 180 s wall clock mapped to the mission; E2E checks `03:00` total, pause/skip/exit controls |
+| Legacy paths preserved | PASS | CI stages original paths (`/missile-intercept-overview/...`, `/intercept-report/...`, `/test-report/...`) and `/legacy/`; E2E asserts HTTP 200 |
+| Scientific audit | PASS | `docs/scientific/DATA_AUDIT.md`, `RESULT_PROVENANCE.md`, `VALIDATION_STATUS.md` |
+| Astronomy at real datum | PASS | `skyStateAt` now takes the manifest launch site; unit test proves east/west day-night split |
+| Actuator validation in payload | PASS | adapter now emits 11 checks, including `actuator-channels`; unit test asserts the count and id |
+| Initial bundle / code splitting | PASS | entry 274 kB (86.9 kB gzip); three.js and ECharts are lazy chunks (no longer on the academic pages) |
+| SEO + social metadata | PASS | route-specific title/description/canonical; OG/Twitter tags and JSON-LD WebSite |
+| Accessibility | PASS | skip link, `aria-pressed` on camera/mode toggles, focus-visible rings, reduced-motion support, print stylesheet |
+| Mobile explorer | PASS | mission/telemetry/chart tab sheet, horizontally scrolling camera dock; E2E at 390 × 844 |
+| Provenance copy | PASS | commit/SHA/Demo UTC are copyable with bilingual confirmation |
+
+### V4 test evidence (local, 2026-11-20)
+
+```
+$ npm test
+Test Files  7 passed (7)
+Tests       46 passed (46)
+
+$ npx playwright test --project=chromium   (Edge channel)
+11 passed — includes academic home, language persistence, route metadata,
+mobile panel tabs, legacy paths, 10 cameras, cinematic, 57.0 FPS hardware
+
+$ npx playwright test --project=webkit
+10 passed, 1 skipped (FPS gate is Chromium-only)
+
+$ npx playwright test --project=firefox
+10 passed, 1 skipped (FPS gate is Chromium-only)
+```
+
+### V4 data snapshot
+
+```
+schema 1.1.0 · 67 276 source rows → 1 504 missile samples
+miss 26.726 m @ 672.75 s · apogee 29.897 km · downrange 1 655.4 km
+max load 40.0 g · max Mach 9.48 · reproducibility unreproducible-current-artifacts
+demo UTC 2026-11-20T02:00:00Z (presentation only)
+```
+
+Note: the source telemetry was regenerated in the same session, so numeric
+values differ from the V1 rows below. The payload is a snapshot; the adapter
+records its SHA-256, row count and generation time.
+
+## Gate status (V1 history)
 
 | Gate | Status | Evidence |
 | --- | --- | --- |

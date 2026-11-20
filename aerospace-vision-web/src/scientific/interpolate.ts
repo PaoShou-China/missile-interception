@@ -10,7 +10,7 @@
  * The sampler never interpolates across a gap: each segment is bounded by two
  * consecutive telemetry samples, so discontinuities are not smoothed over.
  */
-import type { Phase, TrajectorySample } from "./types";
+import type { BodyRatesRadS, FinDeflectionsRad, Phase, TrajectorySample } from "./types";
 import { normalizeQuat, slerp } from "./quaternion";
 
 export interface SampledState {
@@ -32,6 +32,10 @@ export interface SampledState {
   phase: Phase;
   seekerLock: boolean;
   handover: boolean;
+  /** Recorded fin deflections (rad). Zero when the source has no fin data. */
+  finDeflectionsRad: FinDeflectionsRad;
+  /** Recorded body rates (rad/s). Zero when the source has no rate data. */
+  bodyRatesRadS: BodyRatesRadS;
 }
 
 const lerp = (a: number, b: number, u: number) => a + (b - a) * u;
@@ -112,6 +116,17 @@ export class TrajectorySampler {
       phase: u < 0.5 ? a.phase : b.phase,
       seekerLock: u < 0.5 ? a.seekerLock : b.seekerLock,
       handover: u < 0.5 ? a.handover : b.handover,
+      finDeflectionsRad: {
+        up: lerp(a.finDeflectionsRad?.up ?? 0, b.finDeflectionsRad?.up ?? 0, u),
+        down: lerp(a.finDeflectionsRad?.down ?? 0, b.finDeflectionsRad?.down ?? 0, u),
+        left: lerp(a.finDeflectionsRad?.left ?? 0, b.finDeflectionsRad?.left ?? 0, u),
+        right: lerp(a.finDeflectionsRad?.right ?? 0, b.finDeflectionsRad?.right ?? 0, u),
+      },
+      bodyRatesRadS: {
+        p: lerp(a.bodyRatesRadS?.p ?? 0, b.bodyRatesRadS?.p ?? 0, u),
+        q: lerp(a.bodyRatesRadS?.q ?? 0, b.bodyRatesRadS?.q ?? 0, u),
+        r: lerp(a.bodyRatesRadS?.r ?? 0, b.bodyRatesRadS?.r ?? 0, u),
+      },
     };
   }
 

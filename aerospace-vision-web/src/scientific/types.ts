@@ -10,7 +10,7 @@
  * - Lengths: SI metres in the payload; renderer converts to kilometres.
  */
 
-export const SCHEMA_VERSION = "1.0.0";
+export const SCHEMA_VERSION = "1.1.0";
 
 export type Phase = "boost" | "midcourse" | "terminal" | "coast";
 
@@ -25,6 +25,21 @@ export interface QuaternionTuple {
   x: number;
   y: number;
   z: number;
+}
+
+/** Four independent control-surface deflections, radians, relative to trim. */
+export interface FinDeflectionsRad {
+  up: number;
+  down: number;
+  left: number;
+  right: number;
+}
+
+/** Body angular rates about body x (p), y (q) and z (r), rad/s. */
+export interface BodyRatesRadS {
+  p: number;
+  q: number;
+  r: number;
 }
 
 /** One time-stamped state of a scene entity. All values are SI. */
@@ -65,6 +80,32 @@ export interface TrajectorySample {
   seekerLock: boolean;
   /** Terminal handover flag. */
   handover: boolean;
+  /** Recorded fin deflections (rad). Absent on static target samples. */
+  finDeflectionsRad?: FinDeflectionsRad;
+  /** Recorded body angular rates (rad/s). Absent on static target samples. */
+  bodyRatesRadS?: BodyRatesRadS;
+}
+
+/** Declared provenance of the experiment that produced the telemetry. */
+export interface ExperimentManifest {
+  /** This platform only replays simulations; never flight-test data. */
+  kind: "simulation";
+  name: string;
+  purpose: string;
+  engine: string;
+  /** Source sampling step, seconds. */
+  dtS: number;
+  dispersion: {
+    launchCepM: number | null;
+    targetCepM: number | null;
+    altitudeSigmaM: number | null;
+    machSigma: number | null;
+    maneuverSigmaG: number | null;
+    note: string;
+  };
+  /** Whether the cited artifacts can be rebuilt from the current workspace. */
+  reproducibility: "reproducible" | "unreproducible-current-artifacts";
+  notes: string[];
 }
 
 export interface SceneEntity {
@@ -110,6 +151,8 @@ export interface ScenarioSource {
   commit: string;
   telemetryFile: string;
   telemetryRows: number;
+  /** SHA-256 of the source telemetry file. */
+  sha256?: string;
   generatedAt: string;
   generator: string;
   license: string;
@@ -144,6 +187,12 @@ export interface ScenarioManifest {
     /** nominal decimation of the source telemetry (source rows per sample). */
     sourceRows: number;
     sourceStepS: number;
+    /**
+     * Declared demonstration epoch (ISO-8601 UTC) used only to place the sun
+     * and moon. It is fixed so every viewer sees the same sky; it is not a
+     * measured launch time.
+     */
+    demoUtc: string;
   };
   frames: {
     render: "ECEF";
@@ -152,6 +201,7 @@ export interface ScenarioManifest {
     bodyAxes: string;
   };
   source: ScenarioSource;
+  experiment: ExperimentManifest;
   metrics: {
     missDistanceM: number;
     interceptTimeS: number;

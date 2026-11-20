@@ -8,6 +8,7 @@ import type {
   PhaseSegment,
   VisualizationEvent,
 } from "./types";
+import { SCHEMA_VERSION } from "./types";
 import { geodeticToEcef } from "./geodesy";
 
 export interface ValidationIssue {
@@ -78,10 +79,10 @@ function checkSamples(
 
 export function validateScenario(manifest: ScenarioManifest): ValidationIssue[] {
   const issues: ValidationIssue[] = [];
-  if (manifest.schemaVersion !== "1.0.0") {
+  if (manifest.schemaVersion !== SCHEMA_VERSION) {
     issues.push({
       id: "schema-version",
-      message: `unsupported schema ${manifest.schemaVersion}`,
+      message: `unsupported schema ${manifest.schemaVersion} (expected ${SCHEMA_VERSION})`,
       severity: "error",
     });
   }
@@ -151,4 +152,12 @@ export async function loadScenario(
   const missile = manifest.entities.find((e) => e.kind === "missile")!.samples!;
   const target = manifest.entities.find((e) => e.kind === "target")!.samples!;
   return { manifest, missile, target };
+}
+
+let cached: Promise<LoadedScenario> | null = null;
+
+/** Shared, memoised load used by the academic pages and the explorer. */
+export function loadScenarioCached(): Promise<LoadedScenario> {
+  if (!cached) cached = loadScenario();
+  return cached;
 }

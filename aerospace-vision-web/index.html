@@ -1,22 +1,51 @@
 <!doctype html>
-<html lang="en">
+<html lang="zh-CN">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="theme-color" content="#03060d" />
+    <meta name="theme-color" content="#071a33" />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="航空航天视界 · Aerospace Vision" />
+    <meta property="og:url" content="https://paoshou-china.github.io/missile-interception/" />
+    <meta property="og:title" content="航空航天视界 · Aerospace Vision" />
+    <meta
+      property="og:description"
+      content="基于已验证六自由度遥测的双语科学可视化平台。A bilingual scientific trajectory platform driven by validated 6-DoF telemetry."
+    />
+    <meta property="og:locale" content="zh_CN" />
+    <meta property="og:locale:alternate" content="en_US" />
+    <meta name="twitter:card" content="summary" />
+    <meta name="twitter:title" content="航空航天视界 · Aerospace Vision" />
+    <meta
+      name="twitter:description"
+      content="WGS84/ECEF 回放、十种相机、日月昼夜与可追溯数据版本。"
+    />
+    <link rel="canonical" href="https://paoshou-china.github.io/missile-interception/" />
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "WebSite",
+        "name": "Aerospace Vision",
+        "alternateName": "航空航天视界",
+        "url": "https://paoshou-china.github.io/missile-interception/",
+        "description": "Bilingual scientific trajectory visualisation driven by validated 6-DoF telemetry.",
+        "inLanguage": ["zh-CN", "en"],
+        "isAccessibleForFree": true
+      }
+    </script>
     <meta
       name="description"
-      content="Aerospace Vision Web — a scientific 3D trajectory visualisation platform driven by validated 6-DoF simulation telemetry. WGS84 / ECEF, true scale, browser native."
+      content="航空航天视界 Aerospace Vision — 基于验证遥测的科学弹道可视化与学术平台。WGS84 / ECEF，真实比例，双语界面。A bilingual scientific trajectory platform driven by validated 6-DoF telemetry."
     />
     <link
       rel="icon"
-      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%2303060d'/%3E%3Ccircle cx='16' cy='16' r='10' fill='none' stroke='%23ffb257' stroke-width='1.4'/%3E%3Cellipse cx='16' cy='16' rx='10' ry='4' fill='none' stroke='%23ffb257' stroke-width='1' transform='rotate(-28 16 16)'/%3E%3Ccircle cx='16' cy='16' r='2' fill='%23ffb257'/%3E%3C/svg%3E"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%23071a33'/%3E%3Ccircle cx='16' cy='16' r='10' fill='none' stroke='%2337b9d8' stroke-width='1.4'/%3E%3Cellipse cx='16' cy='16' rx='10' ry='4' fill='none' stroke='%2337b9d8' stroke-width='1' transform='rotate(-28 16 16)'/%3E%3Ccircle cx='16' cy='16' r='2' fill='%2337b9d8'/%3E%3C/svg%3E"
     />
-    <title>Aerospace Vision Web · Scientific Trajectory Visualisation</title>
+    <title>航空航天视界 · Aerospace Vision</title>
   </head>
   <body>
     <div id="root"></div>
-    <noscript>This visualisation requires JavaScript and WebGL 2.</noscript>
+    <noscript>This visualisation requires JavaScript and WebGL 2. / 本页面需要 JavaScript 与 WebGL 2。</noscript>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

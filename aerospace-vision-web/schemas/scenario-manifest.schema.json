@@ -2,15 +2,15 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://aerospace-vision.local/schemas/scenario-manifest.schema.json",
   "title": "Aerospace Vision Scenario Manifest",
-  "description": "Frozen public contract v1.0.0 between the Python data adapter and the web renderer. All lengths are SI (metres) unless explicitly suffixed; the renderer converts to kilometres. Positions are WGS84 ECEF, attitudes are scalar-first BODY->ECEF quaternions.",
+  "description": "Frozen public contract v1.1.0 between the Python data adapter and the web renderer. All lengths are SI (metres) unless explicitly suffixed; the renderer converts to kilometres. Positions are WGS84 ECEF, attitudes are scalar-first BODY->ECEF quaternions. v1.1.0 adds recorded fin deflections, body rates, an experiment manifest and a declared demo UTC.",
   "type": "object",
   "required": [
     "schemaVersion", "id", "title", "earth", "time", "frames", "source",
-    "metrics", "launchSite", "targetSite", "phases", "events", "observables",
-    "entities", "validation"
+    "experiment", "metrics", "launchSite", "targetSite", "phases", "events",
+    "observables", "entities", "validation"
   ],
   "properties": {
-    "schemaVersion": { "const": "1.0.0" },
+    "schemaVersion": { "const": "1.1.0" },
     "id": { "type": "string" },
     "title": { "type": "string" },
     "subtitle": { "type": "string" },
@@ -28,13 +28,14 @@
     },
     "time": {
       "type": "object",
-      "required": ["startS", "endS", "sampleCount", "sourceRows", "sourceStepS"],
+      "required": ["startS", "endS", "sampleCount", "sourceRows", "sourceStepS", "demoUtc"],
       "properties": {
         "startS": { "type": "number" },
         "endS": { "type": "number" },
         "sampleCount": { "type": "integer", "minimum": 2 },
         "sourceRows": { "type": "integer" },
-        "sourceStepS": { "type": "number" }
+        "sourceStepS": { "type": "number" },
+        "demoUtc": { "type": "string", "description": "Declared demonstration epoch for sky placement only (ISO-8601 UTC)" }
       }
     },
     "frames": {
@@ -60,6 +61,31 @@
         "generatedAt": { "type": "string" },
         "generator": { "type": "string" },
         "license": { "type": "string" }
+      }
+    },
+    "experiment": {
+      "type": "object",
+      "required": ["kind", "name", "purpose", "engine", "dtS", "dispersion", "reproducibility", "notes"],
+      "properties": {
+        "kind": { "const": "simulation" },
+        "name": { "type": "string" },
+        "purpose": { "type": "string" },
+        "engine": { "type": "string" },
+        "dtS": { "type": "number" },
+        "dispersion": {
+          "type": "object",
+          "required": ["launchCepM", "targetCepM", "altitudeSigmaM", "machSigma", "maneuverSigmaG", "note"],
+          "properties": {
+            "launchCepM": { "type": ["number", "null"] },
+            "targetCepM": { "type": ["number", "null"] },
+            "altitudeSigmaM": { "type": ["number", "null"] },
+            "machSigma": { "type": ["number", "null"] },
+            "maneuverSigmaG": { "type": ["number", "null"] },
+            "note": { "type": "string" }
+          }
+        },
+        "reproducibility": { "enum": ["reproducible", "unreproducible-current-artifacts"] },
+        "notes": { "type": "array", "items": { "type": "string" } }
       }
     },
     "metrics": {
@@ -216,8 +242,27 @@
         "rangeM": { "type": "number" },
         "phase": { "enum": ["boost", "midcourse", "terminal", "coast"] },
         "seekerLock": { "type": "boolean" },
-        "handover": { "type": "boolean" }
+        "handover": { "type": "boolean" },
+        "finDeflectionsRad": { "$ref": "#/$defs/fins" },
+        "bodyRatesRadS": { "$ref": "#/$defs/rates" }
       }
+    },
+    "fins": {
+      "type": "object",
+      "required": ["up", "down", "left", "right"],
+      "properties": {
+        "up": { "type": "number" }, "down": { "type": "number" },
+        "left": { "type": "number" }, "right": { "type": "number" }
+      },
+      "description": "Recorded cruciform fin deflections, radians"
+    },
+    "rates": {
+      "type": "object",
+      "required": ["p", "q", "r"],
+      "properties": {
+        "p": { "type": "number" }, "q": { "type": "number" }, "r": { "type": "number" }
+      },
+      "description": "Recorded body angular rates, rad/s"
     }
   }
 }

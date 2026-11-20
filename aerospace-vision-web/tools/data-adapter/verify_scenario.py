@@ -50,7 +50,7 @@ def main():
     def check(cid, ok, detail):
         checks.append((cid, bool(ok), detail))
 
-    check("schema", data.get("schemaVersion") == "1.0.0", str(data.get("schemaVersion")))
+    check("schema", data.get("schemaVersion") == "1.1.0", str(data.get("schemaVersion")))
     check("frame", data.get("frames", {}).get("render") == "ECEF",
           str(data.get("frames", {}).get("render")))
     check("adapter-pass", data.get("validation", {}).get("status") == "PASS",
@@ -80,6 +80,23 @@ def main():
     check("finite", finite, "all position/velocity/observable values finite")
     check("unit-quaternions", qmax < 1e-5, "max |‖q‖-1| = %.2e" % qmax)
     check("geodetic-ecef", geodetic_max < 1.0, "max mismatch = %.3f m" % geodetic_max)
+
+    fin_max = 0.0
+    rate_max = 0.0
+    for s in missile:
+        fin = s.get("finDeflectionsRad") or {}
+        rate = s.get("bodyRatesRadS") or {}
+        fin_max = max(fin_max, *(abs(fin.get(k, 0.0)) for k in ("up", "down", "left", "right")))
+        rate_max = max(rate_max, *(abs(rate.get(k, 0.0)) for k in ("p", "q", "r")))
+    check("actuator-channels", fin_max > 0.0 and rate_max > 0.0,
+          "max |fin| = %.3f rad, max |rate| = %.3f rad/s" % (fin_max, rate_max))
+
+    exp = data.get("experiment") or {}
+    check("experiment-declared",
+          exp.get("kind") == "simulation" and bool(exp.get("reproducibility")),
+          "kind=%s, reproducibility=%s" % (exp.get("kind"), exp.get("reproducibility")))
+    check("demo-utc", bool((data.get("time") or {}).get("demoUtc")),
+          str((data.get("time") or {}).get("demoUtc")))
 
     min_range = min(s["rangeM"] for s in missile)
     min_t = min(missile, key=lambda s: s["rangeM"])["t"]

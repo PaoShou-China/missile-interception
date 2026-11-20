@@ -1,9 +1,89 @@
-﻿import { test, expect } from "@playwright/test";
+﻿import { test, expect, type Page } from "@playwright/test";
 import path from "node:path";
 import fs from "node:fs";
 
 const SHOTS = path.resolve(process.cwd(), "test-results/visual");
 fs.mkdirSync(SHOTS, { recursive: true });
+
+/** Force English and open the explorer route. */
+async function gotoExplore(page: Page) {
+  await page.addInitScript(() => window.localStorage.setItem("av.lang", "en"));
+  await page.goto("/#/explore");
+}
+
+test("academic home renders and links to the explorer", async ({ page }) => {
+  await page.addInitScript(() => window.localStorage.setItem("av.lang", "en"));
+  await page.goto("/");
+  await expect(page.locator(".site-header")).toBeVisible();
+  await expect(page.locator(".hero h1")).toContainText("solved trajectory");
+  await expect(page.locator(".site-nav a.is-active")).toHaveText("Home");
+  await expect(page.locator(".stat-strip")).toBeVisible();
+  await page.screenshot({ path: path.join(SHOTS, "00-academic-home.png"), fullPage: true });
+
+  await page.locator(".site-header__actions a.btn--primary").click();
+  await expect(page).toHaveURL(/#\/explore$/);
+});
+
+test("language switch translates the academic site and persists", async ({ page }) => {
+  await page.goto("/");
+  // Start from a known language without an init script (which would re-run on
+  // reload and mask the persistence check).
+  await page.evaluate(() => window.localStorage.setItem("av.lang", "en"));
+  await page.reload();
+  await expect(page.locator(".site-nav a").first()).toHaveText("Home");
+
+  await page.locator(".lang-switch button", { hasText: "中" }).click();
+  await expect(page.locator(".site-nav a").first()).toHaveText("首页");
+  await expect(page.locator(".hero__actions a").first()).toContainText("打开三维探索器");
+  expect(await page.evaluate(() => document.documentElement.lang)).toBe("zh-CN");
+
+  await page.reload();
+  await expect(page.locator(".site-nav a").first()).toHaveText("首页");
+});
+
+test("route metadata updates title, description and canonical URL", async ({ page }) => {
+  await page.addInitScript(() => window.localStorage.setItem("av.lang", "en"));
+  await page.goto("/");
+  await expect(page).toHaveTitle(/Home · Aerospace Vision/);
+  const homeDesc = await page.locator('meta[name="description"]').getAttribute("content");
+  expect(homeDesc ?? "").toContain("WGS84");
+
+  await page.goto("/#/methodology");
+  await expect(page).toHaveTitle(/Method · Aerospace Vision/);
+  const desc = await page.locator('meta[name="description"]').getAttribute("content");
+  expect(desc ?? "").toContain("telemetry");
+  const canonical = await page.locator('link[rel="canonical"]').getAttribute("href");
+  expect(canonical).toContain("#/methodology");
+});
+
+test("mobile explorer exposes mission, telemetry and chart tabs", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await gotoExplore(page);
+  await expect(page.locator(".mobile-tabs")).toBeVisible({ timeout: 45_000 });
+
+  await page.getByRole("tab", { name: "Mission" }).click();
+  await expect(page.locator(".rail--left")).toBeVisible();
+  await expect(page.locator(".rail--right")).toBeHidden();
+
+  await page.getByRole("tab", { name: "Charts" }).click();
+  await expect(page.locator(".rail--right")).toBeVisible();
+  await expect(page.locator(".charts-panel")).toBeVisible();
+  await expect(page.locator(".telemetry-panel")).toBeHidden();
+  await page.screenshot({ path: path.join(SHOTS, "10-mobile-charts.png") });
+});
+
+test("legacy reports stay reachable at their original paths", async ({ page }) => {
+  const paths = [
+    "/missile-intercept-overview/missile-intercept-overview.html",
+    "/intercept-report/intercept-report.html",
+    "/test-report/missile_interceptor_test_report.html",
+    "/legacy/index.html",
+  ];
+  for (const p of paths) {
+    const res = await page.request.get(p);
+    expect(res.status(), `${p} should be served`).toBe(200);
+  }
+});
 
 test("loads the validated scenario and renders the 3D scene", async ({ page }) => {
   const errors: string[] = [];
@@ -12,8 +92,8 @@ test("loads the validated scenario and renders the 3D scene", async ({ page }) =
   });
   page.on("pageerror", (err) => errors.push(String(err)));
 
-  await page.goto("/");
-  await expect(page.locator(".status-pill--ok")).toContainText("TELEMETRY VERIFIED", { timeout: 45_000 });
+  await gotoExplore(page);
+  await expect(page.locator(".status-pill--ok")).toContainText("Telemetry verified", { timeout: 45_000 });
   await expect(page.locator(".loading")).toHaveCount(0);
 
   const canvas = page.locator("canvas[data-engine]").first();
@@ -30,7 +110,7 @@ test("loads the validated scenario and renders the 3D scene", async ({ page }) =
 });
 
 test("timeline playback advances the single simulation clock and telemetry", async ({ page }) => {
-  await page.goto("/");
+  await gotoExplore(page);
   await expect(page.locator(".telemetry-panel")).toBeVisible({ timeout: 45_000 });
 
   const clock = page.locator(".timeline__now");
@@ -53,27 +133,32 @@ test("timeline playback advances the single simulation clock and telemetry", asy
 });
 
 test("seeking to the intercept event updates the scene state", async ({ page }) => {
-  await page.goto("/");
+  await gotoExplore(page);
   await expect(page.locator(".mission-panel")).toBeVisible({ timeout: 45_000 });
-  await page.locator(".event-row").filter({ hasText: "INTERCEPT" }).click();
+  await page.locator(".event-row").filter({ hasText: "Intercept" }).last().click();
   await page.waitForTimeout(700);
-  await expect(page.locator(".timeline__now")).toContainText("11:11");
+  await expect(page.locator(".timeline__now")).toContainText("11:1");
   await expect(page.locator(".phase-badge")).toContainText("TERMINAL");
   await page.screenshot({ path: path.join(SHOTS, "02-intercept-terminal.png") });
 });
 
-test("camera modes switch and the chase view renders", async ({ page }) => {
-  await page.goto("/");
+test("all ten camera modes switch, including body close-ups", async ({ page }) => {
+  await gotoExplore(page);
   await expect(page.locator(".camera-dock")).toBeVisible({ timeout: 45_000 });
-  await page.getByRole("button", { name: "Chase", exact: true }).click();
-  await page.waitForTimeout(1600);
-  await expect(page.locator("button[data-camera].is-active")).toHaveText("Chase");
-  await page.screenshot({ path: path.join(SHOTS, "03-chase-camera.png") });
 
-  await page.getByRole("button", { name: "Free", exact: true }).click();
-  await expect(page.locator("button[data-camera].is-active")).toHaveText("Free");
-  await page.getByRole("button", { name: "Earth", exact: true }).click();
-  await expect(page.locator("button[data-camera].is-active")).toHaveText("Earth");
+  const modes = ["Earth", "Plan", "Chase", "Launch", "Intercept", "Free", "Fin", "Engine", "Attitude", "Seeker"];
+  for (const mode of modes) {
+    await page.getByRole("button", { name: mode, exact: true }).click();
+    await expect(page.locator("button[data-camera].is-active")).toHaveText(mode);
+  }
+
+  await page.getByRole("button", { name: "Fin", exact: true }).click();
+  await page.waitForTimeout(1200);
+  await page.screenshot({ path: path.join(SHOTS, "08-camera-fin.png") });
+
+  await page.getByRole("button", { name: "Attitude", exact: true }).click();
+  await page.waitForTimeout(1200);
+  await page.screenshot({ path: path.join(SHOTS, "09-camera-attitude.png") });
 
   const track = page.locator(".camera-dock button", { hasText: "Track" });
   await expect(track).toHaveClass(/is-active/);
@@ -83,12 +168,13 @@ test("camera modes switch and the chase view renders", async ({ page }) => {
   await expect(track).toHaveClass(/is-active/);
 });
 
-test("cinematic mode runs a captioned shot sequence and exits cleanly", async ({ page }) => {
-  await page.goto("/");
+test("cinematic mode runs the three-minute presentation and exits cleanly", async ({ page }) => {
+  await gotoExplore(page);
   await expect(page.locator(".segmented"), "top bar").toBeVisible({ timeout: 45_000 });
   await page.getByRole("button", { name: "Cinematic" }).click();
   await expect(page.locator(".cinematic__caption h1")).toHaveText("Ignition");
   await expect(page.locator(".cinematic__progress")).toBeVisible();
+  await expect(page.locator(".cinematic__clock")).toContainText("03:00");
   await page.waitForTimeout(2500);
   await page.screenshot({ path: path.join(SHOTS, "04-cinematic-ignition.png") });
 
@@ -98,7 +184,7 @@ test("cinematic mode runs a captioned shot sequence and exits cleanly", async ({
 
 test("measures animation frame rate over two seconds", async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== "chromium", "Hardware FPS gate is measured on Chromium only");
-  await page.goto("/");
+  await gotoExplore(page);
   await expect(page.locator(".telemetry-panel")).toBeVisible({ timeout: 45_000 });
   await page.locator(".transport--play").click();
   await page.waitForTimeout(1200);
@@ -137,4 +223,3 @@ test("measures animation frame rate over two seconds", async ({ page }, testInfo
     expect(fps).toBeGreaterThan(20);
   }
 });
-

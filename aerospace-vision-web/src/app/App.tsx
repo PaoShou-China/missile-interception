@@ -1,117 +1,116 @@
-﻿import { Component, useEffect, type ReactNode } from "react";
-import { SceneCanvas } from "../scene/SceneCanvas";
-import { TopBar } from "../components/TopBar";
-import { MissionPanel } from "../components/MissionPanel";
-import { TelemetryPanel } from "../components/TelemetryPanel";
-import { ChartsPanel } from "../components/ChartsPanel";
-import { Timeline } from "../components/Timeline";
-import { CameraDock } from "../components/CameraDock";
-import { CinematicOverlay } from "../components/CinematicOverlay";
-import { LoadingScreen } from "../components/LoadingScreen";
-import { loadScenario } from "../scientific/scenario";
-import { TrajectorySampler } from "../scientific/interpolate";
-import { useAppStore } from "../state/store";
+import { Suspense, lazy, useEffect } from "react";
+import { I18nProvider, useI18n } from "../i18n";
+import { useRoute, type RoutePath } from "./router";
+import { SiteLayout } from "../pages/Layout";
+import { HomePage } from "../pages/HomePage";
+import { MethodologyPage } from "../pages/MethodologyPage";
+import { VerificationPage } from "../pages/VerificationPage";
+import { ResourcesPage } from "../pages/ResourcesPage";
 
-class RenderErrorBoundary extends Component<{ children: ReactNode }, { error: Error | null }> {
-  state = { error: null as Error | null };
-  static getDerivedStateFromError(error: Error) {
-    return { error };
+// The explorer pulls in three.js/postprocessing; ECharts is only needed by the
+// results page. Lazy-loading them keeps the academic reading pages light.
+const ResultsPage = lazy(() => import("../pages/ResultsPage").then((m) => ({ default: m.ResultsPage })));
+const ExploreApp = lazy(() => import("./ExploreApp").then((m) => ({ default: m.ExploreApp })));
+
+const META: Record<RoutePath, { nav: string; desc: string }> = {
+  "/": { nav: "nav.home", desc: "meta.description.home" },
+  "/methodology": { nav: "nav.methodology", desc: "meta.description.methodology" },
+  "/results": { nav: "nav.results", desc: "meta.description.results" },
+  "/verification": { nav: "nav.verification", desc: "meta.description.verification" },
+  "/resources": { nav: "nav.resources", desc: "meta.description.resources" },
+  "/explore": { nav: "explore.title", desc: "meta.description.explore" },
+};
+
+const BASE_URL = "https://paoshou-china.github.io/missile-interception/";
+
+function upsertMeta(selector: string, attrs: Record<string, string>) {
+  let el = document.head.querySelector<HTMLMetaElement>(selector);
+  if (!el) {
+    el = document.createElement("meta");
+    document.head.appendChild(el);
   }
-  render() {
-    if (this.state.error) {
-      return (
-        <div className="fatal">
-          <h2>3D renderer unavailable</h2>
-          <p>{this.state.error.message}</p>
-          <p>This build requires WebGL 2. Try a current desktop browser with hardware acceleration enabled.</p>
-        </div>
-      );
-    }
-    return this.props.children;
-  }
+  for (const [k, v] of Object.entries(attrs)) el.setAttribute(k, v);
 }
 
-export default function App() {
-  const status = useAppStore((s) => s.status);
-  const setRuntime = useAppStore((s) => s.setRuntime);
-  const setStatus = useAppStore((s) => s.setStatus);
-  const presentation = useAppStore((s) => s.presentation);
-  const hudVisible = useAppStore((s) => s.hudVisible);
-  const panels = useAppStore((s) => s.panels);
-  const runtime = useAppStore((s) => s.runtime);
+/** Route-specific document title, description and social metadata. */
+function RouteMeta({ route }: { route: RoutePath }) {
+  const { t, lang } = useI18n();
 
   useEffect(() => {
-    let cancelled = false;
-    setStatus("loading");
-    loadScenario()
-      .then(({ manifest, missile, target }) => {
-        if (cancelled) return;
-        setRuntime({
-          manifest,
-          missile,
-          target,
-          missileSampler: new TrajectorySampler(missile),
-          targetSampler: new TrajectorySampler(target),
-        });
-      })
-      .catch((err: unknown) => {
-        if (cancelled) return;
-        setStatus("error", err instanceof Error ? err.message : String(err));
-      });
-    return () => { cancelled = true; };
-  }, [setRuntime, setStatus]);
+    const meta = META[route];
+    const title = `${t(meta.nav)} · ${t("brand.name")}`;
+    const description = t(meta.desc);
+    const url = `${BASE_URL}${route === "/" ? "" : `#${route}`}`;
 
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      const target = e.target as HTMLElement;
-      if (target.tagName === "INPUT" || target.tagName === "SELECT" || target.tagName === "TEXTAREA") return;
-      const s = useAppStore.getState();
-      if (!s.runtime) return;
-      if (e.code === "Space") { e.preventDefault(); s.toggle(); }
-      else if (e.key === "ArrowRight") { s.step(e.shiftKey ? 30 : 5); }
-      else if (e.key === "ArrowLeft") { s.step(e.shiftKey ? -30 : -5); }
-      else if (e.key === "r" || e.key === "R") { s.reset(); }
-      else if (e.key === "Escape" && s.presentation === "cinematic") { s.setPresentation("scientific"); }
-      else if (e.key === "1") s.setCameraMode("earth");
-      else if (e.key === "2") s.setCameraMode("chase");
-      else if (e.key === "3") s.setCameraMode("top");
-      else if (e.key === "4") s.setCameraMode("target");
-      else if (e.key === "5") s.setCameraMode("free");
-      else if (e.key === "h" || e.key === "H") s.setHudVisible(!s.hudVisible);
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, []);
+    document.title = title;
+    let desc = document.head.querySelector<HTMLMetaElement>('meta[name="description"]');
+    if (!desc) {
+      desc = document.createElement("meta");
+      desc.name = "description";
+      document.head.appendChild(desc);
+    }
+    desc.content = description;
 
-  const showUI = status === "ready" && hudVisible && presentation === "scientific";
+    upsertMeta('meta[property="og:title"]', { property: "og:title", content: title });
+    upsertMeta('meta[property="og:description"]', { property: "og:description", content: description });
+    upsertMeta('meta[property="og:url"]', { property: "og:url", content: url });
+    upsertMeta('meta[property="og:locale"]', {
+      property: "og:locale",
+      content: lang === "zh" ? "zh_CN" : "en_US",
+    });
+    upsertMeta('meta[name="twitter:title"]', { name: "twitter:title", content: title });
+    upsertMeta('meta[name="twitter:description"]', { name: "twitter:description", content: description });
 
+    let canonical = document.head.querySelector<HTMLLinkElement>('link[rel="canonical"]');
+    if (!canonical) {
+      canonical = document.createElement("link");
+      canonical.rel = "canonical";
+      document.head.appendChild(canonical);
+    }
+    canonical.href = url;
+  }, [route, lang, t]);
+
+  return null;
+}
+
+function RouteFallback() {
+  const { t } = useI18n();
   return (
-    <div className={`app-shell ${presentation === "cinematic" ? "is-cinematic" : ""}`}>
-      <RenderErrorBoundary>
-        <SceneCanvas />
-      </RenderErrorBoundary>
-
-      <div className="vignette" aria-hidden />
-
-      {runtime && <TopBar />}
-
-      {showUI && (
-        <>
-          <aside className="rail rail--left">
-            <MissionPanel />
-          </aside>
-          <aside className="rail rail--right">
-            <TelemetryPanel />
-            {panels.charts && <ChartsPanel />}
-          </aside>
-          <CameraDock />
-          <Timeline />
-        </>
-      )}
-
-      {runtime && presentation === "cinematic" && <CinematicOverlay />}
-      <LoadingScreen />
+    <div className="route-fallback" role="status" aria-live="polite">
+      <span className="route-fallback__mark" aria-hidden>◎</span>
+      <p>{t("common.explorerLoading")}</p>
     </div>
   );
 }
 
+export default function App() {
+  const route = useRoute();
+
+  if (route === "/explore") {
+    return (
+      <I18nProvider>
+        <RouteMeta route={route} />
+        <Suspense fallback={<RouteFallback />}>
+          <ExploreApp />
+        </Suspense>
+      </I18nProvider>
+    );
+  }
+
+  return (
+    <I18nProvider>
+      <RouteMeta route={route} />
+      <SiteLayout>
+        {route === "/" && <HomePage />}
+        {route === "/methodology" && <MethodologyPage />}
+        {route === "/results" && (
+          <Suspense fallback={<RouteFallback />}>
+            <ResultsPage />
+          </Suspense>
+        )}
+        {route === "/verification" && <VerificationPage />}
+        {route === "/resources" && <ResourcesPage />}
+      </SiteLayout>
+    </I18nProvider>
+  );
+}

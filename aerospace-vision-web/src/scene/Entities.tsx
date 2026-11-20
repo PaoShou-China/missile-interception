@@ -1,4 +1,4 @@
-import { useMemo, useRef } from "react";
+import { useMemo, useRef, type RefObject } from "react";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import { Html } from "@react-three/drei";
@@ -24,14 +24,64 @@ function useGlowTexture(inner: string, outer: string) {
   }, [inner, outer]);
 }
 
+/** Body-axis triad drawn in the vehicle body frame (x forward, y right, z down). */
+function BodyAxes({ groupRef }: { groupRef: RefObject<THREE.Group | null> }) {
+  const axes: { dir: [number, number, number]; rot: [number, number, number]; color: string }[] = [
+    { dir: [1, 0, 0], rot: [0, 0, -Math.PI / 2], color: "#ff7a59" },
+    { dir: [0, 1, 0], rot: [0, 0, 0], color: "#63e6ff" },
+    { dir: [0, 0, 1], rot: [Math.PI / 2, 0, 0], color: "#7fe0a8" },
+  ];
+  const L = 0.007;
+  return (
+    <group ref={groupRef} visible={false}>
+      {axes.map((a) => (
+        <group key={a.color}>
+          <mesh position={[a.dir[0] * L * 0.5, a.dir[1] * L * 0.5, a.dir[2] * L * 0.5]} rotation={a.rot}>
+            <cylinderGeometry args={[0.000018, 0.000018, L, 8]} />
+            <meshBasicMaterial color={a.color} />
+          </mesh>
+          <mesh position={[a.dir[0] * L, a.dir[1] * L, a.dir[2] * L]} rotation={a.rot}>
+            <coneGeometry args={[0.00006, 0.00022, 10]} />
+            <meshBasicMaterial color={a.color} />
+          </mesh>
+        </group>
+      ))}
+    </group>
+  );
+}
+
 /** Procedural PBR interceptor, 6.5 m long, body +x forward, +z down. */
 function MissileBody() {
   const plume = useRef<THREE.Mesh>(null);
+  const nozzleGlow = useRef<THREE.Mesh>(null);
+  const finUp = useRef<THREE.Group>(null);
+  const finDown = useRef<THREE.Group>(null);
+  const finLeft = useRef<THREE.Group>(null);
+  const finRight = useRef<THREE.Group>(null);
+  const axes = useRef<THREE.Group>(null);
+
   useFrame(() => {
     const rt = useAppStore.getState().runtime;
     const boostEnd = rt?.manifest.phases.find((p) => p.phase === "boost")?.endT ?? 20;
-    if (plume.current) plume.current.visible = simClock.time <= boostEnd;
+    const powered = simClock.time <= boostEnd;
+    if (plume.current) plume.current.visible = powered;
+    if (nozzleGlow.current) nozzleGlow.current.visible = powered;
+
+    if (rt) {
+      const s = rt.missileSampler.sampleAt(simClock.time);
+      const f = s.finDeflectionsRad;
+      const clamp = (v: number) => Math.max(-0.55, Math.min(0.55, v));
+      if (finUp.current) finUp.current.rotation.y = -clamp(f.up);
+      if (finDown.current) finDown.current.rotation.y = -clamp(f.down);
+      if (finLeft.current) finLeft.current.rotation.z = clamp(f.left);
+      if (finRight.current) finRight.current.rotation.z = -clamp(f.right);
+    }
+    if (axes.current) {
+      const mode = useAppStore.getState().cameraMode;
+      axes.current.visible = mode === "attitude";
+    }
   });
+
   return (
     <group>
       <mesh rotation={[0, 0, -Math.PI / 2]}>
@@ -50,16 +100,43 @@ function MissileBody() {
         <cylinderGeometry args={[0.00047, 0.00047, 0.00022, 24]} />
         <meshStandardMaterial color={COLORS.accent} emissive={COLORS.accent} emissiveIntensity={0.35} metalness={0.5} roughness={0.35} />
       </mesh>
-      {[0, 1, 2, 3].map((i) => (
-        <mesh key={i} position={[-0.0019, 0, 0]} rotation={[0, 0, (i * Math.PI) / 2]}>
-          <boxGeometry args={[0.00075, 0.0009, 0.00005]} />
-          <meshStandardMaterial color="#8d97a3" metalness={0.65} roughness={0.4} />
+
+      {/* Cruciform tail fins. Rotation is driven by the recorded fin channels. */}
+      <group ref={finUp} position={[-0.0019, 0, 0]}>
+        <mesh position={[0, 0, -0.00042]}>
+          <boxGeometry args={[0.0008, 0.000045, 0.00086]} />
+          <meshStandardMaterial color="#9aa6b2" metalness={0.6} roughness={0.42} />
         </mesh>
-      ))}
+      </group>
+      <group ref={finDown} position={[-0.0019, 0, 0]}>
+        <mesh position={[0, 0, 0.00042]}>
+          <boxGeometry args={[0.0008, 0.000045, 0.00086]} />
+          <meshStandardMaterial color="#9aa6b2" metalness={0.6} roughness={0.42} />
+        </mesh>
+      </group>
+      <group ref={finLeft} position={[-0.0019, 0, 0]}>
+        <mesh position={[0, -0.00042, 0]}>
+          <boxGeometry args={[0.0008, 0.00086, 0.000045]} />
+          <meshStandardMaterial color="#8d97a3" metalness={0.6} roughness={0.42} />
+        </mesh>
+      </group>
+      <group ref={finRight} position={[-0.0019, 0, 0]}>
+        <mesh position={[0, 0.00042, 0]}>
+          <boxGeometry args={[0.0008, 0.00086, 0.000045]} />
+          <meshStandardMaterial color="#8d97a3" metalness={0.6} roughness={0.42} />
+        </mesh>
+      </group>
+
+      <mesh ref={nozzleGlow} position={[-0.0030, 0, 0]} rotation={[0, 0, Math.PI / 2]}>
+        <circleGeometry args={[0.00042, 20]} />
+        <meshBasicMaterial color="#ffd09a" transparent opacity={0.85} blending={THREE.AdditiveBlending} depthWrite={false} side={THREE.DoubleSide} />
+      </mesh>
       <mesh ref={plume} position={[-0.0032, 0, 0]} rotation={[0, 0, Math.PI / 2]}>
         <coneGeometry args={[0.00035, 0.0014, 16, 1, true]} />
         <meshBasicMaterial color="#9fd9ff" transparent opacity={0.55} blending={THREE.AdditiveBlending} depthWrite={false} side={THREE.DoubleSide} />
       </mesh>
+
+      <BodyAxes groupRef={axes} />
     </group>
   );
 }

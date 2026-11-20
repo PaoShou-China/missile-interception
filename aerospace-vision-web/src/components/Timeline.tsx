@@ -1,6 +1,7 @@
 import { useCallback, useRef } from "react";
 import { useAppStore } from "../state/store";
 import { formatClock, formatTime } from "../utils/format";
+import { useI18n } from "../i18n";
 
 const RATES = [0.5, 1, 5, 20, 60];
 
@@ -17,6 +18,7 @@ export function Timeline() {
   const seekFraction = useAppStore((s) => s.seekFraction);
   const step = useAppStore((s) => s.step);
   const reset = useAppStore((s) => s.reset);
+  const { t } = useI18n();
 
   const barRef = useRef<HTMLDivElement>(null);
   const dragging = useRef(false);
@@ -34,17 +36,17 @@ export function Timeline() {
   return (
     <footer className="timeline">
       <div className="timeline__controls">
-        <button type="button" className="transport" onClick={reset} title="Reset (R)">⟲</button>
-        <button type="button" className="transport" onClick={() => step(-5)} title="Back 5 s">−5s</button>
+        <button type="button" className="transport" onClick={reset} title={t("timeline.reset")}>⟲</button>
+        <button type="button" className="transport" onClick={() => step(-5)} title={t("timeline.back")}>−5s</button>
         <button
           type="button"
           className={`transport transport--play ${playing ? "is-playing" : ""}`}
           onClick={toggle}
-          title="Play / Pause (Space)"
+          title={t("timeline.playPause")}
         >
           {playing ? "❚❚" : "▶"}
         </button>
-        <button type="button" className="transport" onClick={() => step(5)} title="Forward 5 s">+5s</button>
+        <button type="button" className="transport" onClick={() => step(5)} title={t("timeline.forward")}>+5s</button>
         <div className="rate-group">
           {RATES.map((r) => (
             <button
@@ -104,7 +106,7 @@ export function Timeline() {
                   width: `${((p.endT - p.startT) / (end - start)) * 100}%`,
                 }}
               >
-                <span>{p.label}</span>
+                <span>{t(`phase.${p.phase}`)}</span>
               </div>
             ))}
           </div>
@@ -127,8 +129,8 @@ export function Timeline() {
       </div>
 
       <div className="timeline__meta">
-        <span className="data-source">SOURCE · TELEMETRY</span>
-        <span>UTC-agnostic · T+ since launch</span>
+        <span className="data-source">{t("timeline.source")}</span>
+        <span>{t("timeline.utcAgnostic")}</span>
       </div>
     </footer>
   );

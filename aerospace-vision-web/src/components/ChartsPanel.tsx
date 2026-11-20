@@ -5,6 +5,7 @@ import { GridComponent, TooltipComponent, MarkLineComponent } from "echarts/comp
 import { CanvasRenderer } from "echarts/renderers";
 import { useAppStore } from "../state/store";
 import type { TrajectorySample } from "../scientific/types";
+import { useI18n } from "../i18n";
 
 echarts.use([LineChart, GridComponent, TooltipComponent, MarkLineComponent, CanvasRenderer]);
 
@@ -136,14 +137,16 @@ export function ChartsPanel() {
   const time = useAppStore((s) => s.time);
   const panels = useAppStore((s) => s.panels);
   const togglePanel = useAppStore((s) => s.togglePanel);
+  const { t } = useI18n();
 
   const charts = useMemo<ChartSpec[]>(() => {
     if (!runtime) return [];
     const s = runtime.missile;
+    const DEG = 180 / Math.PI;
     return [
       {
         id: "alt-speed",
-        title: "Altitude & speed",
+        title: t("science.altSpeed"),
         unitA: "km",
         unitB: "m/s",
         colorA: "#ffb257",
@@ -155,7 +158,7 @@ export function ChartsPanel() {
       },
       {
         id: "q-load",
-        title: "Dynamic pressure & load",
+        title: t("science.qLoad"),
         unitA: "kPa",
         unitB: "g",
         colorA: "#ff8a6b",
@@ -165,8 +168,20 @@ export function ChartsPanel() {
         seriesA: pairs(s, (x) => +(x.qPa / 1000).toFixed(2)),
         seriesB: pairs(s, (x) => +x.loadG.toFixed(2)),
       },
+      {
+        id: "fin-rates",
+        title: t("science.finRates"),
+        unitA: "°",
+        unitB: "°/s",
+        colorA: "#ffcf7a",
+        colorB: "#7fe0a8",
+        digitsA: 1,
+        digitsB: 1,
+        seriesA: pairs(s, (x) => +((x.finDeflectionsRad?.up ?? 0) * DEG).toFixed(2)),
+        seriesB: pairs(s, (x) => +((x.bodyRatesRadS?.q ?? 0) * DEG).toFixed(2)),
+      },
     ];
-  }, [runtime]);
+  }, [runtime, t]);
 
   if (!runtime) return null;
   const open = panels.charts;
@@ -175,15 +190,15 @@ export function ChartsPanel() {
     <section className={`panel charts-panel ${open ? "" : "is-collapsed"}`}>
       <button type="button" className="panel__header" onClick={() => togglePanel("charts")}>
         <div>
-          <span className="panel__eyebrow">SCIENCE</span>
-          <h2>Time series</h2>
+          <span className="panel__eyebrow">{t("science.eyebrow")}</span>
+          <h2>{t("science.title")}</h2>
         </div>
         <span className="panel__chevron">{open ? "−" : "+"}</span>
       </button>
       {open && (
         <div className="panel__body charts-panel__body">
           {charts.map((c) => <Chart key={c.id} spec={c} time={time} />)}
-          <p className="charts-note">Curves are decimated from the same samples that drive the 3D scene. Hover for values.</p>
+          <p className="charts-note">{t("science.note")}</p>
         </div>
       )}
     </section>

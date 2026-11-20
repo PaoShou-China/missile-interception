@@ -1,42 +1,39 @@
 import { useAppStore, type CameraMode } from "../state/store";
-
-const MODES: { id: CameraMode; label: string; hint: string }[] = [
-  { id: "earth", label: "Earth", hint: "Orbital overview" },
-  { id: "chase", label: "Chase", hint: "Follow the interceptor" },
-  { id: "top", label: "Plan", hint: "High plan view" },
-  { id: "target", label: "Intercept", hint: "Frame both vehicles" },
-  { id: "free", label: "Free", hint: "Free orbit camera" },
-];
+import { CAMERA_MODES } from "../state/cameraModes";
+import { useI18n } from "../i18n";
 
 export function CameraDock() {
   const cameraMode = useAppStore((s) => s.cameraMode);
   const setCameraMode = useAppStore((s) => s.setCameraMode);
   const trackEmphasis = useAppStore((s) => s.trackEmphasis);
   const toggleTrackEmphasis = useAppStore((s) => s.toggleTrackEmphasis);
+  const { t } = useI18n();
 
   return (
-    <div className="camera-dock" role="group" aria-label="Camera">
-      <span className="camera-dock__label">CAMERA</span>
-      {MODES.map((m) => (
+    <div className="camera-dock" role="group" aria-label={t("camera.label")}>
+      <span className="camera-dock__label">{t("camera.label")}</span>
+      {CAMERA_MODES.map((m, i) => (
         <button
-          key={m.id}
+          key={m}
           type="button"
-          data-camera={m.id}
-          className={cameraMode === m.id ? "is-active" : ""}
-          onClick={() => setCameraMode(m.id)}
-          title={m.hint}
+          data-camera={m}
+          className={cameraMode === m ? "is-active" : ""}
+          aria-pressed={cameraMode === m}
+          onClick={() => setCameraMode(m as CameraMode)}
+          title={`${t(`camera.${m}Hint`)} · ${i + 1}`}
         >
-          {m.label}
+          {t(`camera.${m}`)}
         </button>
       ))}
       <span className="camera-dock__divider" />
       <button
         type="button"
         className={trackEmphasis ? "is-active" : ""}
+        aria-pressed={trackEmphasis}
         onClick={toggleTrackEmphasis}
-        title="Orbital track emphasis: width is symbolic, centreline is exact telemetry"
+        title={t("camera.trackHint")}
       >
-        Track
+        {t("camera.track")}
       </button>
     </div>
   );

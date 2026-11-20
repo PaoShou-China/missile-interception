@@ -4,9 +4,10 @@ import { OrbitControls } from "@react-three/drei";
 import * as THREE from "three";
 import type { OrbitControls as OrbitControlsImpl } from "three-stdlib";
 import { simClock, useAppStore, type CameraMode } from "../state/store";
+import { BODY_CAMERAS } from "../state/cameraModes";
 import { KM } from "./constants";
 import { geodeticToEcef } from "../scientific/geodesy";
-import { shotAt } from "../cinematic/shots";
+import { shotAtWall, simToWall } from "../cinematic/shots";
 
 const REGION = geodeticToEcef(34, 118, 0);
 
@@ -51,7 +52,8 @@ export function CameraRig() {
 
     let mode: CameraMode = cameraMode;
     if (presentation === "cinematic") {
-      mode = shotAt(simClock.time).mode;
+      const { startS, endS } = rt.manifest.time;
+      mode = shotAtWall(simToWall(simClock.time, startS, endS)).mode;
     }
 
     if (mode === "free") {
@@ -73,10 +75,54 @@ export function CameraRig() {
     const mvel = new THREE.Vector3(ms.velocity.x, ms.velocity.y, ms.velocity.z).normalize();
     const up = new THREE.Vector3(mpos.x, mpos.y, mpos.z).normalize();
 
+    // Body-locked close-ups: offsets are expressed in the vehicle body frame
+    // (x forward, y right, z down) and rotated by the recorded attitude.
+    if (BODY_CAMERAS.includes(mode)) {
+      const q = new THREE.Quaternion(ms.attitude.x, ms.attitude.y, ms.attitude.z, ms.attitude.w);
+      const bodyUp = new THREE.Vector3(0, 0, -1).applyQuaternion(q);
+      let off: THREE.Vector3;
+      let lookOff: THREE.Vector3 | null;
+      let fov = 45;
+      switch (mode) {
+        case "fin":
+          off = new THREE.Vector3(-0.0064, 0.0030, -0.0032);
+          lookOff = new THREE.Vector3(-0.0022, 0, 0);
+          fov = 42;
+          break;
+        case "engine":
+          off = new THREE.Vector3(-0.0082, 0.0016, -0.0026);
+          lookOff = new THREE.Vector3(-0.0028, 0, 0.0002);
+          fov = 40;
+          break;
+        case "attitude":
+          off = new THREE.Vector3(0.0008, 0.0074, -0.0062);
+          lookOff = new THREE.Vector3(0, 0, 0);
+          fov = 46;
+          break;
+        default: { // seeker
+          off = new THREE.Vector3(0.0048, 0.0008, -0.0006);
+          lookOff = null;
+          fov = 38;
+        }
+      }
+      const desiredPos = off.clone().applyQuaternion(q).add(mpos);
+      const desiredLook = lookOff ? lookOff.clone().applyQuaternion(q).add(mpos) : tpos;
+      camera.position.copy(desiredPos);
+      camera.up.copy(bodyUp);
+      camera.lookAt(desiredLook);
+      cam.fov = fov;
+      camera.updateProjectionMatrix();
+      lastMode.current = mode;
+      lastPresentation.current = presentation;
+      return;
+    }
+
     const desiredPos = new THREE.Vector3();
     const desiredLook = new THREE.Vector3();
     const elapsed = simClock.time - rt.manifest.time.startS;
-    const shot = presentation === "cinematic" ? shotAt(t) : null;
+    const shot = presentation === "cinematic"
+      ? shotAtWall(simToWall(simClock.time, rt.manifest.time.startS, rt.manifest.time.endS))
+      : null;
     // Anchor for smoothing: near-field modes follow a moving vehicle, so the
     // camera offset is smoothed in the anchor's frame. Otherwise a 20x playback
     // rate would leave the camera kilometres behind at 60 fps.

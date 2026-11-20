@@ -8,9 +8,9 @@ import { create } from "zustand";
 import type { ScenarioManifest, TrajectorySample } from "../scientific/types";
 import { SimulationClock } from "../scientific/clock";
 import { TrajectorySampler } from "../scientific/interpolate";
-import { CINEMATIC_SHOTS } from "../cinematic/shots";
+import type { CameraMode } from "./cameraModes";
 
-export type CameraMode = "free" | "chase" | "launch" | "earth" | "target" | "top";
+export type { CameraMode };
 export type PresentationMode = "scientific" | "cinematic";
 export type QualityLevel = "high" | "medium" | "low";
 export type SidePanel = "mission" | "telemetry" | "charts";
@@ -40,6 +40,7 @@ interface AppStore {
   presentation: PresentationMode;
   quality: QualityLevel;
   panels: Record<SidePanel, boolean>;
+  mobilePanel: SidePanel;
   loadingProgress: number;
   hudVisible: boolean;
   trackEmphasis: boolean;
@@ -60,6 +61,7 @@ interface AppStore {
   setPresentation: (m: PresentationMode) => void;
   setQuality: (q: QualityLevel) => void;
   togglePanel: (p: SidePanel) => void;
+  setMobilePanel: (p: SidePanel) => void;
   setHudVisible: (v: boolean) => void;
   toggleTrackEmphasis: () => void;
 }
@@ -77,6 +79,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
   presentation: "scientific",
   quality: "high",
   panels: { mission: true, telemetry: true, charts: true },
+  mobilePanel: "telemetry",
   loadingProgress: 0,
   hudVisible: true,
   trackEmphasis: true,
@@ -131,11 +134,9 @@ export const useAppStore = create<AppStore>((set, get) => ({
   setPresentation: (presentation) => {
     if (presentation === "cinematic") {
       scientificRate = get().rate;
-      const firstRate = CINEMATIC_SHOTS[0].rate;
       simClock.seek(simClock.start);
-      simClock.setRate(firstRate);
       simClock.play();
-      set({ presentation, time: simClock.time, playing: true, rate: firstRate });
+      set({ presentation, time: simClock.time, playing: true });
     } else {
       simClock.setRate(scientificRate);
       set({ presentation, playing: simClock.playing, rate: scientificRate });
@@ -143,6 +144,10 @@ export const useAppStore = create<AppStore>((set, get) => ({
   },
   setQuality: (quality) => set({ quality }),
   togglePanel: (p) => set((s) => ({ panels: { ...s.panels, [p]: !s.panels[p] } })),
+  setMobilePanel: (p) => set((s) => ({
+    mobilePanel: p,
+    panels: { ...s.panels, [p]: true },
+  })),
   setHudVisible: (hudVisible) => set({ hudVisible }),
   toggleTrackEmphasis: () => set((s) => ({ trackEmphasis: !s.trackEmphasis })),
 }));

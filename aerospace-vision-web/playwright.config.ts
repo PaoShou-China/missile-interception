@@ -43,7 +43,10 @@ export default defineConfig({
     },
     {
       name: "webkit",
-      use: { ...devices["Desktop Safari"] },
+      // WebKit on Windows can fail while closing a retained trace artifact
+      // (ENOENT in .playwright-artifacts) even when the test body passed.
+      // Keep screenshots, but disable traces for this project.
+      use: { ...devices["Desktop Safari"], trace: "off" },
     },
   ],
   webServer: {

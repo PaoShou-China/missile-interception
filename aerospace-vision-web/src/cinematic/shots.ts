@@ -1,79 +1,101 @@
-/** Camera shot list for the automatic cinematic presentation. */
+/**
+ * Cinematic presentation timeline.
+ *
+ * This timeline is independent of simulation time: the whole mission is mapped
+ * onto a fixed 180-second wall duration. Shots are selected by wall time, so
+ * the film always runs for three minutes regardless of the mission duration.
+ * Nothing here modifies the trajectory data.
+ */
+import type { CameraMode } from "../state/cameraModes";
+
+export const CINEMATIC_WALL_S = 180;
+
 export interface CinematicShot {
   id: string;
-  start: number;
-  end: number;
-  mode: "chase" | "launch" | "earth" | "target" | "top";
-  kicker: string;
-  title: string;
-  caption: string;
+  /** Wall-clock start, seconds into the film. */
+  startWall: number;
+  endWall: number;
+  mode: CameraMode;
   /** Camera distance multiplier used by the rig. */
   distance: number;
-  /** Playback rate for this shot. (end-start)/rate = wall duration. */
-  rate: number;
+  /** i18n keys for the caption. */
+  titleKey: string;
+  captionKey: string;
 }
 
 export const CINEMATIC_SHOTS: CinematicShot[] = [
   {
     id: "ignition",
-    start: 0,
-    end: 22,
+    startWall: 0,
+    endWall: 24,
     mode: "launch",
-    kicker: "T+00:00",
-    title: "Ignition",
-    caption: "Lift-off from the inland launch site. Attitude is replayed from the validated 6-DoF state.",
     distance: 0.055,
-    rate: 3.7,
+    titleKey: "cinematic.shot.ignition.title",
+    captionKey: "cinematic.shot.ignition.caption",
   },
   {
     id: "boost",
-    start: 22,
-    end: 95,
+    startWall: 24,
+    endWall: 58,
     mode: "chase",
-    kicker: "T+00:22",
-    title: "Boost",
-    caption: "Powered ascent. Position and attitude come directly from the telemetry stream — no scripted animation.",
     distance: 0.04,
-    rate: 8.1,
+    titleKey: "cinematic.shot.boost.title",
+    captionKey: "cinematic.shot.boost.caption",
+  },
+  {
+    id: "control",
+    startWall: 58,
+    endWall: 82,
+    mode: "fin",
+    distance: 1,
+    titleKey: "cinematic.shot.control.title",
+    captionKey: "cinematic.shot.control.caption",
   },
   {
     id: "midcourse",
-    start: 95,
-    end: 420,
+    startWall: 82,
+    endWall: 118,
     mode: "earth",
-    kicker: "T+01:35",
-    title: "Midcourse",
-    caption: "Exo-atmospheric flight over the Earth-fixed frame. The trajectory is drawn at true scale.",
     distance: 1,
-    rate: 16.3,
+    titleKey: "cinematic.shot.midcourse.title",
+    captionKey: "cinematic.shot.midcourse.caption",
   },
   {
     id: "guidance",
-    start: 420,
-    end: 650,
+    startWall: 118,
+    endWall: 146,
     mode: "top",
-    kicker: "T+07:00",
-    title: "Guidance",
-    caption: "Terminal geometry builds as the interceptor closes on the target datum.",
     distance: 1,
-    rate: 16.4,
+    titleKey: "cinematic.shot.guidance.title",
+    captionKey: "cinematic.shot.guidance.caption",
   },
   {
     id: "terminal",
-    start: 650,
-    end: 1e9,
+    startWall: 146,
+    endWall: CINEMATIC_WALL_S,
     mode: "target",
-    kicker: "T+10:50",
-    title: "Terminal",
-    caption: "Final seconds. Separation is shown at true scale; the ring marks the recorded intercept point.",
     distance: 0.5,
-    rate: 2.7,
+    titleKey: "cinematic.shot.terminal.title",
+    captionKey: "cinematic.shot.terminal.caption",
   },
 ];
 
-export function shotAt(time: number): CinematicShot {
+export function shotAtWall(wall: number): CinematicShot {
   for (let i = CINEMATIC_SHOTS.length - 1; i >= 0; i--) {
-    if (time >= CINEMATIC_SHOTS[i].start) return CINEMATIC_SHOTS[i];
+    if (wall >= CINEMATIC_SHOTS[i].startWall) return CINEMATIC_SHOTS[i];
   }
   return CINEMATIC_SHOTS[0];
+}
+
+/** Map wall seconds to simulation seconds (linear across the mission). */
+export function wallToSim(wall: number, start: number, end: number): number {
+  const f = Math.min(1, Math.max(0, wall / CINEMATIC_WALL_S));
+  return start + f * (end - start);
+}
+
+/** Inverse mapping, used by the overlay to show the presentation clock. */
+export function simToWall(t: number, start: number, end: number): number {
+  const span = end - start;
+  if (!(span > 0)) return 0;
+  return Math.min(CINEMATIC_WALL_S, Math.max(0, ((t - start) / span) * CINEMATIC_WALL_S));
 }

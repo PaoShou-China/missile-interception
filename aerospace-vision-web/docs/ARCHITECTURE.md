@@ -109,7 +109,8 @@ From `src/scientific/types.ts`:
 - `SceneEntity` — id/label/kind/colour + samples.
 - `ScientificObservable` — key/label/unit/description/precision.
 - `VisualizationEvent` — time-stamped, typed mission event.
-- `CameraMode` (`state/store.ts`) — earth, chase, top, target, free.
+- `CameraMode` (`state/cameraModes.ts`) — earth, top, chase, launch, target,
+  free, fin, engine, attitude, seeker.
 - `PlaybackState` — `SimulationClock` exposes time, rate, playing, progress.
 
 ## 7. Extension points
@@ -118,3 +119,83 @@ New scenarios only need a new adapter output directory and a manifest; the
 loader URL can become a query parameter (`?scenario=...`) without touching scene
 code. Additional entities can be added by extending `SceneEntity.kind` and the
 visual switch in `Entities.tsx`.
+
+## 8. V4 structure (bilingual academic site)
+
+```
+src/
+  app/
+    App.tsx           hash-router shell; academic routes vs. explorer
+    router.ts         "/", "/methodology", "/results", "/verification",
+                      "/resources", "/explore"
+    ExploreApp.tsx    the 3D application (mounts only at #/explore)
+  i18n/
+    messages.ts       flat zh/en catalogue with {var} interpolation
+    index.tsx         provider, persistence (localStorage), <html lang>, title
+  pages/
+    Layout.tsx        sticky academic header, nav, language switch, footer
+    HomePage.tsx      hero, live metrics, capability grid, audit callout
+    MethodologyPage.tsx / ResultsPage.tsx / VerificationPage.tsx /
+    ResourcesPage.tsx (legacy paths + audit docs + source links)
+  scientific/
+    astronomy.ts      NOAA solar + low-precision lunar ECEF directions
+    types.ts          schema 1.1.0 (fin deflection, body rates, experiment)
+  cinematic/shots.ts  independent 180 s presentation timeline
+  state/
+    cameraModes.ts    10 ordered modes (numeric hotkeys 1..0)
+```
+
+The explorer is mounted only on `#/explore`, so the academic pages never stream
+the 8K Earth texture. Vite `base: "./"` plus hash routing keeps deep links valid
+on GitHub Pages project sites.
+
+### 8.1 Ten cameras
+
+`earth`, `top`, `chase`, `launch`, `target`, `free`, `fin`, `engine`,
+`attitude`, `seeker`. The four close-ups resolve offsets in the vehicle body
+frame and rotate them by the recorded attitude quaternion, so they remain
+locked to the true orientation at any playback rate. `fin` is driven by the
+recorded four-channel deflection data; `attitude` shows the body-axis triad.
+
+### 8.2 Astronomy
+
+`skyStateAt(demoUtc, elapsedS)` returns unit sun/moon ECEF directions plus the
+launch-site sun elevation. `SpaceEnvironment` updates a directional light, the
+sun/moon meshes and the atmosphere shader uniforms. The epoch is fixed and
+declared in the payload (`time.demoUtc`); it never changes trajectory data.
+
+### 8.3 Cinematic presentation clock
+
+`CINEMATIC_WALL_S = 180`. `ClockDriver` advances simulation time by
+`dt / 180 × (end − start)` while cinematic playback is active, so the film
+duration is independent of mission duration. Shots are selected by wall time;
+the overlay derives the presentation clock from the linear mapping and offers
+pause, ±15 s skip and exit.
+
+### 8.4 Loading strategy
+
+`ExploreApp` and `ResultsPage` are `React.lazy` routes. Vite emits separate
+`three` and `echarts` chunks, so academic pages ship only the entry bundle
+(~274 kB, 87 kB gzip) and never stream 8K textures or WebGL code.
+
+### 8.5 Route metadata and social preview
+
+A single `RouteMeta` effect owns document title, description, canonical URL,
+Open Graph/Twitter tags and locale. `index.html` carries static defaults plus
+JSON-LD `WebSite` so crawlers that do not execute the hash route still get
+valid metadata.
+
+### 8.6 Responsive explorer
+
+Below 760 px the two desktop rails become a single sheet with a three-tab
+switcher (mission / telemetry / charts); the camera dock becomes a horizontal
+scroller. The sheet is rendered only in scientific mode, and the active tab is
+stored in Zustand so panel content keeps its state.
+
+### 8.7 Accessibility and print
+
+- Skip link focuses the `main` landmark without touching the hash route.
+- Camera, presentation and track toggles expose `aria-pressed`.
+- Global `:focus-visible` ring; `prefers-reduced-motion` removes transitions.
+- A print stylesheet hides chrome, expands the page and avoids breaking cards
+  and charts, so the results/verification pages can be exported as a report.

@@ -4,9 +4,9 @@
     "repository": "https://github.com/PaoShou-China/missile-interception",
     "commit": "workspace",
     "telemetryFile": "missile_intercept/output/telemetry.csv",
-    "telemetryRows": 67164,
-    "sha256": "0c5a2691f07de590e6ceff19edf2e16604fc5726a6ebaaf66b6f3074ea01a7fc",
-    "generatedAt": "2026-11-20T12:20:52+00:00",
+    "telemetryRows": 67276,
+    "sha256": "75353276be436322e1a16eb929206f8a6ff991cb45bcc609093dad37154e347f",
+    "generatedAt": "2026-11-20T16:40:26+00:00",
     "generator": "tools/data-adapter/build_scenario.py",
     "license": "MIT (source repository)"
   },
@@ -21,7 +21,7 @@
       "id": "finite-values",
       "description": "All telemetry values are finite",
       "status": "PASS",
-      "detail": "rows=67164, columns=132"
+      "detail": "rows=67276, columns=132"
     },
     {
       "id": "eci-ecef-alignment",
@@ -33,7 +33,7 @@
       "id": "velocity-frame",
       "description": "ECEF velocity = Rz(-omega t)(v_ECI - omega x r_ECI)",
       "status": "PASS",
-      "detail": "at t=335.8 s, frame error = 6.829e-07 m/s"
+      "detail": "at t=336.4 s, frame error = 5.213e-07 m/s"
     },
     {
       "id": "llh-ecef-roundtrip",
@@ -45,7 +45,7 @@
       "id": "quaternion-normalized",
       "description": "Attitude quaternions are unit length (scalar first)",
       "status": "PASS",
-      "detail": "max |‖q‖-1| = 8.176e-07 (CSV is printed with 6 decimals)"
+      "detail": "max |‖q‖-1| = 8.182e-07 (CSV is printed with 6 decimals)"
     },
     {
       "id": "speed-semantics",
@@ -63,26 +63,32 @@
       "id": "altitude-units",
       "description": "Altitude is WGS84 geodetic height in metres",
       "status": "PASS",
-      "detail": "alt range [0.0, 29980.7] m"
+      "detail": "alt range [0.0, 29897.1] m"
     },
     {
       "id": "sample-recovery",
       "description": "Converted samples reproduce source position and altitude",
       "status": "PASS",
       "detail": "lat err <= 0.06 m, alt err <= 0.00 m"
+    },
+    {
+      "id": "actuator-channels",
+      "description": "Recorded fin deflections and body rates are present and non-trivial",
+      "status": "PASS",
+      "detail": "max |fin| = 0.4363 rad, max |body rate| = 8.6712 rad/s"
     }
   ],
   "metrics": {
-    "missDistanceM": 22.609,
-    "interceptTimeS": 671.63,
-    "maxSpeedMS": 2796.5263,
-    "maxMach": 9.4645,
-    "maxDynamicPressurePa": 867715.913,
+    "missDistanceM": 26.7263,
+    "interceptTimeS": 672.75,
+    "maxSpeedMS": 2798.7138,
+    "maxMach": 9.4806,
+    "maxDynamicPressurePa": 872727.68,
     "maxLoadG": 40.0,
-    "maxAltitudeM": 29980.668,
-    "downrangeKM": 1655.7953,
-    "fuelUsedKg": 1490.1878,
-    "handoverTimeS": 663.93,
-    "flightDurationS": 671.63
+    "maxAltitudeM": 29897.122,
+    "downrangeKM": 1655.373,
+    "fuelUsedKg": 1466.9899,
+    "handoverTimeS": 665.08,
+    "flightDurationS": 672.75
   }
 }

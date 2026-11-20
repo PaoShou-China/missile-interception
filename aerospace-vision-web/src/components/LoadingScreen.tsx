@@ -1,12 +1,14 @@
 import { useEffect, useState } from "react";
 import { useProgress } from "@react-three/drei";
 import { useAppStore } from "../state/store";
+import { useI18n } from "../i18n";
 
 export function LoadingScreen() {
   const status = useAppStore((s) => s.status);
   const error = useAppStore((s) => s.error);
   const { progress } = useProgress();
   const [timedOut, setTimedOut] = useState(false);
+  const { t } = useI18n();
 
   useEffect(() => {
     if (status !== "ready") return;
@@ -23,27 +25,24 @@ export function LoadingScreen() {
     <div className="loading">
       <div className="loading__grid" aria-hidden />
       <div className="loading__content">
-        <div className="loading__brand">AEROSPACE VISION</div>
-        <h1>Scientific trajectory visualisation</h1>
+        <div className="loading__brand">{t("brand.latin")}</div>
+        <h1>{t("loading.title")}</h1>
         {status === "error" ? (
           <>
-            <p className="loading__error">Unable to initialise the scenario.</p>
+            <p className="loading__error">{t("loading.error")}</p>
             <pre>{error}</pre>
             <p className="loading__hint">
-              Run <code>npm run data:build</code> to regenerate the scenario payload.
+              <code>npm run data:build</code> — {t("loading.buildHint")}
             </p>
           </>
         ) : (
           <>
             <p className="loading__stage">
-              ACQUIRING TELEMETRY · VALIDATING WGS84 FRAMES
-              {assetsPending ? ` · EARTH TEXTURES ${Math.round(progress)}%` : ""}
+              {t("loading.stage")}
+              {assetsPending ? ` · ${t("loading.textures")} ${Math.round(progress)}%` : ""}
             </p>
             <div className="loading__bar"><span /></div>
-            <p className="loading__hint">
-              Positions are replayed in the Earth-fixed frame at true scale.
-              High quality streams an 8K day map, so the first load can take a moment.
-            </p>
+            <p className="loading__hint">{t("loading.hint")}</p>
           </>
         )}
       </div>

@@ -36,6 +36,20 @@ jobs:
         run: npm test
       - name: Production build
         run: npm run build
+      - name: Stage legacy static reports at their original paths
+        run: |
+          # Original public paths (kept working for existing links)
+          cp -r ../assets ../intercept-report ../missile-intercept-overview ../test-report dist/
+          # Legacy aliases used by earlier releases
+          mkdir -p dist/legacy
+          cp ../index.html dist/legacy/
+          cp -r ../assets ../intercept-report ../missile-intercept-overview ../test-report dist/legacy/
+      - name: Verify legacy report entry points exist
+        run: |
+          test -f dist/missile-intercept-overview/missile-intercept-overview.html
+          test -f dist/intercept-report/intercept-report.html
+          test -f dist/test-report/missile_interceptor_test_report.html
+          test -d dist/assets
       - name: Install Playwright browsers
         run: npx playwright install --with-deps chromium firefox webkit
       - name: Install Mesa software GL (Firefox)
@@ -55,11 +69,6 @@ jobs:
           name: browser-test-results
           path: aerospace-vision-web/test-results
           retention-days: 7
-      - name: Stage legacy static report
-        run: |
-          mkdir -p dist/legacy
-          cp ../index.html dist/legacy/
-          cp -r ../assets ../intercept-report ../missile-intercept-overview ../test-report dist/legacy/
       - name: Add .nojekyll
         run: touch dist/.nojekyll
       - uses: actions/configure-pages@v5

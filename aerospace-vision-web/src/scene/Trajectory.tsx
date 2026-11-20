@@ -20,8 +20,8 @@ function makeGeometry(samples: TrajectorySample[], colored = false): THREE.Buffe
   g.setAttribute("position", new THREE.BufferAttribute(positionsArray(samples), 3));
   if (colored) {
     const colors = new Float32Array(samples.length * 3);
-    const low = new THREE.Color("#ff8a3d");
-    const high = new THREE.Color("#ffe7c4");
+    const low = new THREE.Color("#2078bf");
+    const high = new THREE.Color("#a8ecff");
     const c = new THREE.Color();
     for (let i = 0; i < samples.length; i++) {
       const f = Math.min(1, Math.max(0, samples[i].altM / 30000));
@@ -87,8 +87,8 @@ export function TrajectoryRibbon() {
     const geom = new THREE.TubeGeometry(curve, 900, 3.0, 4, false);
     const pos = geom.getAttribute("position");
     const colors = new Float32Array(pos.count * 3);
-    const low = new THREE.Color("#ff8a3d");
-    const high = new THREE.Color("#ffe7c4");
+    const low = new THREE.Color("#2078bf");
+    const high = new THREE.Color("#a8ecff");
     const c = new THREE.Color();
     for (let i = 0; i < pos.count; i++) {
       const r = Math.hypot(pos.getX(i), pos.getY(i), pos.getZ(i));
@@ -114,8 +114,8 @@ export function TrajectoryRibbon() {
     const ctx = c.getContext("2d")!;
     const g = ctx.createRadialGradient(32, 32, 0, 32, 32, 32);
     g.addColorStop(0, "rgba(255,255,255,1)");
-    g.addColorStop(0.25, "rgba(255,196,110,0.8)");
-    g.addColorStop(1, "rgba(255,140,40,0)");
+    g.addColorStop(0.25, "rgba(122,222,244,0.8)");
+    g.addColorStop(1, "rgba(32,120,191,0)");
     ctx.fillStyle = g;
     ctx.fillRect(0, 0, 64, 64);
     return new THREE.CanvasTexture(c);

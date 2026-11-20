@@ -8,7 +8,7 @@ import { TrajectoryRibbon } from "./Trajectory";
 import { EntityVisual, SurfaceBeacon } from "./Entities";
 import { simClock, useAppStore } from "../state/store";
 import { COLORS } from "./constants";
-import { shotAt } from "../cinematic/shots";
+import { CINEMATIC_WALL_S } from "../cinematic/shots";
 
 /** Advances the single simulation clock and mirrors it to React state. */
 function ClockDriver() {
@@ -16,10 +16,17 @@ function ClockDriver() {
   useFrame((_, dt) => {
     const state = useAppStore.getState();
     if (state.presentation === "cinematic" && state.runtime) {
-      const shot = shotAt(simClock.time);
-      if (Math.abs(simClock.rate - shot.rate) > 1e-6) simClock.setRate(shot.rate);
+      // Independent three-minute presentation clock: map wall time to the
+      // mission span. Simulation time is still the only time source for data.
+      if (simClock.playing) {
+        const span = state.runtime.manifest.time.endS - state.runtime.manifest.time.startS;
+        const next = Math.min(simClock.end, simClock.time + (dt / CINEMATIC_WALL_S) * span);
+        simClock.seek(next);
+        if (next >= simClock.end) simClock.pause();
+      }
+    } else if (simClock.playing) {
+      simClock.tick(dt);
     }
-    if (simClock.playing) simClock.tick(dt);
     acc.current += dt;
     if (acc.current >= 0.05) {
       acc.current = 0;
@@ -69,7 +76,7 @@ function CameraFillLight() {
   return <pointLight ref={light} intensity={0.1} distance={0.3} decay={2} color="#cfe0ff" />;
 }
 
-function ScenarioScene() {
+function ScenarioScene({ missileLabel, targetLabel }: { missileLabel: string; targetLabel: string }) {
   const runtime = useAppStore((s) => s.runtime);
   const presentation = useAppStore((s) => s.presentation);
   if (!runtime) return null;
@@ -79,8 +86,8 @@ function ScenarioScene() {
       <CameraFillLight />
       <SpaceEnvironment />
       <TrajectoryRibbon />
-      <EntityVisual kind="missile" label="INTERCEPTOR" color={COLORS.accent} showLabel={presentation === "scientific"} />
-      <EntityVisual kind="target" label="TARGET" color={COLORS.cyan} showLabel={presentation === "scientific"} />
+      <EntityVisual kind="missile" label={missileLabel} color={COLORS.accent} showLabel={presentation === "scientific"} />
+      <EntityVisual kind="target" label={targetLabel} color={COLORS.cyan} showLabel={presentation === "scientific"} />
       <SurfaceBeacon
         latDeg={manifest.launchSite.latDeg}
         lonDeg={manifest.launchSite.lonDeg}
@@ -102,7 +109,7 @@ function ScenarioScene() {
   );
 }
 
-export function SceneCanvas() {
+export function SceneCanvas({ missileLabel, targetLabel }: { missileLabel: string; targetLabel: string }) {
   const quality = useAppStore((s) => s.quality);
   const dpr: [number, number] = quality === "low" ? [1, 1.3] : quality === "medium" ? [1, 1.7] : [1, 2];
   return (
@@ -115,7 +122,7 @@ export function SceneCanvas() {
       <RendererSetup />
       <ClockDriver />
       <Suspense fallback={null}>
-        <ScenarioScene />
+        <ScenarioScene missileLabel={missileLabel} targetLabel={targetLabel} />
       </Suspense>
       <Effects />
     </Canvas>

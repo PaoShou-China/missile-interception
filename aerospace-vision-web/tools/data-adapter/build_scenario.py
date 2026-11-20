@@ -54,7 +54,14 @@ REQUIRED_COLUMNS = [
     "a_act_x", "a_act_y", "a_act_z", "a_cmd_x", "a_cmd_y", "a_cmd_z",
     "mass", "fov_angle", "range", "phase", "seeker_lock", "handover",
     "roll_deg", "pitch_deg", "yaw_deg", "m_speed",
+    "fin_up", "fin_down", "fin_left", "fin_right",
+    "p", "q_rate", "r_rate",
 ]
+
+SCHEMA_VERSION = "1.1.0"
+# Fixed demonstration epoch for sun/moon placement only. The source telemetry
+# is UTC-agnostic; this value never alters trajectory data.
+DEMO_UTC = "2026-11-20T02:00:00Z"
 
 N_MISSILE_SAMPLES = 1500
 N_TARGET_SAMPLES = 240
@@ -324,6 +331,16 @@ def main():
               bool(lat_err < 1.0 and alt_err < 0.5),
               "lat err <= %.2f m, alt err <= %.2f m" % (lat_err, alt_err))
 
+    # --- 4b. actuator channels --------------------------------------------
+    fin_cols = ["fin_up", "fin_down", "fin_left", "fin_right"]
+    rate_cols = ["p", "q_rate", "r_rate"]
+    fin_peak = max(float(np.max(np.abs(c(name)))) for name in fin_cols)
+    rate_peak = max(float(np.max(np.abs(c(name)))) for name in rate_cols)
+    fmt_check(checks, "actuator-channels",
+              "Recorded fin deflections and body rates are present and non-trivial",
+              bool(fin_peak > 0.0 and rate_peak > 0.0),
+              "max |fin| = %.4f rad, max |body rate| = %.4f rad/s" % (fin_peak, rate_peak))
+
     load_g = np.linalg.norm(np.column_stack([c("a_act_x"), c("a_act_y"), c("a_act_z")]),
                             axis=1) / G0
     load_cmd = np.linalg.norm(np.column_stack([c("a_cmd_x"), c("a_cmd_y"), c("a_cmd_z")]),
@@ -361,6 +378,17 @@ def main():
             "phase": PHASE_NAMES.get(int(phase[i]), "coast"),
             "seekerLock": bool(c("seeker_lock")[i] > 0.5),
             "handover": bool(c("handover")[i] > 0.5),
+            "finDeflectionsRad": {
+                "up": round(float(c("fin_up")[i]), 6),
+                "down": round(float(c("fin_down")[i]), 6),
+                "left": round(float(c("fin_left")[i]), 6),
+                "right": round(float(c("fin_right")[i]), 6),
+            },
+            "bodyRatesRadS": {
+                "p": round(float(c("p")[i]), 6),
+                "q": round(float(c("q_rate")[i]), 6),
+                "r": round(float(c("r_rate")[i]), 6),
+            },
         })
 
     # --- 6. target entity (attitude derived from ECEF velocity) -----------
@@ -496,11 +524,55 @@ def main():
          "description": "Missile-to-target line-of-sight distance."},
         {"key": "massKg", "label": "Mass", "unit": "kg", "precision": 1,
          "description": "Current vehicle mass including remaining propellant."},
+        {"key": "finDeflectionsRad", "label": "Fin deflection", "unit": "deg", "precision": 2,
+         "description": "Recorded cruciform fin deflections relative to trim (+ up fin shown)."},
+        {"key": "bodyRatesRadS", "label": "Body rate", "unit": "deg/s", "precision": 2,
+         "description": "Recorded body angular rates p (roll), q (pitch), r (yaw)."},
     ]
+
+    # Reproducibility hinges on the batch artifact still holding the campaign
+    # that the legacy reports cite. A short verification run overwrites it.
+    reproducibility = "reproducible"
+    batch_notes = []
+    batch_csv = os.path.join(os.path.dirname(args.source), "batch", "batch_results.csv")
+    batch_rows = 0
+    if os.path.exists(batch_csv):
+        with open(batch_csv, "r", encoding="utf-8", errors="replace") as f:
+            batch_rows = max(0, sum(1 for _ in f) - 1)
+    if batch_rows < 50:
+        reproducibility = "unreproducible-current-artifacts"
+        batch_notes.append(
+            "Monte-Carlo batch artifact holds %d case(s); the 100-case campaign "
+            "cited by the legacy reports cannot be re-derived from this workspace." % batch_rows)
+    git_dirty = os.environ.get("GIT_COMMIT") is None
+    if git_dirty:
+        batch_notes.append(
+            "Source telemetry was generated from a dirty working tree; "
+            "source.commit is recorded as 'workspace'.")
+    experiment = {
+        "kind": "simulation",
+        "name": "Nominal coastal intercept, single deterministic shot",
+        "purpose": "Replay a validated 6-DoF trajectory for scientific visualisation "
+                   "and interactive inspection.",
+        "engine": "missile-interception 6-DoF point-mass/attitude integrator, "
+                  "10 ms telemetry grid, seeker + terminal guidance",
+        "dtS": round(float(np.median(np.diff(t))), 6),
+        "dispersion": {
+            "launchCepM": 500,
+            "targetCepM": 2000,
+            "altitudeSigmaM": 500,
+            "machSigma": 0.05,
+            "maneuverSigmaG": 1.0,
+            "note": "Campaign dispersion values from the source project configuration; "
+                    "this payload is the nominal deterministic case, not a Monte-Carlo sample.",
+        },
+        "reproducibility": reproducibility,
+        "notes": batch_notes,
+    }
 
     all_pass = all(ch["status"] == "PASS" for ch in checks)
     manifest = {
-        "schemaVersion": "1.0.0",
+        "schemaVersion": SCHEMA_VERSION,
         "id": "missile-intercept-001",
         "title": "Coastal Intercept",
         "subtitle": "Inland launch → high-altitude target · WGS84 · ECEF replay",
@@ -524,6 +596,7 @@ def main():
             "sampleCount": len(samples),
             "sourceRows": int(n),
             "sourceStepS": round(float(np.median(np.diff(t))), 6),
+            "demoUtc": DEMO_UTC,
         },
         "frames": {
             "render": "ECEF",
@@ -542,6 +615,7 @@ def main():
             "generator": "tools/data-adapter/build_scenario.py",
             "license": "MIT (source repository)",
         },
+        "experiment": experiment,
         "metrics": metrics,
         "launchSite": {"latDeg": LAUNCH_LAT, "lonDeg": LAUNCH_LON,
                        "altM": LAUNCH_ALT, "label": "Launch site"},

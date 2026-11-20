@@ -17,8 +17,26 @@ describe("scenario payload (scientific gate G1)", () => {
     const issues = validateScenario(manifest);
     const errors = issues.filter((i) => i.severity === "error");
     expect(errors).toEqual([]);
-    expect(manifest.schemaVersion).toBe("1.0.0");
+    expect(manifest.schemaVersion).toBe("1.1.0");
     expect(manifest.frames.render).toBe("ECEF");
+    expect(manifest.experiment.kind).toBe("simulation");
+    expect(manifest.time.demoUtc.length).toBeGreaterThan(10);
+    expect(manifest.validation.status).toBe("PASS");
+    expect(manifest.validation.checks).toHaveLength(11);
+    expect(manifest.validation.checks.map((c) => c.id)).toContain("actuator-channels");
+  });
+
+  it("carries recorded fin deflections and body rates", () => {
+    let finPeak = 0;
+    let ratePeak = 0;
+    for (const s of missile) {
+      expect(s.finDeflectionsRad).toBeDefined();
+      expect(s.bodyRatesRadS).toBeDefined();
+      for (const v of Object.values(s.finDeflectionsRad!)) finPeak = Math.max(finPeak, Math.abs(v));
+      for (const v of Object.values(s.bodyRatesRadS!)) ratePeak = Math.max(ratePeak, Math.abs(v));
+    }
+    expect(finPeak).toBeGreaterThan(0);
+    expect(ratePeak).toBeGreaterThan(0);
   });
 
   it("carries at least 1000 missile samples over the full mission", () => {

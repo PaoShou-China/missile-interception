@@ -13,12 +13,15 @@
     "test:e2e": "playwright test",
     "typecheck": "tsc --noEmit",
     "data:build": "python tools/data-adapter/build_scenario.py",
-    "data:verify": "python tools/data-adapter/verify_scenario.py"
+    "data:verify": "python tools/data-adapter/verify_scenario.py",
+    "perf:soak": "node scripts/soak.mjs --minutes 10"
   },
   "dependencies": {
     "@react-three/drei": "10.7.9",
     "@react-three/fiber": "9.8.2",
+    "@react-three/postprocessing": "^3.2.2",
     "echarts": "6.1.0",
+    "postprocessing": "^6.39.6",
     "react": "19.3.1",
     "react-dom": "19.3.1",
     "three": "0.187.0",

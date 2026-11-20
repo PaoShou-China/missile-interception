@@ -11,6 +11,8 @@ const MODES: { id: CameraMode; label: string; hint: string }[] = [
 export function CameraDock() {
   const cameraMode = useAppStore((s) => s.cameraMode);
   const setCameraMode = useAppStore((s) => s.setCameraMode);
+  const trackEmphasis = useAppStore((s) => s.trackEmphasis);
+  const toggleTrackEmphasis = useAppStore((s) => s.toggleTrackEmphasis);
 
   return (
     <div className="camera-dock" role="group" aria-label="Camera">
@@ -19,6 +21,7 @@ export function CameraDock() {
         <button
           key={m.id}
           type="button"
+          data-camera={m.id}
           className={cameraMode === m.id ? "is-active" : ""}
           onClick={() => setCameraMode(m.id)}
           title={m.hint}
@@ -26,6 +29,15 @@ export function CameraDock() {
           {m.label}
         </button>
       ))}
+      <span className="camera-dock__divider" />
+      <button
+        type="button"
+        className={trackEmphasis ? "is-active" : ""}
+        onClick={toggleTrackEmphasis}
+        title="Orbital track emphasis: width is symbolic, centreline is exact telemetry"
+      >
+        Track
+      </button>
     </div>
   );
 }

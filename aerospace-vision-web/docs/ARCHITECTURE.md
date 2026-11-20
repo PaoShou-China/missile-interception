@@ -65,15 +65,37 @@ positions are not clamped to the ellipsoid — they are the telemetry values.
 ## 5. Rendering and performance
 
 - WebGL2, ACES tone mapping, dpr capped by quality.
-- Earth tessellation 160×112 (high) / 96×72 / 64×48.
+- Earth: 8K day map + 4K cloud layer on the high tier (with automatic 2K
+  fallback when `maxTextureSize < 8192`), 2K/1K on medium/low; tessellation
+  192×128 / 96×72 / 64×48.
 - Stars 9 000 / 4 200 / 1 800 points.
-- Trajectory geometry allocated once (1 504 vertices × 3 lines).
-- No shadow maps, no post-processing passes; atmosphere is a two-shell
-  fresnel shader, glows are additive sprites.
+- Moderate HDR bloom (`@react-three/postprocessing`) on the high tier only;
+  medium/low use the additive atmosphere + sprites without the composer.
+- Trajectory geometry allocated once (1 504 vertices × 3 lines, plus a
+  screen-legibility cord that is disabled near the vehicle).
+- No shadow maps. The atmosphere is a two-shell fresnel shader, glows are
+  additive sprites, and a small camera-anchored fill light keeps the backlit
+  vehicle readable without altering any data.
 - Charts are canvas ECharts instances, updated with a mark-line only when time
   changes; chart series are built once.
 - `useFrame` allocations are kept small; textures/geometries are owned by
   memoised objects and released with the component tree.
+
+## 5.1 Cinematic pacing
+
+Each shot declares a sim-time range and a playback rate. The wall duration is
+`(end - start) / rate`; entering cinematic mode seeks to 0, applies the first
+shot rate, and cuts directly to the launch framing. The clock driver updates
+the rate at each shot boundary, so captions stay on screen for 6–22 seconds
+regardless of the scenario's absolute duration. Exiting restores the scientific
+playback rate that was active before the tour.
+
+## 5.2 Track emphasis
+
+At orbital distances a 1-pixel line is hard to read, so an additive cord of
+3 km radius follows the exact centreline. Its width is symbolic and is disclosed
+in the UI; the **Track** toggle removes it, leaving the true-scale polyline.
+Within ~800 km of the surface the cord is hidden automatically.
 
 ## 6. Interfaces (frozen at G0)
 

@@ -1,4 +1,4 @@
-import { test, expect } from "@playwright/test";
+﻿import { test, expect } from "@playwright/test";
 import path from "node:path";
 import fs from "node:fs";
 
@@ -67,13 +67,20 @@ test("camera modes switch and the chase view renders", async ({ page }) => {
   await expect(page.locator(".camera-dock")).toBeVisible({ timeout: 45_000 });
   await page.getByRole("button", { name: "Chase", exact: true }).click();
   await page.waitForTimeout(1600);
-  await expect(page.locator(".camera-dock button.is-active")).toHaveText("Chase");
+  await expect(page.locator("button[data-camera].is-active")).toHaveText("Chase");
   await page.screenshot({ path: path.join(SHOTS, "03-chase-camera.png") });
 
   await page.getByRole("button", { name: "Free", exact: true }).click();
-  await expect(page.locator(".camera-dock button.is-active")).toHaveText("Free");
+  await expect(page.locator("button[data-camera].is-active")).toHaveText("Free");
   await page.getByRole("button", { name: "Earth", exact: true }).click();
-  await expect(page.locator(".camera-dock button.is-active")).toHaveText("Earth");
+  await expect(page.locator("button[data-camera].is-active")).toHaveText("Earth");
+
+  const track = page.locator(".camera-dock button", { hasText: "Track" });
+  await expect(track).toHaveClass(/is-active/);
+  await track.click();
+  await expect(track).not.toHaveClass(/is-active/);
+  await track.click();
+  await expect(track).toHaveClass(/is-active/);
 });
 
 test("cinematic mode runs a captioned shot sequence and exits cleanly", async ({ page }) => {
@@ -90,6 +97,7 @@ test("cinematic mode runs a captioned shot sequence and exits cleanly", async ({
 });
 
 test("measures animation frame rate over two seconds", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "chromium", "Hardware FPS gate is measured on Chromium only");
   await page.goto("/");
   await expect(page.locator(".telemetry-panel")).toBeVisible({ timeout: 45_000 });
   await page.locator(".transport--play").click();
@@ -129,3 +137,4 @@ test("measures animation frame rate over two seconds", async ({ page }, testInfo
     expect(fps).toBeGreaterThan(20);
   }
 });
+

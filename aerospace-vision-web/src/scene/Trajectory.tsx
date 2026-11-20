@@ -42,6 +42,7 @@ function makeGeometry(samples: TrajectorySample[], colored = false): THREE.Buffe
 export function TrajectoryRibbon() {
   const runtime = useAppStore((s) => s.runtime);
   const presentation = useAppStore((s) => s.presentation);
+  const emphasis = useAppStore((s) => s.trackEmphasis);
   const missile = runtime?.missile ?? [];
   const target = runtime?.target ?? [];
 
@@ -101,6 +102,7 @@ export function TrajectoryRibbon() {
     return geom;
   }, [missile]);
   const tubeRef = useRef<THREE.Mesh>(null);
+  const dotsRef = useRef<THREE.Points>(null);
   const traveled = useRef<THREE.Line | null>(null);
   const head = useRef<THREE.Sprite>(null);
   const ring = useRef<THREE.Group>(null);
@@ -155,7 +157,10 @@ export function TrajectoryRibbon() {
       ring.current.position.copy(intercept.pos);
     }
     if (tubeRef.current) {
-      tubeRef.current.visible = camera.position.length() > 6371 * 1.12;
+      tubeRef.current.visible = emphasis && camera.position.length() > 6371 * 1.12;
+    }
+    if (dotsRef.current) {
+      dotsRef.current.visible = emphasis;
     }
   });
 
@@ -169,7 +174,7 @@ export function TrajectoryRibbon() {
           <meshBasicMaterial vertexColors transparent opacity={0.5} blending={THREE.AdditiveBlending} depthWrite={false} />
         </mesh>
       )}
-      <points geometry={dotGeom}>
+      <points ref={dotsRef} geometry={dotGeom}>
         <pointsMaterial
           color={COLORS.accentSoft}
           size={2.2}

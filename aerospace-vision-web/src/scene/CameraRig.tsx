@@ -26,6 +26,7 @@ export function CameraRig() {
   const controls = useRef<OrbitControlsImpl>(null);
   const look = useRef(regionAnchor());
   const lastMode = useRef<CameraMode | null>(null);
+  const lastPresentation = useRef(presentation);
   const camOffset = useRef(new THREE.Vector3());
   const lookOffset = useRef(new THREE.Vector3());
 
@@ -79,11 +80,22 @@ export function CameraRig() {
     // Anchor for smoothing: near-field modes follow a moving vehicle, so the
     // camera offset is smoothed in the anchor's frame. Otherwise a 20x playback
     // rate would leave the camera kilometres behind at 60 fps.
-    const follow = mode === "chase" || mode === "target";
+    const follow = mode === "chase" || mode === "target" || mode === "launch";
     let anchorPoint = mpos;
     let lookAnchor = mpos;
 
-    if (mode === "chase") {
+    if (mode === "launch") {
+      // Ground-observer framing: side-on to the boost, with the Earth in the
+      // lower part of the frame instead of pointing the chase camera at space.
+      const side = new THREE.Vector3().crossVectors(mvel, up).normalize();
+      const dist = 0.07;
+      desiredPos.copy(mpos)
+        .addScaledVector(side, dist)
+        .addScaledVector(up, dist * 0.16)
+        .addScaledVector(mvel, -dist * 0.28);
+      desiredLook.copy(mpos).addScaledVector(mvel, dist * 0.12);
+      cam.fov = 46;
+    } else if (mode === "chase") {
       const dist = shot ? 0.035 + shot.distance * 0.5 : 0.075;
       const side = new THREE.Vector3().crossVectors(mvel, up).normalize();
       desiredPos.copy(mpos)
@@ -126,8 +138,16 @@ export function CameraRig() {
     }
 
     const modeChanged = lastMode.current !== mode;
+    // Cinematic mode opens on a cut, like a film. Without this the first shot
+    // has to fly in from the orbital view, which is slow on low-end GPUs.
+    const justEnteredCinematic =
+      presentation === "cinematic" && lastPresentation.current !== "cinematic";
+
     if (follow) {
-      if (modeChanged) {
+      if (justEnteredCinematic) {
+        camOffset.current.copy(desiredPos).sub(anchorPoint);
+        lookOffset.current.copy(desiredLook).sub(lookAnchor);
+      } else if (modeChanged) {
         camOffset.current.copy(camera.position).sub(anchorPoint);
         lookOffset.current.copy(look.current).sub(lookAnchor);
       }
@@ -136,6 +156,9 @@ export function CameraRig() {
       lookOffset.current.lerp(desiredLook.clone().sub(lookAnchor), damp(rate + 1.5, dt));
       camera.position.copy(anchorPoint).add(camOffset.current);
       look.current.copy(lookAnchor).add(lookOffset.current);
+    } else if (justEnteredCinematic) {
+      camera.position.copy(desiredPos);
+      look.current.copy(desiredLook);
     } else {
       camera.position.lerp(desiredPos, damp(2.2, dt));
       look.current.lerp(desiredLook, damp(3.0, dt));
@@ -145,6 +168,7 @@ export function CameraRig() {
     camera.lookAt(look.current);
     camera.updateProjectionMatrix();
     lastMode.current = mode;
+    lastPresentation.current = presentation;
   });
 
   return (

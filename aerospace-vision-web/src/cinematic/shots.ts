@@ -3,12 +3,14 @@ export interface CinematicShot {
   id: string;
   start: number;
   end: number;
-  mode: "chase" | "earth" | "target" | "top";
+  mode: "chase" | "launch" | "earth" | "target" | "top";
   kicker: string;
   title: string;
   caption: string;
   /** Camera distance multiplier used by the rig. */
   distance: number;
+  /** Playback rate for this shot. (end-start)/rate = wall duration. */
+  rate: number;
 }
 
 export const CINEMATIC_SHOTS: CinematicShot[] = [
@@ -16,11 +18,12 @@ export const CINEMATIC_SHOTS: CinematicShot[] = [
     id: "ignition",
     start: 0,
     end: 22,
-    mode: "chase",
+    mode: "launch",
     kicker: "T+00:00",
     title: "Ignition",
     caption: "Lift-off from the inland launch site. Attitude is replayed from the validated 6-DoF state.",
     distance: 0.055,
+    rate: 3.7,
   },
   {
     id: "boost",
@@ -31,6 +34,7 @@ export const CINEMATIC_SHOTS: CinematicShot[] = [
     title: "Boost",
     caption: "Powered ascent. Position and attitude come directly from the telemetry stream — no scripted animation.",
     distance: 0.04,
+    rate: 8.1,
   },
   {
     id: "midcourse",
@@ -41,6 +45,7 @@ export const CINEMATIC_SHOTS: CinematicShot[] = [
     title: "Midcourse",
     caption: "Exo-atmospheric flight over the Earth-fixed frame. The trajectory is drawn at true scale.",
     distance: 1,
+    rate: 16.3,
   },
   {
     id: "guidance",
@@ -51,6 +56,7 @@ export const CINEMATIC_SHOTS: CinematicShot[] = [
     title: "Guidance",
     caption: "Terminal geometry builds as the interceptor closes on the target datum.",
     distance: 1,
+    rate: 16.4,
   },
   {
     id: "terminal",
@@ -61,6 +67,7 @@ export const CINEMATIC_SHOTS: CinematicShot[] = [
     title: "Terminal",
     caption: "Final seconds. Separation is shown at true scale; the ring marks the recorded intercept point.",
     distance: 0.5,
+    rate: 2.7,
   },
 ];
 

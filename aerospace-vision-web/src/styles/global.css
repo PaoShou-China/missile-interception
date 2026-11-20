@@ -588,6 +588,7 @@ button, select { font-family: inherit; color: inherit; }
   backdrop-filter: blur(14px);
 }
 .camera-dock__label { font-family: var(--mono); font-size: 7px; letter-spacing: 0.18em; color: var(--muted-2); padding: 0 7px; }
+.camera-dock__divider { width: 1px; height: 16px; background: var(--border); margin: 0 4px; }
 .camera-dock button {
   border: 0;
   background: transparent;

@@ -1,5 +1,6 @@
 import { Suspense, useRef } from "react";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
+import { EffectComposer, Bloom } from "@react-three/postprocessing";
 import * as THREE from "three";
 import { SpaceEnvironment } from "./SpaceEnvironment";
 import { CameraRig } from "./CameraRig";
@@ -7,11 +8,17 @@ import { TrajectoryRibbon } from "./Trajectory";
 import { EntityVisual, SurfaceBeacon } from "./Entities";
 import { simClock, useAppStore } from "../state/store";
 import { COLORS } from "./constants";
+import { shotAt } from "../cinematic/shots";
 
 /** Advances the single simulation clock and mirrors it to React state. */
 function ClockDriver() {
   const acc = useRef(0);
   useFrame((_, dt) => {
+    const state = useAppStore.getState();
+    if (state.presentation === "cinematic" && state.runtime) {
+      const shot = shotAt(simClock.time);
+      if (Math.abs(simClock.rate - shot.rate) > 1e-6) simClock.setRate(shot.rate);
+    }
     if (simClock.playing) simClock.tick(dt);
     acc.current += dt;
     if (acc.current >= 0.05) {
@@ -22,15 +29,44 @@ function ClockDriver() {
   return null;
 }
 
+/** Moderate HDR bloom for the high-quality tier only. */
+function Effects() {
+  const quality = useAppStore((s) => s.quality);
+  if (quality !== "high") return null;
+  return (
+    <EffectComposer multisampling={0}>
+      <Bloom
+        intensity={0.34}
+        luminanceThreshold={0.78}
+        luminanceSmoothing={0.3}
+        mipmapBlur
+        radius={0.7}
+      />
+    </EffectComposer>
+  );
+}
+
 function RendererSetup() {
-  const { gl, scene } = useThree();
+  const { gl, scene, camera } = useThree();
   if (gl) {
     gl.toneMapping = THREE.ACESFilmicToneMapping;
     gl.toneMappingExposure = 1.06;
     gl.outputColorSpace = THREE.SRGBColorSpace;
   }
   scene.fog = null;
+  if (typeof window !== "undefined" && (import.meta.env.DEV || new URLSearchParams(location.search).has("qa"))) {
+    (window as unknown as { __av?: unknown }).__av = { scene, camera, clock: simClock, store: useAppStore };
+  }
   return null;
+}
+
+/** Small fill light at the camera keeps the vehicle legible when backlit. */
+function CameraFillLight() {
+  const light = useRef<THREE.PointLight>(null);
+  useFrame(({ camera }) => {
+    if (light.current) light.current.position.copy(camera.position);
+  });
+  return <pointLight ref={light} intensity={0.1} distance={0.3} decay={2} color="#cfe0ff" />;
 }
 
 function ScenarioScene() {
@@ -40,6 +76,7 @@ function ScenarioScene() {
   const { manifest } = runtime;
   return (
     <>
+      <CameraFillLight />
       <SpaceEnvironment />
       <TrajectoryRibbon />
       <EntityVisual kind="missile" label="INTERCEPTOR" color={COLORS.accent} showLabel={presentation === "scientific"} />
@@ -80,6 +117,7 @@ export function SceneCanvas() {
       <Suspense fallback={null}>
         <ScenarioScene />
       </Suspense>
+      <Effects />
     </Canvas>
   );
 }

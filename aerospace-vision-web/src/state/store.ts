@@ -8,8 +8,9 @@ import { create } from "zustand";
 import type { ScenarioManifest, TrajectorySample } from "../scientific/types";
 import { SimulationClock } from "../scientific/clock";
 import { TrajectorySampler } from "../scientific/interpolate";
+import { CINEMATIC_SHOTS } from "../cinematic/shots";
 
-export type CameraMode = "free" | "chase" | "earth" | "target" | "top";
+export type CameraMode = "free" | "chase" | "launch" | "earth" | "target" | "top";
 export type PresentationMode = "scientific" | "cinematic";
 export type QualityLevel = "high" | "medium" | "low";
 export type SidePanel = "mission" | "telemetry" | "charts";
@@ -23,6 +24,8 @@ export interface ScenarioRuntime {
 }
 
 export const simClock = new SimulationClock(0, 1);
+/** Scientific-mode playback rate saved when cinematic mode takes over. */
+let scientificRate = 20;
 
 interface AppStore {
   runtime: ScenarioRuntime | null;
@@ -39,6 +42,7 @@ interface AppStore {
   panels: Record<SidePanel, boolean>;
   loadingProgress: number;
   hudVisible: boolean;
+  trackEmphasis: boolean;
 
   setRuntime: (r: ScenarioRuntime) => void;
   setStatus: (s: "loading" | "ready" | "error", error?: string | null) => void;
@@ -57,6 +61,7 @@ interface AppStore {
   setQuality: (q: QualityLevel) => void;
   togglePanel: (p: SidePanel) => void;
   setHudVisible: (v: boolean) => void;
+  toggleTrackEmphasis: () => void;
 }
 
 export const useAppStore = create<AppStore>((set, get) => ({
@@ -74,6 +79,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
   panels: { mission: true, telemetry: true, charts: true },
   loadingProgress: 0,
   hudVisible: true,
+  trackEmphasis: true,
 
   setRuntime: (runtime) => {
     const { startS, endS } = runtime.manifest.time;
@@ -124,15 +130,19 @@ export const useAppStore = create<AppStore>((set, get) => ({
   setCameraMode: (cameraMode) => set({ cameraMode }),
   setPresentation: (presentation) => {
     if (presentation === "cinematic") {
+      scientificRate = get().rate;
+      const firstRate = CINEMATIC_SHOTS[0].rate;
       simClock.seek(simClock.start);
-      simClock.setRate(10);
+      simClock.setRate(firstRate);
       simClock.play();
-      set({ presentation, time: simClock.time, playing: true, rate: 10, cameraMode: "earth" });
+      set({ presentation, time: simClock.time, playing: true, rate: firstRate });
     } else {
-      set({ presentation, playing: simClock.playing });
+      simClock.setRate(scientificRate);
+      set({ presentation, playing: simClock.playing, rate: scientificRate });
     }
   },
   setQuality: (quality) => set({ quality }),
   togglePanel: (p) => set((s) => ({ panels: { ...s.panels, [p]: !s.panels[p] } })),
   setHudVisible: (hudVisible) => set({ hudVisible }),
+  toggleTrackEmphasis: () => set((s) => ({ trackEmphasis: !s.trackEmphasis })),
 }));

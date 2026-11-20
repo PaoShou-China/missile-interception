@@ -15,9 +15,9 @@ as such. Firefox and Safari: **NOT RUN**.
 | G0 requirements & interface freeze | **PASS** | `schemas/scenario-manifest.schema.json`, `src/scientific/types.ts`, no schema drift between adapter and renderer |
 | G1 real data + numerical checks | **PASS** | adapter 10/10 PASS; independent verifier 8/8 PASS; 39 unit/scientific tests |
 | G2 3D scene and charts synchronised | **PASS** | single `SimulationClock`; E2E asserts clock and altitude advance together; charts read the same mirror |
-| G3 visual quality | **PASS (local)** | five Playwright screenshots in `docs/visual/`; Earth, clouds, atmosphere, PBR vehicle, gradient track, cinematic captions |
-| G4 browser performance & compatibility | **PARTIAL** | 60.1 FPS measured at 1280×720 locally (Edge/Chromium); CI uses SwiftShader and records 5.9 FPS as an annotated software-rendering result, not a hardware pass; 1080p hardware and Firefox/Safari NOT RUN |
-| G5 GitHub Pages public URL | **PASS** | Live at https://paoshou-china.github.io/missile-interception/ ; verified in a real browser: telemetry PASS, playback advanced to T+00:00:49 / 12.50 km, no console or HTTP errors; legacy report served from `/legacy/` |
+| G3 visual quality | **PASS** | six 1080p screenshots in `docs/visual/`; 8K Earth, 4K clouds, HDR bloom, PBR vehicle, gradient track, cinematic launch/midcourse framing |
+| G4 browser performance & compatibility | **PASS** | 1080p / Intel UHD soak: mean **60.0 FPS**, min 51.0, 10 min, heap Δ −0.07 MB; E2E passed on Chromium, Firefox and WebKit (16 passed, 2 FPS tests skipped on non-Chromium). CI uses SwiftShader and records a 5.9 FPS annotation rather than a hardware verdict |
+| G5 GitHub Pages public URL | **PASS** | Live at https://paoshou-china.github.io/missile-interception/ ; verified in a real browser: telemetry PASS, playback advances, no console/HTTP errors; legacy report at `/legacy/` |
 
 ## Commands and actual results
 
@@ -65,25 +65,43 @@ attitude extraction against an independent DCM, and the shipped scenario
 (monotonic time, geodetic consistency, sample recovery, motion/speed
 consistency, intercept metric, phase bounds).
 
-### Browser E2E
+### Browser E2E — three engines
 
 ```
 $ $env:PW_CHANNEL=msedge; npx playwright test
-✓ loads the validated scenario and renders the 3D scene
-✓ timeline playback advances the single simulation clock and telemetry
-✓ seeking to the intercept event updates the scene state
-✓ camera modes switch and the chase view renders
-✓ cinematic mode runs a captioned shot sequence and exits cleanly
-✓ measures animation frame rate over two seconds
-measured FPS: 60.1
-6 passed
+Running 18 tests using 3 projects
+
+[chromium] 6/6 passed  (measured FPS 60.0, Intel UHD via ANGLE)
+[firefox]  5/5 passed  (FPS gate skipped by design)
+[webkit]   5/5 passed  (FPS gate skipped by design)
+
+16 passed, 2 skipped, 0 failed (1.5 min)
 ```
 
+The functional suite covers load/validation, clock+telemetry synchronisation,
+event seeking, camera switching, the Track emphasis toggle, and the cinematic
+sequence.
+
+### 1080p soak (10 minutes)
+
+```
+$ npm run perf:soak
+renderer: ANGLE (Intel, Intel(R) UHD Graphics, D3D11)
+viewport: 1920×1080, quality high (8K Earth + bloom)
+mean 60.0 FPS · min 51.0 · P95 60.2
+JS heap 41.3 MB → 41.3 MB (Δ −0.07 MB)
+console errors: none
+```
+
+Full data: [performance/soak-1080p.md](performance/soak-1080p.md) and
+`performance/soak-1080p.json`.
+
 Screenshots produced during the run are in `test-results/visual/`; the curated
-set referenced by the README is in `docs/visual/`:
+1080p set referenced by the README is in `docs/visual/`:
 `01-earth-overview.png`, `02-chase-camera.png`, `03-intercept-chase.png`,
-`04-terminal-overview.png`, `05-cinematic-boost.png`. The public-site check
-captured `06-live-pages.png`.
+`04-terminal-overview.png`, `05-cinematic-ignition.png`,
+`06-cinematic-midcourse.png`. The public-site check captures
+`07-live-pages.png`.
 
 ### CI deployment run
 
@@ -111,50 +129,49 @@ errors: none (console, page errors, HTTP >= 400)
 ```
 $ npm run build
 dist/index.html                               1.49 kB │ gzip 0.74 kB
-dist/assets/index-*.css                      19.63 kB │ gzip 4.82 kB
-dist/assets/index-*.js                      456.32 kB │ gzip ~142 kB
+dist/assets/index-*.css                      19.72 kB │ gzip 4.84 kB
+dist/assets/index-*.js                      576.95 kB │ gzip ~183 kB
 dist/assets/echarts-*.js                    510.70 kB │ gzip 172.46 kB
-dist/assets/three-*.js                      757.27 kB │ gzip 191.58 kB
+dist/assets/three-*.js                      757.39 kB │ gzip 191.64 kB
 dist/data/missile-intercept/scenario.json   785.16 kB
-dist/textures/earth_day_2048.jpg            512.61 kB
-dist/textures/earth_clouds_1024.png         226.11 kB
-total dist                                  3.27 MB
+dist/textures/earth_day_8k.jpg              4.57 MB   (High tier)
+dist/textures/earth_clouds_4k.jpg           2.60 MB   (High tier)
+dist/textures/earth_day_2048.jpg            0.51 MB   (fallback)
+dist/textures/earth_clouds_1024.png         0.23 MB   (fallback)
+total dist                                 10.55 MB
 ```
+
+High quality streams 8K/4K textures (~7.2 MB); Medium/Low use the 2K/1K pair
+(~0.7 MB). JavaScript is split into three/echarts/app chunks.
 
 ## Known limitations and risks
 
-1. **G5 is verified.** The site is live and the legacy report is preserved under
-   `/legacy/`. Re-verify after any future deployment.
-2. **E2E browser coverage.** Local runs use the installed Edge channel because
-   the Playwright Chromium download did not complete locally; CI uses its
-   bundled Chromium successfully. Firefox/WebKit remain untested.
-3. **Resolution.** FPS was measured at 1280×720 locally (vsync-capped at ~60).
-   CI has no GPU and runs SwiftShader at ~5.9 FPS, so a physical 1080p run on
-   low-end integrated GPUs is still unverified.
-4. **Earth surface detail.** The day map is 2048 × 1024 and the cloud layer
-   1024 × 512; close chase passes show soft terrain. A tiled/streamed Earth is
-   the next visual upgrade, not a correctness issue.
-5. **Symbolic track width.** At orbital zoom the trajectory is drawn as a 3 km
-   radius tube so it is legible; its centreline is the exact telemetry path and
-   it is hidden within ~800 km altitude, where the 1 px line is used. No
+1. **Mobile and high-DPI devices** are not part of the current verified matrix;
+   the High tier streams 8K textures (≈7 MB) and automatically falls back to 2K
+   when the GPU reports `maxTextureSize < 8192`.
+2. **Firefox/WebKit performance** was verified functionally (all tests passed)
+   but not profiled for frame rate; only Chromium passed the 60 FPS hardware
+   gate. CI has no GPU and records SwiftShader (~5.9 FPS) as an annotation.
+3. **Earth LOD.** The 8K map is a single equirectangular texture, not tiled LOD;
+   close chase passes can still look soft when the camera is metres above the
+   surface. A tiled/streamed Earth is the next visual upgrade.
+4. **Symbolic track cord.** The orbital emphasis cord has a 3 km radius by
+   design; its centreline is exact telemetry, it is disclosed in the UI, hidden
+   within ~800 km altitude, and can be switched off with the Track toggle. No
    positional exaggeration is applied.
-6. **Bloom.** “Bloom” is approximated with additive atmospheric shells and
-   sprites; there is no post-processing pass. This keeps the frame budget and
-   WebGL compatibility simple, but is not a true HDR bloom pipeline.
-7. **Target attitude** is derived from its ECEF velocity (source telemetry has
+5. **Camera fill light.** A small camera-anchored point light improves vehicle
+   legibility on the night side; it affects lighting only, never state.
+6. **Target attitude** is derived from its ECEF velocity (source telemetry has
    no target attitude). It affects orientation only and is documented in the
    UI's provenance section.
-8. **Cinematic pacing** is tied to the 10× cinematic playback rate; camera
-   transitions are damped in the vehicle frame, so low frame rates converge
-   more slowly during the first seconds of a shot.
+7. **CI deployment** was verified for the previous commit chain; re-verify after
+   any future deployment changes.
 
 ## Next highest-priority work
 
-1. Run the suite with Firefox/WebKit; record WebGL capability detection and
-   graceful fallback.
-2. 1080p hardware performance measurement with the browser performance panel,
-   including a 10-minute memory-growth check.
-3. Stream a higher-resolution Earth (8k day + clouds) or add tiled imagery for
-   chase shots.
+1. Profile Firefox and WebKit frame rates on physical hardware.
+2. Mobile/tablet layout and touch controls; automatic quality downgrade on
+   low-memory devices.
+3. Tiled Earth LOD for sub-kilometre chase shots.
 4. Add a data-driven second scenario to exercise the frozen manifest contract.
 5. Add a lightweight “legacy report” link inside the new platform UI.

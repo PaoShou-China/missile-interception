@@ -17,10 +17,13 @@ Pages is enough.
 **Live:** https://paoshou-china.github.io/missile-interception/
 · legacy report: https://paoshou-china.github.io/missile-interception/legacy/
 
-**Status:** G0–G3 PASS, **G5 PASS (public URL verified)**; G4 partial — 60.1 FPS
-measured locally at 1280×720; CI runners fall back to SwiftShader (5.9 FPS
-recorded, not a hardware verdict); 1080p hardware and Firefox/Safari not yet
-measured. See [docs/ACCEPTANCE.md](docs/ACCEPTANCE.md) for the run log.
+**Status:** G0–G5 **PASS**. 1080p soak on an Intel UHD GPU: mean **60.0 FPS**,
+min 51.0, JS heap 41.3 → 41.3 MB over 10 minutes of continuous replay. E2E:
+**16 passed / 2 skipped** across Chromium, Firefox and WebKit (the FPS gate runs
+on Chromium only). Remaining gaps are mobile devices, tiled Earth LOD and
+Firefox/WebKit performance profiling. See
+[docs/ACCEPTANCE.md](docs/ACCEPTANCE.md) and
+[docs/performance/soak-1080p.md](docs/performance/soak-1080p.md).
 
 | Overview | Chase |
 | --- | --- |
@@ -28,7 +31,11 @@ measured. See [docs/ACCEPTANCE.md](docs/ACCEPTANCE.md) for the run log.
 
 | Intercept | Cinematic |
 | --- | --- |
-| ![Intercept](docs/visual/03-intercept-chase.png) | ![Cinematic](docs/visual/05-cinematic-boost.png) |
+| ![Intercept](docs/visual/03-intercept-chase.png) | ![Cinematic](docs/visual/05-cinematic-ignition.png) |
+
+| Midcourse |
+| --- |
+| ![Midcourse](docs/visual/06-cinematic-midcourse.png) |
 
 ## Quick start
 
@@ -39,6 +46,7 @@ npm run dev          # http://localhost:5173
 npm test             # 39 unit / scientific tests
 npm run build        # production bundle in dist/
 npm run preview      # serve dist/ locally
+npm run perf:soak    # 10-minute 1080p FPS + memory soak (preview server on :4173)
 ```
 
 The committed scenario payload (`public/data/missile-intercept/scenario.json`) is
@@ -126,16 +134,21 @@ attitude frame conversion, and the scenario itself.
 
 ## Features
 
-- Scientific and Cinematic modes; cinematic auto-tour with shot captions.
+- Scientific and Cinematic modes; cinematic auto-tour with wall-time paced
+  shots (6–22 s per caption) and a hard cut into the launch framing.
 - Timeline with phase bands, event markers, play/pause, 0.5×–60× speed, ±5 s
   stepping, reset, click/drag scrubbing, keyboard control.
-- Cameras: Earth overview, chase, plan, intercept framing, free orbit.
+- Cameras: Earth overview, chase, launch, plan, intercept framing, free orbit.
 - Live telemetry with units, phase, seeker state, NED roll/pitch/yaw, WGS84
   coordinates, ECEF vector, and provenance.
 - ECharts time series for altitude/speed and dynamic pressure/load, with a
   moving time cursor.
-- Quality levels (DPR, star count, Earth tessellation), resource disposal, no
-  per-frame React churn.
+- 8K Earth day map + 4K clouds + moderate HDR bloom on High; automatic 2K
+  fallback on GPUs with a texture-size limit below 8192.
+- Track emphasis toggle: symbolic orbital cord on/off with an exact-centreline
+  disclosure; true-scale polyline always available.
+- Quality levels (DPR, star count, Earth tessellation, bloom), resource
+  disposal, no per-frame React churn.
 
 ## Deployment
 

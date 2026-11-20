@@ -87,6 +87,7 @@ export function MissionPanel() {
             <div className="provenance__row"><span>Frame</span><b>WGS84 ECEF · SI units</b></div>
             <div className="provenance__row"><span>Samples</span><b>{runtime.manifest.time.sampleCount} / {runtime.manifest.time.sourceRows} rows</b></div>
             <div className="provenance__row"><span>Schema</span><b>v{runtime.manifest.schemaVersion}</b></div>
+            <div className="provenance__row"><span>Track</span><b>symbolic width · exact centreline</b></div>
             <button
               type="button"
               className={`validation-toggle ${runtime.manifest.validation.status === "PASS" ? "is-ok" : "is-bad"}`}

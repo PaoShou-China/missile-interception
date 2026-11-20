@@ -1,5 +1,5 @@
 import { useMemo, useRef } from "react";
-import { useFrame } from "@react-three/fiber";
+import { useFrame, useThree } from "@react-three/fiber";
 import { useTexture } from "@react-three/drei";
 import * as THREE from "three";
 import { EARTH_A_KM, EARTH_B_KM, SUN_DIR, ASSET_BASE, COLORS } from "./constants";
@@ -8,9 +8,12 @@ import { useAppStore } from "../state/store";
 /** WGS84 ellipsoid with the source day texture; poles aligned to ECEF +Z. */
 function EarthSurface() {
   const quality = useAppStore((s) => s.quality);
-  const texture = useTexture(`${ASSET_BASE}earth_day_2048.jpg`);
-  const clouds = useTexture(`${ASSET_BASE}earth_clouds_1024.png`);
-  const segments = quality === "low" ? [64, 48] : quality === "medium" ? [96, 72] : [160, 112];
+  const { gl } = useThree();
+  // Fall back to the 2K map on GPUs whose maximum texture size cannot hold 8K.
+  const high = quality === "high" && gl.capabilities.maxTextureSize >= 8192;
+  const texture = useTexture(`${ASSET_BASE}${high ? "earth_day_8k.jpg" : "earth_day_2048.jpg"}`);
+  const clouds = useTexture(`${ASSET_BASE}${high ? "earth_clouds_4k.jpg" : "earth_clouds_1024.png"}`);
+  const segments = quality === "low" ? [64, 48] : quality === "medium" ? [96, 72] : [192, 128];
 
   const geometry = useMemo(() => {
     const g = new THREE.SphereGeometry(1, segments[0], segments[1]);
@@ -24,7 +27,7 @@ function EarthSurface() {
     texture.anisotropy = 8;
     texture.wrapS = THREE.RepeatWrapping;
     texture.needsUpdate = true;
-    clouds.anisotropy = 4;
+    clouds.anisotropy = 8;
     clouds.needsUpdate = true;
   }, [texture, clouds]);
 
@@ -45,7 +48,7 @@ function EarthSurface() {
           alphaMap={clouds}
           color="#dbe8f6"
           transparent
-          opacity={0.22}
+          opacity={high ? 0.34 : 0.22}
           roughness={1}
           metalness={0}
           depthWrite={false}

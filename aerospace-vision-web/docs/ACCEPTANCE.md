@@ -16,8 +16,8 @@ as such. Firefox and Safari: **NOT RUN**.
 | G1 real data + numerical checks | **PASS** | adapter 10/10 PASS; independent verifier 8/8 PASS; 39 unit/scientific tests |
 | G2 3D scene and charts synchronised | **PASS** | single `SimulationClock`; E2E asserts clock and altitude advance together; charts read the same mirror |
 | G3 visual quality | **PASS (local)** | five Playwright screenshots in `docs/visual/`; Earth, clouds, atmosphere, PBR vehicle, gradient track, cinematic captions |
-| G4 browser performance & compatibility | **PARTIAL** | 59.9 FPS measured at 1280×720 in headless Chromium; 1080p hardware and Firefox/Safari NOT RUN |
-| G5 GitHub Pages public URL | **NOT RUN** | workflow added; requires a push and enabling Pages in repository settings. No public URL has been claimed. |
+| G4 browser performance & compatibility | **PARTIAL** | 60.1 FPS measured at 1280×720 locally (Edge/Chromium); CI uses SwiftShader and records 5.9 FPS as an annotated software-rendering result, not a hardware pass; 1080p hardware and Firefox/Safari NOT RUN |
+| G5 GitHub Pages public URL | **PASS** | Live at https://paoshou-china.github.io/missile-interception/ ; verified in a real browser: telemetry PASS, playback advanced to T+00:00:49 / 12.50 km, no console or HTTP errors; legacy report served from `/legacy/` |
 
 ## Commands and actual results
 
@@ -82,7 +82,29 @@ measured FPS: 60.1
 Screenshots produced during the run are in `test-results/visual/`; the curated
 set referenced by the README is in `docs/visual/`:
 `01-earth-overview.png`, `02-chase-camera.png`, `03-intercept-chase.png`,
-`04-terminal-overview.png`, `05-cinematic-boost.png`.
+`04-terminal-overview.png`, `05-cinematic-boost.png`. The public-site check
+captured `06-live-pages.png`.
+
+### CI deployment run
+
+Commit `8fe3e3d` — workflow run
+[44744503544](https://github.com/PaoShou-China/missile-interception/actions/runs/44744503544):
+`build` and `deploy` both **success**. The CI browser uses SwiftShader: five
+scene/interaction tests passed, and the FPS test recorded **5.9 FPS** as a
+software-rendering annotation rather than a hardware result.
+
+### Public URL verification (G5)
+
+```
+URL:    https://paoshou-china.github.io/missile-interception/
+title:  Aerospace Vision Web · Scientific Trajectory Visualisation
+status: TELEMETRY VERIFIED · 10 CHECKS
+canvas: 1600 × 900
+clock:  T+00:00:49, altitude 0.00 → 12.50 km after pressing play
+legacy: https://paoshou-china.github.io/missile-interception/legacy/ → 200,
+        original report title
+errors: none (console, page errors, HTTP >= 400)
+```
 
 ### Production build
 
@@ -101,15 +123,14 @@ total dist                                  3.27 MB
 
 ## Known limitations and risks
 
-1. **G5 is unverified.** The Pages workflow is written
-   (`.github/workflows/aerospace-vision-pages.yml`) but never executed against a
-   real repository. Do not describe the site as deployed until a public URL has
-   been loaded and tested.
+1. **G5 is verified.** The site is live and the legacy report is preserved under
+   `/legacy/`. Re-verify after any future deployment.
 2. **E2E browser coverage.** Local runs use the installed Edge channel because
-   the Playwright Chromium download did not complete. CI will use its bundled
-   Chromium; Firefox/WebKit remain untested.
-3. **Resolution.** FPS was measured at 1280×720 in headless mode (vsync-capped
-   at ~60). A physical 1080p run on low-end integrated GPUs is still unverified.
+   the Playwright Chromium download did not complete locally; CI uses its
+   bundled Chromium successfully. Firefox/WebKit remain untested.
+3. **Resolution.** FPS was measured at 1280×720 locally (vsync-capped at ~60).
+   CI has no GPU and runs SwiftShader at ~5.9 FPS, so a physical 1080p run on
+   low-end integrated GPUs is still unverified.
 4. **Earth surface detail.** The day map is 2048 × 1024 and the cloud layer
    1024 × 512; close chase passes show soft terrain. A tiled/streamed Earth is
    the next visual upgrade, not a correctness issue.
@@ -129,12 +150,11 @@ total dist                                  3.27 MB
 
 ## Next highest-priority work
 
-1. Push and verify GitHub Pages (G5): confirm asset paths, `.nojekyll`, model and
-   scenario loading over HTTPS.
-2. Run the suite with bundled Chromium and add a Firefox/WebKit project; record
-   WebGL capability detection and graceful fallback.
-3. 1080p hardware performance measurement with the browser performance panel,
+1. Run the suite with Firefox/WebKit; record WebGL capability detection and
+   graceful fallback.
+2. 1080p hardware performance measurement with the browser performance panel,
    including a 10-minute memory-growth check.
-4. Stream a higher-resolution Earth (8k day + clouds) or add tiled imagery for
+3. Stream a higher-resolution Earth (8k day + clouds) or add tiled imagery for
    chase shots.
-5. Add a data-driven second scenario to exercise the frozen manifest contract.
+4. Add a data-driven second scenario to exercise the frozen manifest contract.
+5. Add a lightweight “legacy report” link inside the new platform UI.

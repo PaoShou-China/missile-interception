@@ -14,10 +14,13 @@ of downrange, 29.98 km apogee, 22.61 m closest approach.
 No backend, no Unreal/Unity, no plugins: a static Vite build served from GitHub
 Pages is enough.
 
-**Status:** G0–G3 PASS locally, G4 partial (60.1 FPS measured at 1280×720 in
-headless Chromium; 1080p hardware and Firefox/Safari not yet measured), G5
-(GitHub Pages public URL) **NOT RUN**. See
-[docs/ACCEPTANCE.md](docs/ACCEPTANCE.md) for the full run log.
+**Live:** https://paoshou-china.github.io/missile-interception/
+· legacy report: https://paoshou-china.github.io/missile-interception/legacy/
+
+**Status:** G0–G3 PASS, **G5 PASS (public URL verified)**; G4 partial — 60.1 FPS
+measured locally at 1280×720; CI runners fall back to SwiftShader (5.9 FPS
+recorded, not a hardware verdict); 1080p hardware and Firefox/Safari not yet
+measured. See [docs/ACCEPTANCE.md](docs/ACCEPTANCE.md) for the run log.
 
 | Overview | Chase |
 | --- | --- |

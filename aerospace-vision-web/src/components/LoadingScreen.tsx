@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { useProgress } from "@react-three/drei";
 import { useAppStore } from "../state/store";
 
@@ -5,8 +6,17 @@ export function LoadingScreen() {
   const status = useAppStore((s) => s.status);
   const error = useAppStore((s) => s.error);
   const { progress } = useProgress();
-  // Keep the curtain until both the scenario and the Earth textures are ready.
-  const assetsPending = progress < 100;
+  const [timedOut, setTimedOut] = useState(false);
+
+  useEffect(() => {
+    if (status !== "ready") return;
+    const id = window.setTimeout(() => setTimedOut(true), 5000);
+    return () => window.clearTimeout(id);
+  }, [status]);
+
+  // Keep the curtain until both the scenario and the Earth textures are ready,
+  // but never let a stalled texture loader block the interface indefinitely.
+  const assetsPending = progress < 100 && !timedOut;
   if (status === "ready" && !assetsPending) return null;
 
   return (

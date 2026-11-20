@@ -38,8 +38,23 @@ jobs:
         run: npm run build
       - name: Install Playwright browsers
         run: npx playwright install --with-deps chromium firefox webkit
-      - name: Browser end-to-end tests
-        run: npx playwright test
+      - name: Install Mesa software GL (Firefox)
+        run: sudo apt-get update && sudo apt-get install -y libgl1-mesa-dri libegl-mesa0 libglx-mesa0
+      - name: Browser E2E (Chromium + WebKit, deployment gate)
+        run: npx playwright test --project=chromium --project=webkit
+      - name: Firefox E2E (software GL, informational)
+        continue-on-error: true
+        timeout-minutes: 6
+        env:
+          LIBGL_ALWAYS_SOFTWARE: "1"
+        run: npx playwright test --project=firefox
+      - name: Upload browser test artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: browser-test-results
+          path: aerospace-vision-web/test-results
+          retention-days: 7
       - name: Stage legacy static report
         run: |
           mkdir -p dist/legacy

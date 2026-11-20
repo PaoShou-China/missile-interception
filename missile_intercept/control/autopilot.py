@@ -20,10 +20,19 @@ Ref: Hacettepe-3loop (three-loop structure + anti-windup); TU-Delft-AW
 (gain scheduling).
 """
 
+import math
+
 import numpy as np
 import config as C
 import fastcore as FC
 import math_utils as MU
+# Plant functions shared with the airframe model: the delay predictor has to
+# use the same aero coefficients as the vehicle, otherwise it predicts a
+# response the airframe will not produce.  Importing them (instead of copying
+# the tables) keeps the controller and the plant from drifting apart.
+from vehicle.missile import (cn_alpha as _cn_alpha_of_mach, cp_max,
+                             static_margin, cm_gain, cm_de, fin_effective,
+                             cn_shape, fin_slope_ratio)
 
 
 class SecondOrderFilter:
@@ -134,6 +143,12 @@ class Autopilot:
         self.int_rate_y = 0.0
         self.int_roll = 0.0
         self.initialized = False
+        # Delay-prediction state (measured body rate and its filtered
+        # derivative); kept outside the compiled vector because it is a
+        # measurement-history quantity, not a controller integrator.
+        self._omega_prev = None
+        self._rate_dot = np.zeros(3)
+        self._model_rate_dot = np.zeros(3)
 
     # --------------------------------------------------------
     # Integrator states are views on the compiled state vector.
@@ -184,6 +199,9 @@ class Autopilot:
         self.beta_f.initialized = False
         self.trim_f.initialized = False
         self._state[:] = 0.0
+        self._omega_prev = None
+        self._rate_dot[:] = 0.0
+        self._model_rate_dot[:] = 0.0
         self.initialized = False
 
     # --------------------------------------------------------
@@ -301,9 +319,160 @@ class Autopilot:
                              C.AP_KI_LOW_Q_FLOOR), 1.0))
 
     # --------------------------------------------------------
+    def _rate_accel_limit(self, mass, q_dyn, cn_alpha):
+        """Physical body angular-acceleration budget, rad/s^2.
+
+        Full fin authority at the current q and inertia (no reference-governor
+        margin): it only bounds the derivative estimate used for prediction,
+        it does not limit the command.
+        """
+        _, iy, _ = self._inertia_diag(mass)
+        cm_de_eff, _ = self._moment_derivs(cn_alpha)
+        moment = max(q_dyn, 1.0) * C.S_REF * C.LENGTH * abs(cm_de_eff) * C.FIN_MAX
+        return float(moment / max(iy, 1e-9))
+
+    def _cg_position(self, mass):
+        if C.MASS0 > C.DRY_MASS:
+            fuel_f = min(max((mass - C.DRY_MASS) /
+                             (C.MASS0 - C.DRY_MASS), 0.0), 1.0)
+        else:
+            fuel_f = 0.0
+        return float(C.CG_DRY + fuel_f * (C.CG_FULL - C.CG_DRY))
+
+    def _inertia_diag(self, mass):
+        if C.MASS0 > C.DRY_MASS:
+            fuel_f = min(max((mass - C.DRY_MASS) /
+                             (C.MASS0 - C.DRY_MASS), 0.0), 1.0)
+        else:
+            fuel_f = 0.0
+        return (C.IXX_DRY + fuel_f * (C.IXX_FULL - C.IXX_DRY),
+                C.IYY_DRY + fuel_f * (C.IYY_FULL - C.IYY_DRY),
+                C.IZZ_DRY + fuel_f * (C.IZZ_FULL - C.IZZ_DRY))
+
+    def _rate_model(self, omega, alpha, beta, mach, speed, q_dyn, mass,
+                    d_p, d_y, d_r):
+        """Body angular acceleration from the current aero state and fins.
+
+        Same coefficient set as ``vehicle.missile.aero_coefficients`` plus the
+        damping derivatives and the Euler gyroscopic coupling, so the
+        predictor reproduces the airframe's short-horizon rate response
+        instead of extrapolating a noisy finite difference.
+        """
+        mach = max(float(mach), 0.0)
+        ratio = fin_slope_ratio(mach)
+        cn_body = _cn_alpha_of_mach(mach) * alpha * cn_shape(alpha)
+        blend = min(max((mach - C.MACH_NL_START) /
+                        (C.MACH_NL_FULL - C.MACH_NL_START), 0.0), 1.0)
+        if blend > 0.0:
+            cn_newton = (C.CN_NEWTON_SHAPE * cp_max(mach)
+                         * math.sin(alpha) ** 2 * math.cos(alpha))
+            if abs(cn_newton) > abs(cn_body):
+                cn_body += blend * (math.copysign(abs(cn_newton), alpha)
+                                    - cn_body)
+        d_pe = fin_effective(d_p)
+        margin = static_margin(mach, self._cg_position(mass))
+        cm = (-margin / C.LENGTH * cn_body * cm_gain(mach, alpha)
+              + cm_de(mach) * d_pe)
+        cn_beta = C.CN_BETA * ratio * (margin / (C.X_REF - C.CG_FULL))
+        cn_yaw = -cn_beta * beta + C.CN_DR * ratio * fin_effective(d_y)
+        cl = C.CL_DA * ratio * fin_effective(d_r)
+
+        p, qq, r = omega
+        v = max(float(speed), 1.0)
+        cm_tot = cm + C.CM_Q * (qq * C.LENGTH / (2.0 * v))
+        cn_tot = cn_yaw + C.CN_R * (r * C.LENGTH / (2.0 * v))
+        cl_tot = cl + C.CL_P * (p * C.LENGTH / (2.0 * v))
+        q_sl = max(float(q_dyn), 0.0) * C.S_REF * C.LENGTH
+        mb = np.array([cl_tot, cm_tot, cn_tot]) * q_sl
+
+        ix, iy, iz = self._inertia_diag(mass)
+        gyro = np.array([
+            qq * (iz * r) - r * (iy * qq),
+            r * (ix * p) - p * (iz * r),
+            p * (iy * qq) - qq * (ix * p),
+        ])
+        return (mb - gyro) / np.array([ix, iy, iz])
+
+    def _predict_state(self, q, omega, alpha, beta, dt, horizon, mass,
+                       q_dyn, cn_alpha, mach=None, speed=None,
+                       v_air_eci=None, applied_fins=None):
+        """Dead-time compensation: predict the state at command effect time.
+
+        Full-state prediction over the transport dead time:
+        - body rate from the aero moment model (applied fins + damping +
+          gyroscopic coupling), falling back to the low-passed measured
+          derivative when the model inputs are unavailable;
+        - attitude by integrating the predicted rate;
+        - angle of attack / sideslip from the predicted attitude and the
+          current air-relative velocity, which is what the outer loop needs.
+
+        Anchoring on the measured state every tick keeps model error from
+        accumulating; the prediction only supplies the short-horizon slope.
+        """
+        q = np.asarray(q, dtype=float).reshape(4)
+        omega = np.asarray(omega, dtype=float).reshape(3)
+        alpha = float(alpha)
+        beta = float(beta)
+
+        # Measured derivative (fallback path and a sanity reference).
+        if self._omega_prev is None:
+            self._omega_prev = omega.copy()
+            self._rate_dot[:] = 0.0
+        else:
+            raw = (omega - self._omega_prev) / max(dt, 1e-6)
+            self._omega_prev = omega.copy()
+            a_lp = min(dt / max(C.AP_PREDICT_TAU, 1e-6), 1.0)
+            self._rate_dot += a_lp * (raw - self._rate_dot)
+
+        h = float(min(max(horizon, 0.0), 0.05))
+        if h <= 0.0 or not C.AP_PREDICT_ENABLE:
+            return q, omega, alpha, beta
+
+        lim = self._rate_accel_limit(mass, q_dyn, cn_alpha)
+        model_ok = (C.AP_PREDICT_MODEL and mach is not None
+                    and speed is not None and applied_fins is not None)
+        if model_ok:
+            up, down, left, right = np.asarray(
+                applied_fins, dtype=float).reshape(4)
+            d_p = 0.5 * (right + left)
+            d_r = 0.5 * (right - left)
+            d_y = 0.5 * (up + down)
+            rate_dot = self._rate_model(
+                omega, alpha, beta, mach, speed, q_dyn, mass, d_p, d_y, d_r)
+            # Generous guard against bad inputs; the model itself is physical.
+            rate_dot = np.clip(rate_dot, -4.0 * lim, 4.0 * lim)
+            # Same low-pass as the fallback: the instantaneous model contains
+            # high-frequency content (damping/mixer switching) that a full
+            # Smith predictor would amplify into the rate loop.
+            a_lp = min(dt / max(C.AP_PREDICT_TAU, 1e-6), 1.0)
+            self._model_rate_dot += a_lp * (rate_dot - self._model_rate_dot)
+            rate_dot = self._model_rate_dot
+        else:
+            rate_dot = np.clip(self._rate_dot, -lim, lim)
+        rate_dot = rate_dot * float(C.AP_PREDICT_SCALE)
+
+        omega_p = omega + rate_dot * h
+        q_p = MU.quat_propagate(q, omega_p, h) if C.AP_PREDICT_ATTITUDE else q
+
+        alpha_p, beta_p = alpha, beta
+        if v_air_eci is not None and C.AP_PREDICT_ANGLES:
+            vx, vy, vz = np.asarray(v_air_eci, dtype=float).reshape(3)
+            dcm = MU.quat_to_dcm(q_p)
+            u = dcm[0, 0] * vx + dcm[1, 0] * vy + dcm[2, 0] * vz
+            vb = dcm[0, 1] * vx + dcm[1, 1] * vy + dcm[2, 1] * vz
+            w = dcm[0, 2] * vx + dcm[1, 2] * vy + dcm[2, 2] * vz
+            a_lim = 35.0 * C.DEG
+            alpha_p = math.atan2(w, max(u, 1e-6))
+            beta_p = math.atan2(vb, max(math.hypot(u, w), 1e-6))
+            alpha_p = float(min(max(alpha_p, -a_lim), a_lim))
+            beta_p = float(min(max(beta_p, -a_lim), a_lim))
+        return q_p, omega_p, alpha_p, beta_p
+
+    # --------------------------------------------------------
     def update(self, t, q, omega_body, a_cmd_eci, mass, q_dyn, cn_alpha,
                alpha_trim=0.0, beta_trim=0.0, is_saturated=False, dt=None,
-               roll_align=True, load_body=None):
+               roll_align=True, load_body=None, predict_horizon=0.0,
+               mach=None, speed=None, v_air_eci=None, applied_fins=None):
         """Compute virtual fin deflections.
 
         Parameters
@@ -315,8 +484,20 @@ class Autopilot:
         alpha_trim, beta_trim : current aero angles (rad)
         load_body : (3,) measured body-axis load factor (F/(m*g)), or None.
             Its -Z component drives the optional n_z loop.
+        predict_horizon : s, dead time from this command to fin application.
+            Rate, attitude and aero angles are predicted over it.
+        mach, speed : current Mach and air-relative speed (model prediction).
+        v_air_eci : (3,) air-relative velocity in ECI, for the angle prediction.
+        applied_fins : (4,) fins actually acting on the airframe now (the
+            delayed command), not the command computed on this tick.
         """
         dt = self.dt if dt is None else float(min(max(dt, 1e-5), 0.05))
+        # Dead-time prediction: what the airframe will be doing when this
+        # command actually reaches the fins.
+        q_used, omega_used, alpha_used, beta_used = self._predict_state(
+            q, omega_body, alpha_trim, beta_trim, dt, predict_horizon, mass,
+            q_dyn, cn_alpha, mach=mach, speed=speed,
+            v_air_eci=v_air_eci, applied_fins=applied_fins)
         n_meas = -float(load_body[2]) if load_body is not None else 0.0
         if self.NZ_LOOP:
             kp_nz = float(self.KP_NZ)
@@ -329,11 +510,11 @@ class Autopilot:
 
         if FC.NUMBA_AVAILABLE:
             out = FC.autopilot_update(
-                np.ascontiguousarray(np.asarray(q, dtype=float).reshape(4)),
-                np.ascontiguousarray(np.asarray(omega_body, dtype=float).reshape(3)),
+                np.ascontiguousarray(np.asarray(q_used, dtype=float).reshape(4)),
+                np.ascontiguousarray(omega_used),
                 np.ascontiguousarray(np.asarray(a_cmd_eci, dtype=float).reshape(3)),
                 float(mass), float(q_dyn), float(cn_alpha),
-                float(alpha_trim), float(beta_trim),
+                float(alpha_used), float(beta_used),
                 1.0 if is_saturated else 0.0,
                 dt, self.alpha_max, float(C.AP_PREFILTER_HZ),
                 self.KP_ANGLE, self.KI_ANGLE, self.KP_RATE, self.KI_RATE,
@@ -346,7 +527,7 @@ class Autopilot:
             self.initialized = True
             return out
 
-        a_b = MU.quat_rotate_inv(q, np.asarray(a_cmd_eci, dtype=float))
+        a_b = MU.quat_rotate_inv(q_used, np.asarray(a_cmd_eci, dtype=float))
 
         # Lift-vector alignment: roll the body so the commanded acceleration
         # lies in the pitch plane (body -Z).  Without this the command is split
@@ -359,7 +540,7 @@ class Autopilot:
             # High-alpha roll-rate taper (see fastcore): alpha * p coupling
             # builds sideslip far faster than the yaw channel can trim it.
             roll_scale = float(np.clip(
-                C.AP_ALPHA_ROLL_REF / max(abs(float(alpha_trim)), 1.0e-3),
+                C.AP_ALPHA_ROLL_REF / max(abs(alpha_used), 1.0e-3),
                 C.AP_ROLL_ALPHA_FLOOR, 1.0))
             p_cmd *= roll_scale
         else:
@@ -372,21 +553,21 @@ class Autopilot:
         beta_cmd = -a_b[1] * mass / (qS * abs(C.CY_BETA))
         alpha_cmd = float(min(max(alpha_cmd, -self.alpha_max), self.alpha_max))
         # Angle-of-attack envelope: inert inside the usable lift line.
-        if float(alpha_trim) > C.AP_ALPHA_ENV and alpha_cmd > C.AP_ALPHA_ENV:
+        if float(alpha_used) > C.AP_ALPHA_ENV and alpha_cmd > C.AP_ALPHA_ENV:
             alpha_cmd = C.AP_ALPHA_ENV
-        elif float(alpha_trim) < -C.AP_ALPHA_ENV and alpha_cmd < -C.AP_ALPHA_ENV:
+        elif float(alpha_used) < -C.AP_ALPHA_ENV and alpha_cmd < -C.AP_ALPHA_ENV:
             alpha_cmd = -C.AP_ALPHA_ENV
         # Sideslip is a trim channel; its limit grows with the yaw authority.
         beta_max = float(np.clip(
             C.AP_BETA_MAX * np.sqrt(max(q_dyn, 1.0) / C.AP_BETA_Q_REF),
             C.AP_BETA_MAX, self.alpha_max))
         beta_cmd = float(min(max(beta_cmd, -beta_max), beta_max))
-        if abs(float(beta_trim)) > C.AP_BETA_ENV:
-            beta_cmd = -beta_max if float(beta_trim) > 0.0 else beta_max
+        if abs(float(beta_used)) > C.AP_BETA_ENV:
+            beta_cmd = -beta_max if float(beta_used) > 0.0 else beta_max
 
         if not self.initialized:
-            self.alpha_f.reset(alpha_trim)
-            self.beta_f.reset(beta_trim)
+            self.alpha_f.reset(alpha_used)
+            self.beta_f.reset(beta_used)
             self.trim_f.reset(0.0)
             self.initialized = True
 
@@ -405,9 +586,9 @@ class Autopilot:
         alpha_ref_dot = float(self.alpha_f.xd)
         beta_ref_dot = float(self.beta_f.xd)
 
-        alpha_act = float(alpha_trim)
-        beta_act = float(beta_trim)
-        p, qq, r = np.asarray(omega_body, dtype=float)
+        alpha_act = float(alpha_used)
+        beta_act = float(beta_used)
+        p, qq, r = omega_used
 
         # Low-q protection and gain scheduling.
         low_q = q_dyn < 100.0
@@ -490,7 +671,7 @@ class Autopilot:
         cm_de_ff = max((float(cn_alpha) - C.CN_ALPHA_BODY) * C.FIN_LEVER
                        / C.LENGTH, 1.0e-3)
         cm_alpha_ff = float(cn_alpha) * (C.X_REF - cg) / C.LENGTH
-        trim_raw = -float(alpha_trim) * cm_alpha_ff / cm_de_ff
+        trim_raw = -float(alpha_used) * cm_alpha_ff / cm_de_ff
         trim = 0.3 * self.trim_f.update(trim_raw, dt)
         d_p_raw += trim
 

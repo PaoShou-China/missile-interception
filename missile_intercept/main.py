@@ -188,6 +188,9 @@ class Simulation(object):
         self.guidance_cmd = C.GuidanceCommand(a_cmd_eci=np.zeros(3), phase="boost")
         self.act_cmd = C.ActuatorCommand(delta_fins=np.zeros(4), is_saturated=False)
         self._fins_zoh = np.zeros(4)   # contiguous ZOH fin copy for the compiled RHS
+        # Control-command delay line: (time, fin command) pairs awaiting the
+        # transport delay before they reach the actuators.
+        self._fin_delay = []
         # Estimated attitude/rate used by the control loop (IMU-propagated,
         # star-aided; the gyro bias is estimated alongside).
         self.att = AttitudeEstimator(q0)
@@ -278,7 +281,7 @@ class Simulation(object):
             return dy
 
         dy_m, info = self.missile.derivatives(
-            t, y[SL_M_STATE], self.act_cmd.delta_fins,
+            t, y[SL_M_STATE], self._fins_zoh,
             throttle=self.throttle_cmd, wind=self._wind_zoh)
         self._last_info = info
         self._last_alpha = float(info["alpha"])
@@ -383,6 +386,18 @@ class Simulation(object):
             fb = self._last_info.get("F_body")
             if fb is not None and mass > 1.0:
                 load_body = np.asarray(fb, dtype=float) / (mass * C.G0)
+            # Dead time of the command computed now: it is applied on the first
+            # outer-step boundary at or after control_delay, so the predictor
+            # horizon is that whole number of outer steps.
+            outer_dt = float(self._step_size(t, y))
+            delay = max(float(self.cfg.control_delay), 0.0)
+            predict_horizon = ((math.ceil(delay / outer_dt - 1e-12) * outer_dt)
+                               if delay > 0.0 else 0.0)
+            # Air state for the predictor (same wind convention as the plant).
+            v_air = MU.atmosphere_relative_velocity(r, v) - self._wind_zoh
+            speed_air = MU.norm3(v_air)
+            atm = get_atmosphere(max(MU.altitude(r), 0.0))
+            mach_air = speed_air / max(atm.sound_speed, 1e-6)
             virtual = self.autopilot.update(
                 t, q_ctrl, omega_ctrl, self.guidance_cmd.a_cmd_eci, mass,
                 self._last_q_dyn, self._last_cn_alpha,
@@ -390,9 +405,23 @@ class Simulation(object):
                 beta_trim=float(self._last_info.get("beta", 0.0)),
                 is_saturated=self.act_cmd.is_saturated,
                 dt=self.cfg.dt_autopilot,
-                load_body=load_body)
+                load_body=load_body,
+                predict_horizon=predict_horizon,
+                mach=float(mach_air), speed=float(speed_air),
+                v_air_eci=v_air, applied_fins=self._fins_zoh)
             self.act_cmd = self.fin_mixer.mix(virtual, dt=self.cfg.dt_autopilot)
-            self._fins_zoh[:] = self.act_cmd.delta_fins
+            self._fin_delay.append(
+                (float(t), self.act_cmd.delta_fins.copy()))
+
+        # Control delay line: latch the newest command whose transport delay
+        # has elapsed.  Runs every outer step, so the dead time is not
+        # quantised to the autopilot period.
+        ready = float(t) - max(float(self.cfg.control_delay), 0.0)
+        while (len(self._fin_delay) >= 2
+               and self._fin_delay[1][0] <= ready + 1e-12):
+            self._fin_delay.pop(0)
+        if self._fin_delay and self._fin_delay[0][0] <= ready + 1e-12:
+            self._fins_zoh[:] = self._fin_delay[0][1]
 
         # 5) Telemetry.
         if self.scheduler.due("log", t):
@@ -446,7 +475,8 @@ class Simulation(object):
         a_mid = self.midcourse.compute(
             t, self.nav_est, target_state, q, self.seeker_meas)
         a_term = self.terminal.compute(
-            t, self.nav_est, target_state, q, self.seeker_meas)
+            t, self.nav_est, target_state, q, self.seeker_meas,
+            target_acc=self.tracker.acceleration())
 
         # Handover gates use the same delayed navigation estimate as guidance,
         # not the truth state (mass/attitude stay truth-based because they are

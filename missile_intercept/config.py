@@ -429,6 +429,30 @@ DT_GUIDANCE = 0.005          # Guidance + handover 5 ms (terminal lag reduction)
 DT_GNSS = 1.000              # GNSS measurement update 1 s
 DT_LOG = 0.010               # Telemetry 10 ms
 NAV_DELAY = 0.050            # Navigation output delay 50 ms
+# Control-command path delay (autopilot output -> fin actuation).  The C
+# baseline used a 0-15 ms ring buffer; 5 ms is one control period, i.e. the
+# previous autopilot command is the one that actually reaches the fins.
+CONTROL_DELAY = 0.005        # s
+# Predictive delay compensation.  The fin command computed now takes effect
+# one control dead time later, so the autopilot closes the rate loop on the
+# body rate predicted over that horizon (aero-moment model: applied fins,
+# damping and gyroscopic coupling, low-passed and clamped).  Set
+# AP_PREDICT_ENABLE=False to fly the uncompensated loop for comparison.
+AP_PREDICT_ENABLE = True
+AP_PREDICT_TAU = 0.020       # s, low-pass on the predicted rate derivative
+# What the predictor advances: the aero-moment model (True) or the measured
+# rate derivative (False), and whether attitude / aero angles are predicted.
+# Fixed-case batches show that only the rate channel helps: predicting the
+# attitude or alpha/beta adds lead inside the outer loop and roughly doubles
+# the mean miss (9.1 m -> 14.8 m over 6 cases).  The attitude/angle paths stay
+# available for experiments but are off by default.
+AP_PREDICT_MODEL = True
+AP_PREDICT_ATTITUDE = False
+AP_PREDICT_ANGLES = False
+# Fraction of the predicted angular acceleration actually applied.  1.0 is the
+# full Smith predictor; a partial value trades some dead-time recovery for
+# margin against unmodelled lags (filters, mixer model) inside the loop.
+AP_PREDICT_SCALE = 1.0
 
 # ============================================================
 # 7. Handover gates and seeker
@@ -569,12 +593,15 @@ SEEKER_RANGE_SIGMA = 5.0     # Range measurement noise m (1 sigma)
 SEEKER_RANGE_RATE_SIGMA = 2.0  # Range-rate noise m/s (1 sigma)
 
 # ---- Target-state tracker
-# Converted-measurement Kalman filter used by guidance instead of target truth.
-# The cue covariance models pre-launch track quality; the process-noise density
-# covers the target's level-flight centripetal acceleration and terminal weave.
+# 9-state constant-acceleration Kalman filter used by guidance instead of the
+# target truth.  The filter carries [r, v, a]; the acceleration state feeds
+# the terminal APN forward term.  The cue covariance models pre-launch track
+# quality; the white-jerk spectral density covers the target's manoeuvre
+# onset (same order as the validated C baseline's kf9d jerk density).
 TGT_TRACK_CUE_POS_SIGMA = 3000.0   # m
 TGT_TRACK_CUE_VEL_SIGMA = 30.0     # m/s
-TGT_TRACK_ACC_PSD = 3.0            # m/s^2 (white-acceleration density)
+TGT_TRACK_CUE_ACC_SIGMA = 100.0    # m/s^2, initial acceleration uncertainty
+TGT_TRACK_JERK_PSD = 100.0         # m^2/s^5, white-jerk spectral density
 # Covariance floor: with sensor noise disabled the filter covariance collapses
 # to zero and the next (noise-free) update solves a singular system.
 TGT_TRACK_COV_FLOOR = 1.0e-6       # m^2 / (m/s)^2
@@ -792,6 +819,7 @@ class SimConfig:
     dt_gnss: float = DT_GNSS
     dt_log: float = DT_LOG
     nav_delay: float = NAV_DELAY
+    control_delay: float = CONTROL_DELAY
     max_steps: int = 200000              # Telemetry buffer capacity
     max_integration_steps: int = 2000000  # Integrator step guard
     sensor_noise_scale: float = 1.0      # 0 disables nav/seeker noise

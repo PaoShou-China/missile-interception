@@ -54,26 +54,33 @@ class TerminalGuidance(BaseGuidance):
         self.v_t_prev = None
 
     # --------------------------------------------------------
-    def _target_acceleration(self, t, v_t):
-        """Target acceleration estimate: bounded finite difference + LPF.
+    def _target_acceleration(self, t, v_t, target_acc=None):
+        """Target acceleration estimate: LPF + clamp.
 
-        The tracker already propagates the level-flight baseline, so the
-        difference measures the manoeuvre itself.  The raw difference of a
-        noisy estimate can still spike by tens of g, so it is smoothed over a
-        manoeuvre-scale window and clamped before entering the APN feed-forward.
+        The tracker's 9-state CA filter already carries an acceleration
+        state, so its output is used directly when supplied: it avoids the
+        differencing lag and noise amplification of the finite-difference
+        fallback.  Both paths share the same smoothing and clamp before
+        entering the APN feed-forward.
         """
         if self.t_prev is not None:
             dt = max(float(t) - self.t_prev, 1e-4)
-            raw = (v_t - self.v_t_prev) / dt
             w = min(dt / max(self.tau_at, 1e-6), 1.0)
+            if target_acc is not None:
+                raw = np.asarray(target_acc, dtype=float).reshape(3)
+            else:
+                raw = (v_t - self.v_t_prev) / dt
             self.a_T = self.a_T + w * (raw - self.a_T)
+        elif target_acc is not None:
+            self.a_T = np.asarray(target_acc, dtype=float).reshape(3).copy()
         self.a_T = MU.clip_norm(self.a_T, C.TERMINAL_AT_MAX_G * C.G0)
         self.t_prev = float(t)
         self.v_t_prev = np.asarray(v_t, dtype=float).copy()
         return self.a_T
 
     # --------------------------------------------------------
-    def compute(self, t, nav, target_state, q=None, seeker=None):
+    def compute(self, t, nav, target_state, q=None, seeker=None,
+                target_acc=None):
         # Time-align the delayed navigation estimate with the current tick.
         # Both position and velocity are propagated, using the last guidance
         # command plus gravity as the inertial acceleration estimate, so the
@@ -118,7 +125,7 @@ class TerminalGuidance(BaseGuidance):
         if C.TERMINAL_AIMPOINT_OFFSET > 0.0 and MU.norm3(v_t) > 1.0:
             r_t = r_t - C.TERMINAL_AIMPOINT_OFFSET * MU.normalize(v_t)
 
-        a_T = self._target_acceleration(t, v_t)
+        a_T = self._target_acceleration(t, v_t, target_acc)
 
         geo = MU.los_geometry(r, v, r_t, v_t)
         R = geo["range"]

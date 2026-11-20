@@ -1,18 +1,25 @@
-"""Target-state tracker: converted-measurement Kalman filter.
+"""Target-state tracker: 9-state constant-acceleration Kalman filter.
 
-The filter carries ``[r_t, v_t]`` in ECI.  Between seeker updates it propagates
-a constant-velocity model with white-acceleration process noise.  On a valid
-dual-mode lock, the seeker LOS unit vector and range are converted to a
-Cartesian position measurement at the navigation-reported missile position;
-the measurement covariance is anisotropic (range error along the LOS, angular
-error growing with range across it).
+The filter carries ``[r_t, v_t, a_t]`` in ECI.  Between measurements it
+propagates the continuous white-noise-jerk constant-acceleration model, whose
+discretised covariance terms are exact for the actual step (dt^5/20 ...
+dt), so position, velocity and acceleration noise keep consistent units.  The
+acceleration state is what the terminal APN feed-forward consumes, replacing a
+noisy finite difference of the tracked velocity.
+
+On a valid dual-mode lock, the seeker LOS unit vector and range are converted
+to a Cartesian position measurement at the navigation-reported missile
+position; the measurement covariance is anisotropic (range error along the
+LOS, angular error growing with range across it).  Datalink fixes update
+position and velocity directly.  Both updates use the Joseph form, which keeps
+P symmetric and positive semi-definite under repeated floating-point updates.
 
 This replaces the previous "guidance sees the target truth state" assumption:
 midcourse/terminal/handover consume only ``estimate()``.
 """
 
-import math
 import numpy as np
+
 import config as C
 import math_utils as MU
 
@@ -20,25 +27,33 @@ import math_utils as MU
 class TargetTracker(object):
     def __init__(self, initial_state, pos_sigma=C.TGT_TRACK_CUE_POS_SIGMA,
                  vel_sigma=C.TGT_TRACK_CUE_VEL_SIGMA,
-                 acc_psd=C.TGT_TRACK_ACC_PSD,
+                 acc_sigma=C.TGT_TRACK_CUE_ACC_SIGMA,
+                 jerk_psd=C.TGT_TRACK_JERK_PSD,
                  noise_scale=1.0):
-        self.x = np.asarray(initial_state, dtype=float).reshape(6).copy()
-        self.P = np.diag([pos_sigma ** 2] * 3 + [vel_sigma ** 2] * 3)
-        self.acc_psd = float(acc_psd)
+        x6 = np.asarray(initial_state, dtype=float).reshape(6)
+        # Acceleration starts at zero with the full cue uncertainty; the first
+        # measurements decide whether the target is in a manoeuvre.
+        self._x = np.concatenate((x6, np.zeros(3)))
+        self.P = np.diag([pos_sigma ** 2] * 3 + [vel_sigma ** 2] * 3
+                         + [acc_sigma ** 2] * 3)
+        self.jerk_psd = float(jerk_psd)
         self.noise_scale = float(noise_scale)
         self.t_last = None
 
     # --------------------------------------------------------
-    def predict(self, t):
-        """Coordinated level-flight propagation with process noise.
+    @property
+    def x(self):
+        """Position/velocity state ``[r(3), v(3)]`` (acceleration excluded)."""
+        return self._x[0:6]
 
-        A pure constant-velocity model ignores the centripetal acceleration of
-        a cruising aircraft and drifts kilometres over a several-minute
-        midcourse.  The mean therefore follows the same level-flight motion
-        model used by air-traffic tracking (lift balances gravity); the
-        covariance still uses a linear constant-velocity transition plus
-        white-acceleration noise, which is conservative for the manoeuvre
-        uncertainty.
+    # --------------------------------------------------------
+    def predict(self, t):
+        """Propagate the CA mean and covariance with white-jerk noise.
+
+        F is the position/velocity/acceleration transition of the continuous
+        CA model; Q is its exact discretisation for the actual step, so the
+        process noise enters with consistent units instead of being added to
+        every state variance indiscriminately.
         """
         t = float(t)
         if self.t_last is None:
@@ -48,32 +63,31 @@ class TargetTracker(object):
         if dt <= 0.0:
             return
 
-        r = self.x[0:3]
-        v = self.x[3:6]
-        rn = max(math.sqrt(r[0] * r[0] + r[1] * r[1] + r[2] * r[2]), 1.0)
-        # Level flight: centripetal acceleration uses the inertial speed.
-        a_scale = -(v[0] * v[0] + v[1] * v[1] + v[2] * v[2]) / (rn * rn)
-        self.x[0:3] = r + v * dt + 0.5 * dt * dt * a_scale * r
-        self.x[3:6] = v + dt * a_scale * r
-
-        # Block propagation of the 6x6 covariance (no dense 6x6 products).
-        P = self.P
-        P00 = P[0:3, 0:3]
-        P01 = P[0:3, 3:6]
-        P11 = P[3:6, 3:6]
-        q = self.acc_psd ** 2
-        P00n = P00 + dt * (P01 + P01.T) + (dt * dt) * P11
-        P01n = P01 + dt * P11
-        P11n = P11.copy()
-        qc = q * dt * dt / 2.0
+        F = np.eye(9)
+        dt2 = dt * dt
         for i in range(3):
-            P00n[i, i] += q * dt ** 3 / 3.0
-            P01n[i, i] += qc
-            P11n[i, i] += q * dt
-        P[0:3, 0:3] = P00n
-        P[0:3, 3:6] = P01n
-        P[3:6, 0:3] = P01n.T
-        P[3:6, 3:6] = P11n
+            F[i, i + 3] = dt
+            F[i, i + 6] = 0.5 * dt2
+            F[i + 3, i + 6] = dt
+
+        self._x = F.dot(self._x)
+        self.P = F.dot(self.P).dot(F.T)
+
+        # Continuous white-jerk (CA) process noise, discretised for dt.
+        q = self.jerk_psd
+        dt3 = dt2 * dt
+        dt4 = dt3 * dt
+        dt5 = dt4 * dt
+        for i in range(3):
+            self.P[i, i] += q * dt5 / 20.0
+            self.P[i, i + 3] += q * dt4 / 8.0
+            self.P[i + 3, i] += q * dt4 / 8.0
+            self.P[i, i + 6] += q * dt3 / 6.0
+            self.P[i + 6, i] += q * dt3 / 6.0
+            self.P[i + 3, i + 3] += q * dt3 / 3.0
+            self.P[i + 3, i + 6] += q * dt2 / 2.0
+            self.P[i + 6, i + 3] += q * dt2 / 2.0
+            self.P[i + 6, i + 6] += q * dt
         self.t_last = t
 
     # --------------------------------------------------------
@@ -90,7 +104,7 @@ class TargetTracker(object):
 
         sigma_r = C.SEEKER_RANGE_SIGMA * self.noise_scale
         sigma_glint = C.SEEKER_GLINT_K * C.TARGET_LENGTH / max(R, 1.0)
-        sigma_ang = math.sqrt(C.SEEKER_SIGMA_ANGLE ** 2 + sigma_glint ** 2) \
+        sigma_ang = np.sqrt(C.SEEKER_SIGMA_ANGLE ** 2 + sigma_glint ** 2) \
             * self.noise_scale
         sigma_lat = R * sigma_ang
 
@@ -102,14 +116,15 @@ class TargetTracker(object):
         floor = C.TGT_TRACK_COV_FLOOR
         Rm = Rm + floor * np.eye(3)
 
-        H = np.zeros((3, 6))
-        H[:, 0:3] = np.eye(3)
-        S = H.dot(self.P).dot(H.T) + Rm
-        K = np.linalg.solve(S, H.dot(self.P)).T
-        self.x = self.x + K.dot(z - H.dot(self.x))
-        # Joseph form: numerically stable and keeps P positive semidefinite.
-        A = np.eye(6) - K.dot(H)
-        self.P = A.dot(self.P).dot(A.T) + K.dot(Rm).dot(K.T)
+        # H selects position only, so H P H' = P[0:3, 0:3] and P H' = P[:, 0:3].
+        P03 = self.P[:, 0:3]
+        S = self.P[0:3, 0:3] + Rm
+        K = np.linalg.solve(S, P03.T).T
+        self._x = self._x + K.dot(z - self._x[0:3])
+
+        IKH = np.eye(9)
+        IKH[:, 0:3] -= K
+        self.P = IKH.dot(self.P).dot(IKH.T) + K.dot(Rm).dot(K.T)
         self._stabilise()
         return True
 
@@ -121,11 +136,15 @@ class TargetTracker(object):
         Rm = np.diag([sigma_pos ** 2] * 3 + [sigma_vel ** 2] * 3)
         # Same degenerate case as the LOS update when the noise scale is 0.
         Rm = Rm + C.TGT_TRACK_COV_FLOOR * np.eye(6)
-        S = self.P + Rm
-        K = np.linalg.solve(S, self.P).T
-        self.x = self.x + K.dot(z - self.x)
-        A = np.eye(6) - K
-        self.P = A.dot(self.P).dot(A.T) + K.dot(Rm).dot(K.T)
+
+        P06 = self.P[:, 0:6]
+        S = self.P[0:6, 0:6] + Rm
+        K = np.linalg.solve(S, P06.T).T
+        self._x = self._x + K.dot(z - self._x[0:6])
+
+        IKH = np.eye(9)
+        IKH[:, 0:6] -= K
+        self.P = IKH.dot(self.P).dot(IKH.T) + K.dot(Rm).dot(K.T)
         self._stabilise()
         return True
 
@@ -134,7 +153,7 @@ class TargetTracker(object):
         """Symmetrise and floor the covariance so it can never go singular."""
         P = 0.5 * (self.P + self.P.T)
         floor = C.TGT_TRACK_COV_FLOOR
-        for i in range(6):
+        for i in range(9):
             if P[i, i] < floor:
                 P[i, i] = floor
         self.P = P
@@ -142,10 +161,14 @@ class TargetTracker(object):
     # --------------------------------------------------------
     def estimate(self):
         """Current six-state estimate ``[r(3), v(3)]`` in ECI."""
-        return self.x.copy()
+        return self._x[0:6].copy()
 
     def position(self):
-        return self.x[0:3].copy()
+        return self._x[0:3].copy()
 
     def velocity(self):
-        return self.x[3:6].copy()
+        return self._x[3:6].copy()
+
+    def acceleration(self):
+        """Estimated target acceleration ``a(3)`` in ECI."""
+        return self._x[6:9].copy()

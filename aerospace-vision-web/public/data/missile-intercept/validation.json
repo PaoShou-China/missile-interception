@@ -1,0 +1,88 @@
+{
+  "source": {
+    "title": "missile-interception 6-DoF telemetry",
+    "repository": "https://github.com/PaoShou-China/missile-interception",
+    "commit": "workspace",
+    "telemetryFile": "missile_intercept/output/telemetry.csv",
+    "telemetryRows": 67164,
+    "sha256": "0c5a2691f07de590e6ceff19edf2e16604fc5726a6ebaaf66b6f3074ea01a7fc",
+    "generatedAt": "2026-11-20T12:20:52+00:00",
+    "generator": "tools/data-adapter/build_scenario.py",
+    "license": "MIT (source repository)"
+  },
+  "checks": [
+    {
+      "id": "timeline-monotonic",
+      "description": "Telemetry time strictly increases",
+      "status": "PASS",
+      "detail": "dt_min=0.01 s, dt_max=0.01 s"
+    },
+    {
+      "id": "finite-values",
+      "description": "All telemetry values are finite",
+      "status": "PASS",
+      "detail": "rows=67164, columns=132"
+    },
+    {
+      "id": "eci-ecef-alignment",
+      "description": "ECI and ECEF coincide at t=0",
+      "status": "PASS",
+      "detail": "|r_eci - r_ecef| at t=0 = 0.000e+00 m"
+    },
+    {
+      "id": "velocity-frame",
+      "description": "ECEF velocity = Rz(-omega t)(v_ECI - omega x r_ECI)",
+      "status": "PASS",
+      "detail": "at t=335.8 s, frame error = 6.829e-07 m/s"
+    },
+    {
+      "id": "llh-ecef-roundtrip",
+      "description": "WGS84 lat/lon/alt reproduce telemetry ECEF position",
+      "status": "PASS",
+      "detail": "max ||LLH->ECEF - r_ECEF|| = 0.073 m"
+    },
+    {
+      "id": "quaternion-normalized",
+      "description": "Attitude quaternions are unit length (scalar first)",
+      "status": "PASS",
+      "detail": "max |‖q‖-1| = 8.176e-07 (CSV is printed with 6 decimals)"
+    },
+    {
+      "id": "speed-semantics",
+      "description": "Source m_speed is inertial speed |v_ECI|; web speed uses |v_ECEF|",
+      "status": "PASS",
+      "detail": "max |m_speed - ‖v_ECI‖| = 0.0000 m/s; |v_ECEF| at t=0 = 0.000 m/s"
+    },
+    {
+      "id": "speed-and-mach-semantics",
+      "description": "Source airspeed = |v_ECEF|; Mach is wind-corrected air-relative",
+      "status": "PASS",
+      "detail": "max |airspeed - ‖v_ECEF‖| = 0.000 m/s; max |Mach - airspeed/a| = 0.050 (wind correction, < 0.06)"
+    },
+    {
+      "id": "altitude-units",
+      "description": "Altitude is WGS84 geodetic height in metres",
+      "status": "PASS",
+      "detail": "alt range [0.0, 29980.7] m"
+    },
+    {
+      "id": "sample-recovery",
+      "description": "Converted samples reproduce source position and altitude",
+      "status": "PASS",
+      "detail": "lat err <= 0.06 m, alt err <= 0.00 m"
+    }
+  ],
+  "metrics": {
+    "missDistanceM": 22.609,
+    "interceptTimeS": 671.63,
+    "maxSpeedMS": 2796.5263,
+    "maxMach": 9.4645,
+    "maxDynamicPressurePa": 867715.913,
+    "maxLoadG": 40.0,
+    "maxAltitudeM": 29980.668,
+    "downrangeKM": 1655.7953,
+    "fuelUsedKg": 1490.1878,
+    "handoverTimeS": 663.93,
+    "flightDurationS": 671.63
+  }
+}

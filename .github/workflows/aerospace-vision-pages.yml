@@ -1,0 +1,63 @@
+name: Deploy Aerospace Vision Web to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "aerospace-vision-web/**"
+      - ".github/workflows/aerospace-vision-pages.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages-aerospace-vision
+  cancel-in-progress: true
+
+defaults:
+  run:
+    working-directory: aerospace-vision-web
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: aerospace-vision-web/package-lock.json
+      - run: npm ci
+      - name: Unit and scientific tests
+        run: npm test
+      - name: Production build
+        run: npm run build
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Browser end-to-end tests
+        run: npx playwright test
+      - name: Stage legacy static report
+        run: |
+          mkdir -p dist/legacy
+          cp ../index.html dist/legacy/
+          cp -r ../assets ../intercept-report ../missile-intercept-overview ../test-report dist/legacy/
+      - name: Add .nojekyll
+        run: touch dist/.nojekyll
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: aerospace-vision-web/dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

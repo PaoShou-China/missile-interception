@@ -1,0 +1,28 @@
+{
+  "module_files_including_init": {
+    "vehicle": 5,
+    "sensors": 5,
+    "guidance": 6,
+    "control": 4
+  },
+  "simulation_python_files": 55,
+  "simulation_test_files": 12,
+  "simulation_test_function_definitions": 78,
+  "simulation_test_definition_counts": {
+    "test_aero_anchors.py": 7,
+    "test_analysis.py": 2,
+    "test_batch.py": 4,
+    "test_control.py": 16,
+    "test_data_consistency.py": 13,
+    "test_fastcore.py": 5,
+    "test_guidance.py": 12,
+    "test_integrator_events.py": 3,
+    "test_main_integration.py": 8,
+    "test_sensors.py": 4,
+    "test_state_schema.py": 3,
+    "test_verification.py": 1
+  },
+  "interpretation": "AST definition counts are neither pytest collected-case counts nor executed tests.",
+  "report_count": 3,
+  "unique_report_assets": 13
+}

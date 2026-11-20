@@ -1,0 +1,41 @@
+{
+  "passed": 5,
+  "failed": 0,
+  "cases": [
+    {
+      "name": "rk4_convergence_order",
+      "passed": true,
+      "observed": 3.8802043774442074,
+      "limit": 3.8,
+      "detail": "errors=['3.069e-05', '2.084e-06', '1.358e-07'] orders=['3.88', '3.94']"
+    },
+    {
+      "name": "kepler_orbit_conservation",
+      "passed": true,
+      "observed": 7.958816630499704e-13,
+      "limit": 1e-06,
+      "detail": "radius_rel=7.959e-13 energy_rel=7.942e-13 nfev=4664"
+    },
+    {
+      "name": "quaternion_norm_long_run",
+      "passed": true,
+      "observed": 0.0,
+      "limit": 1e-12,
+      "detail": "steps=40001 nfev=160004"
+    },
+    {
+      "name": "cross_integrator_rk4_rk45",
+      "passed": true,
+      "observed": 1.4571918597760372e-09,
+      "limit": 1e-08,
+      "detail": "rk4_nfev=4664 rk45_nfev=1998 rk45_steps=326"
+    },
+    {
+      "name": "adaptive_rk45_accuracy",
+      "passed": true,
+      "observed": 4.561467697198197e-09,
+      "limit": 1e-08,
+      "detail": "steps=102 nfev=624"
+    }
+  ]
+}

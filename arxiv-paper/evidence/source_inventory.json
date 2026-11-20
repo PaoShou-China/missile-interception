@@ -1,0 +1,473 @@
+{
+  "schema": "paper-static-evidence/v1",
+  "capture_kind": "posthoc_snapshot",
+  "captured_at_utc": "2026-11-13T11:40:54.066717+00:00",
+  "scope": "Selected current file bytes only. Original run provenance and physical validity are not established.",
+  "git_metadata": "unavailable",
+  "selection": "Python/YAML source under four fixed directories excluding generated output/cache; requirements, five documentation/license files, and inventoried report assets.",
+  "files": [
+    {
+      "path": ".github/ISSUE_TEMPLATE/bug_report.yml",
+      "size_bytes": 1854,
+      "sha256": "6cc4856cf32a82a824117761642fa45c9842de86ab8b86b3cf7ac40ea2808669"
+    },
+    {
+      "path": ".github/ISSUE_TEMPLATE/config.yml",
+      "size_bytes": 401,
+      "sha256": "6de7717036acce3aa4936275a8d0b31a370ddbe9a04a9582051745eabffaf251"
+    },
+    {
+      "path": ".github/ISSUE_TEMPLATE/feature_request.yml",
+      "size_bytes": 1223,
+      "sha256": "8ed3d8050ace21c4fcd73379b0d24b14fa2c87570a36dd3b689d5c5df8a8c21d"
+    },
+    {
+      "path": ".github/workflows/provenance.yml",
+      "size_bytes": 1302,
+      "sha256": "c1b39f1786c0b090efa77a74799e289e4e0711c08d6bbb4f8325bff8df6e6acc"
+    },
+    {
+      "path": "LICENSE",
+      "size_bytes": 1068,
+      "sha256": "fcd5f39e7f23d34def55b85b20261d623e100880a4ea62c7b59d55356a9596cf"
+    },
+    {
+      "path": "README.md",
+      "size_bytes": 8714,
+      "sha256": "0d5bfee3163cfea154b3c07ba28977b61e81f3cf56f5fa13a0d671c0eb8d5355"
+    },
+    {
+      "path": "docs/REPRODUCIBILITY.md",
+      "size_bytes": 3948,
+      "sha256": "d4c5e21efb7d0c91ce77074ca6c6faa2b8c513b80d1be4bad09a1bf16e860b6f"
+    },
+    {
+      "path": "intercept-report/_shared/js/echarts.min.js",
+      "size_bytes": 1030871,
+      "sha256": "0fac5580a2d508964fd74639b59202eb621d67e2813a44feb88e931821b84ef4"
+    },
+    {
+      "path": "intercept-report/assets/charts.js",
+      "size_bytes": 11977,
+      "sha256": "a1745c5c7d777034385a219738b7e1a9e87e24fc0e4d4dc78c8c4c900a638b73"
+    },
+    {
+      "path": "intercept-report/assets/data.js",
+      "size_bytes": 139166,
+      "sha256": "b18e60be35e18b04d853cdce31fa27abb1cc9bab7b038d83c86a09558315abd5"
+    },
+    {
+      "path": "intercept-report/assets/metrics.json",
+      "size_bytes": 1105,
+      "sha256": "fea9477052ed2b93bb5676c893c2e6c20915015e1ccc13e7489a8807f45d7000"
+    },
+    {
+      "path": "intercept-report/intercept-report.html",
+      "size_bytes": 38159,
+      "sha256": "80def9b7590085c5e4482fa1c5000e5ff9155fccbd9f37b62a154077811d6df6"
+    },
+    {
+      "path": "missile-intercept-overview/_shared/js/echarts.min.js",
+      "size_bytes": 1030855,
+      "sha256": "e84270bd0cd5bdf60fefc26d00c2a391cb2e81f4d26a7a9ee16185a54773a3cf"
+    },
+    {
+      "path": "missile-intercept-overview/_shared/js/mermaid.min.js",
+      "size_bytes": 2571900,
+      "sha256": "a43bc1afd446f9c4cc66ac5dd45d02e8d65e26fc5344ec0ef787f88d6ddb6f9e"
+    },
+    {
+      "path": "missile-intercept-overview/assets/app.js",
+      "size_bytes": 1935,
+      "sha256": "55c8d2f1cdae00c4f59324f5e8b4064f920f15e4750ad0751da9a23a079a716e"
+    },
+    {
+      "path": "missile-intercept-overview/assets/charts.js",
+      "size_bytes": 10364,
+      "sha256": "cff6bf61d792e179004a1c0554f8ad00626eb5425d010618c77310cc3c7cb67d"
+    },
+    {
+      "path": "missile-intercept-overview/assets/data.js",
+      "size_bytes": 139166,
+      "sha256": "b18e60be35e18b04d853cdce31fa27abb1cc9bab7b038d83c86a09558315abd5"
+    },
+    {
+      "path": "missile-intercept-overview/assets/mc.js",
+      "size_bytes": 7592,
+      "sha256": "f434de6daa9bb056f5939ca683323983ddbedfa58407445ee4a997ad639a01fc"
+    },
+    {
+      "path": "missile-intercept-overview/missile-intercept-overview.html",
+      "size_bytes": 122373,
+      "sha256": "300c7952d5cfc949b1810e66576b98ecde44636cafda77cad459dd67296a5e18"
+    },
+    {
+      "path": "missile_intercept/README.en.md",
+      "size_bytes": 30500,
+      "sha256": "b7ae264eeef03d1eb6a4e71e07af1d3b78bc0e51908289ae8428a7b6cbd10158"
+    },
+    {
+      "path": "missile_intercept/README.md",
+      "size_bytes": 27703,
+      "sha256": "b5ce3fbffac7fbcc37a1d07b736597f70e48d1cb2b48a7f043a07e5d59c9b39d"
+    },
+    {
+      "path": "missile_intercept/analysis.py",
+      "size_bytes": 18690,
+      "sha256": "265dcdb10c476db5ff10d8c3e693b573d62c3fac1d98648db880ce842e1b0f8b"
+    },
+    {
+      "path": "missile_intercept/batch.py",
+      "size_bytes": 21729,
+      "sha256": "5b9a62ce74d957218114764fc80650b31301d5a655839419c4acb50879ac48d5"
+    },
+    {
+      "path": "missile_intercept/config.py",
+      "size_bytes": 55383,
+      "sha256": "d0f6bea59234265a9d7f219a1af013dc53e568b46c727a8b1ea992959829d20a"
+    },
+    {
+      "path": "missile_intercept/control/__init__.py",
+      "size_bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "missile_intercept/control/autopilot.py",
+      "size_bytes": 23077,
+      "sha256": "810183cb04f975f4ae69b09ac952e4a649d9f41ec864880cb3aec7658e020425"
+    },
+    {
+      "path": "missile_intercept/control/fin_mixer.py",
+      "size_bytes": 2663,
+      "sha256": "db0fa9257c7208d933d1e168c9f44479b4aff79919d042703210213c86c6b043"
+    },
+    {
+      "path": "missile_intercept/control/thrust_controller.py",
+      "size_bytes": 3303,
+      "sha256": "6133bfe28b5cb7176dbc2831237fcf7cfaadcd88479e2352198a5c2dab684375"
+    },
+    {
+      "path": "missile_intercept/fastcore.py",
+      "size_bytes": 53391,
+      "sha256": "af10ee7ff1b42b6767f606f82fc540c271bd372ec4a2535e237c4a7a785bf62e"
+    },
+    {
+      "path": "missile_intercept/guidance/__init__.py",
+      "size_bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "missile_intercept/guidance/base_guidance.py",
+      "size_bytes": 1572,
+      "sha256": "45db4dcd71bdb96fd99eccb30e8b12b590d895248733b9c34680d8d8189fd566"
+    },
+    {
+      "path": "missile_intercept/guidance/boost_guidance.py",
+      "size_bytes": 7488,
+      "sha256": "dc425ac994442921637cf15131a47893a9a4a1952536745ecdcbd1fad3d44869"
+    },
+    {
+      "path": "missile_intercept/guidance/handover_manager.py",
+      "size_bytes": 9484,
+      "sha256": "a4c56a1297818d7cefb6aa1be1c4c756af7271783d769827f9c82d59dc0640b3"
+    },
+    {
+      "path": "missile_intercept/guidance/midcourse_guidance.py",
+      "size_bytes": 27159,
+      "sha256": "3c23efdcb285ccadf22b9eb07b294b990fecf76b2212a6db914ab4c63e9c4422"
+    },
+    {
+      "path": "missile_intercept/guidance/terminal_guidance.py",
+      "size_bytes": 8109,
+      "sha256": "6e7848ed8445670f5f6840768102806d2ad48922d0a5e339e4939253300d9c04"
+    },
+    {
+      "path": "missile_intercept/integrator.py",
+      "size_bytes": 14124,
+      "sha256": "e7874443f2dc32d44b7dd0b5c0048bf9be728c060f9bad3bdc8ebc11a93a81be"
+    },
+    {
+      "path": "missile_intercept/main.py",
+      "size_bytes": 37978,
+      "sha256": "b49a2acb3d03fa6235782df6d181e66bb30a338a21f780d28b4fa440760f2792"
+    },
+    {
+      "path": "missile_intercept/math_utils.py",
+      "size_bytes": 15193,
+      "sha256": "a3a69ab4576acb5679944871562107ce8d8e0503e7568728bb64f52d610449ab"
+    },
+    {
+      "path": "missile_intercept/requirements.txt",
+      "size_bytes": 177,
+      "sha256": "6b12c645123b4b901d8fab7ff4826d65f48e0ddf4040a05d21b53f238dfaa938"
+    },
+    {
+      "path": "missile_intercept/sensors/__init__.py",
+      "size_bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "missile_intercept/sensors/imu.py",
+      "size_bytes": 5352,
+      "sha256": "056529a7978586adc2568812fd5d756ea481ccc636b3e233e3f6defb10e498a0"
+    },
+    {
+      "path": "missile_intercept/sensors/navigation.py",
+      "size_bytes": 8495,
+      "sha256": "903f4e0a0e8c67c215aec477d2df1c61e6415d73f967b900412ae1cd62df3945"
+    },
+    {
+      "path": "missile_intercept/sensors/seeker.py",
+      "size_bytes": 9763,
+      "sha256": "fdbbe5abc8dff0ec04a04d53ac5264df5bab5ba5f83f2c79080966be72915e40"
+    },
+    {
+      "path": "missile_intercept/sensors/target_tracker.py",
+      "size_bytes": 6168,
+      "sha256": "ad475bb7dad05b1095ac011547acb33d69ed149c767d3d53f0104737039763aa"
+    },
+    {
+      "path": "missile_intercept/state_schema.py",
+      "size_bytes": 4135,
+      "sha256": "1f96cfeaff7e355aac9fb13c002864b38657f9d24ed533b49be0ef4b18f2910d"
+    },
+    {
+      "path": "missile_intercept/telemetry.py",
+      "size_bytes": 3449,
+      "sha256": "74d0b98a0aecfc6fc375b2f3ea32337eeff02093ede147d579d52f7321770b1b"
+    },
+    {
+      "path": "missile_intercept/tests/__init__.py",
+      "size_bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "missile_intercept/tests/conftest.py",
+      "size_bytes": 538,
+      "sha256": "cb5a7e1327bcc4f666306c9fd2db8ea1a8bc19289eccdddf18e21c00d7cb49e5"
+    },
+    {
+      "path": "missile_intercept/tests/test_aero_anchors.py",
+      "size_bytes": 3532,
+      "sha256": "7bf0dbc85d6deafbf7f158fee25df98abe8a63fd9cfd762bd5289a6623dbb36e"
+    },
+    {
+      "path": "missile_intercept/tests/test_analysis.py",
+      "size_bytes": 1170,
+      "sha256": "f2cd50e8c9bc4935e15035aab94e85b1d3d6d89e6ab52ef6a352e95bd8d10785"
+    },
+    {
+      "path": "missile_intercept/tests/test_batch.py",
+      "size_bytes": 2489,
+      "sha256": "82e8e2d331db31018c48d7a2adb184795c0be9943a99ed687ce22322175b30d6"
+    },
+    {
+      "path": "missile_intercept/tests/test_control.py",
+      "size_bytes": 9229,
+      "sha256": "346567c2405f2863d71327a3debb9ab377f651f16f7982a11c75211c866c41a3"
+    },
+    {
+      "path": "missile_intercept/tests/test_data_consistency.py",
+      "size_bytes": 7516,
+      "sha256": "e9815c0a1dd0e42b8b9aaef2b2d33bb77c0c6abad65c7a207b297d81575c1f74"
+    },
+    {
+      "path": "missile_intercept/tests/test_fastcore.py",
+      "size_bytes": 5530,
+      "sha256": "c9e9a11f2d4d3d429c624a1990d266d1f49ad68c880b5f135a97c19145b66f5f"
+    },
+    {
+      "path": "missile_intercept/tests/test_guidance.py",
+      "size_bytes": 10133,
+      "sha256": "5da420038bf4db1f74e9d9f73ac5a7cbc707a188a09d0a02e8003a2860fd936a"
+    },
+    {
+      "path": "missile_intercept/tests/test_integrator_events.py",
+      "size_bytes": 2183,
+      "sha256": "776bc0891697eb344743a4019e3bd690edace767b677502a9d30a9d3fe4ba4fc"
+    },
+    {
+      "path": "missile_intercept/tests/test_main_integration.py",
+      "size_bytes": 7589,
+      "sha256": "855fadfdb0904a6746139bb168d69e3a51a7feb0c59c88ea79b61a5191252312"
+    },
+    {
+      "path": "missile_intercept/tests/test_sensors.py",
+      "size_bytes": 2798,
+      "sha256": "5df42cd09c90eafdaae412a5e5d4f6cafc21a429ba1647e4e33bb31ef5472faf"
+    },
+    {
+      "path": "missile_intercept/tests/test_state_schema.py",
+      "size_bytes": 1323,
+      "sha256": "3f3e115bccd6f6c622a7f40d594d506e83a1a06b83d9b2420a371d03888e2d8a"
+    },
+    {
+      "path": "missile_intercept/tests/test_verification.py",
+      "size_bytes": 340,
+      "sha256": "7f42ec236ade0c35fd3b774a71af514b4b39b0a940ed3c4e9a14ad577f8bf2dc"
+    },
+    {
+      "path": "missile_intercept/tools/aero_crosscheck.py",
+      "size_bytes": 9004,
+      "sha256": "02d97f82efe792dbb28d22707c67d1c4ab95259d3a389ec2a1654d5ca854fe33"
+    },
+    {
+      "path": "missile_intercept/tools/aero_optimize.py",
+      "size_bytes": 4798,
+      "sha256": "7121eb6afe6934ce054958af90c1691aca39f7479e3868d2a78762c6bace4ef8"
+    },
+    {
+      "path": "missile_intercept/tools/aero_uq.py",
+      "size_bytes": 2537,
+      "sha256": "be06684d719aeae2673a4df4582c93ac78cec676e74f32a02e311b9157cd8283"
+    },
+    {
+      "path": "missile_intercept/tools/build_report_data.py",
+      "size_bytes": 5779,
+      "sha256": "318e0771137c983471b1b86b836f81f0ce34fe470be496911db7b530cd713896"
+    },
+    {
+      "path": "missile_intercept/tools/datcom_aero.py",
+      "size_bytes": 9899,
+      "sha256": "6585be27a193cd2aa6be0d07add842d701ca28a0bfdf902e1ad1f08172080e99"
+    },
+    {
+      "path": "missile_intercept/tools/handover_diagnostics.py",
+      "size_bytes": 12715,
+      "sha256": "ee480c18a020719f914c7f00b22b06da057ec3eb5e52ca4116302cab0eb51a38"
+    },
+    {
+      "path": "missile_intercept/tools/miss_budget.py",
+      "size_bytes": 9577,
+      "sha256": "d69e89c502d7b5c46104850719796d24f2f333e4194e53fccd803b1d739d76ad"
+    },
+    {
+      "path": "missile_intercept/tools/tune_autopilot.py",
+      "size_bytes": 6918,
+      "sha256": "a4b063032eec391aacea2ddcf661921067b804d8c58b760da6e22e337e033fdc"
+    },
+    {
+      "path": "missile_intercept/tools/tune_handover.py",
+      "size_bytes": 7421,
+      "sha256": "d40574217497f45da455fdc5711d6477f77b0aa04ebda3e7859b041eafb2c276"
+    },
+    {
+      "path": "missile_intercept/validate_performance.py",
+      "size_bytes": 21058,
+      "sha256": "bfe9a2b8ded2e8f9faa01c152717963b29a9e00a6194ade2e6a365b660d5c77c"
+    },
+    {
+      "path": "missile_intercept/vehicle/__init__.py",
+      "size_bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "missile_intercept/vehicle/atmosphere.py",
+      "size_bytes": 3350,
+      "sha256": "15b67b0cceeac6e472331b40212d129ed4cf8c000c79aded91200a4591cda659"
+    },
+    {
+      "path": "missile_intercept/vehicle/missile.py",
+      "size_bytes": 26101,
+      "sha256": "baa923be24360eaca118750783cb4696aa8a8c3f97d6b81155b84f35d45ef68e"
+    },
+    {
+      "path": "missile_intercept/vehicle/target.py",
+      "size_bytes": 10532,
+      "sha256": "2d6a27b71a5000285275e40082ff8c1547b55d8abfd6a852cbb6e1514ac7f5f4"
+    },
+    {
+      "path": "missile_intercept/vehicle/wind.py",
+      "size_bytes": 2449,
+      "sha256": "eb712d624f4cd7171e29cede07598a46fea1eb804e7f4d02143360f8ee881a9c"
+    },
+    {
+      "path": "missile_intercept/verification.py",
+      "size_bytes": 9029,
+      "sha256": "864311ae74793a8c85a8e25608f18f3985cf6254038fbc53804769f6bb8676cf"
+    },
+    {
+      "path": "missile_intercept/visualization.py",
+      "size_bytes": 18885,
+      "sha256": "6240b29e6fe67aa806cda6aef1e1205a16dc3b005cf040ffcb52c9470a7759f7"
+    },
+    {
+      "path": "test-report/missile_interceptor_test_report.html",
+      "size_bytes": 724337,
+      "sha256": "50c8be79772d50a9634bb6d5088a6975b8ebba2c77b37c4b5bdc81c6ae6ccf85"
+    },
+    {
+      "path": "tests/test_environment_snapshot.py",
+      "size_bytes": 3211,
+      "sha256": "f7cfd2296b553a8357c7383253a737789eadd925d54ed079581b897c85f34331"
+    },
+    {
+      "path": "tests/test_provenance.py",
+      "size_bytes": 7698,
+      "sha256": "ebdcfe2e11767f36d1ea0a668dbf0e5be4446822679305bce3b5fbc75ce8f483"
+    },
+    {
+      "path": "tests/test_report_audit.py",
+      "size_bytes": 7468,
+      "sha256": "8ff17558bd4ac2ab9999bec3809787f9d9b117d3cd08788decccbb88384235c8"
+    },
+    {
+      "path": "tools/__init__.py",
+      "size_bytes": 79,
+      "sha256": "843155963a72742b40e43d68780a12933719ff6dfd828ac838e8f28810b3892c"
+    },
+    {
+      "path": "tools/audit_reports.py",
+      "size_bytes": 10373,
+      "sha256": "7afd6ae83399632852e6bad366facbc4ad34ab6e8eef4057c66a72fa9b4a66b3"
+    },
+    {
+      "path": "tools/environment_snapshot.py",
+      "size_bytes": 3411,
+      "sha256": "80829710ca11fad70489f0938bcb609ab38907592b0dd5d9227f5363cee8ae73"
+    },
+    {
+      "path": "tools/provenance.py",
+      "size_bytes": 15101,
+      "sha256": "108909c5c8721e8fca10f500a2a3cbda4c76a32fd1a717bfe5d2aeceda1f9e31"
+    }
+  ],
+  "file_list_sha256": "c7f000a1b15ed036065d689730c6b6f681e24e1c7f1eb000e06d6c40d9b9ecaa",
+  "copied_generic_tooling": [
+    {
+      "path": "tools/__init__.py",
+      "size_bytes": 79,
+      "sha256": "843155963a72742b40e43d68780a12933719ff6dfd828ac838e8f28810b3892c"
+    },
+    {
+      "path": "tools/audit_reports.py",
+      "size_bytes": 10373,
+      "sha256": "7afd6ae83399632852e6bad366facbc4ad34ab6e8eef4057c66a72fa9b4a66b3"
+    },
+    {
+      "path": "tools/environment_snapshot.py",
+      "size_bytes": 3411,
+      "sha256": "80829710ca11fad70489f0938bcb609ab38907592b0dd5d9227f5363cee8ae73"
+    },
+    {
+      "path": "tools/provenance.py",
+      "size_bytes": 15101,
+      "sha256": "108909c5c8721e8fca10f500a2a3cbda4c76a32fd1a717bfe5d2aeceda1f9e31"
+    },
+    {
+      "path": "tests/test_environment_snapshot.py",
+      "size_bytes": 3211,
+      "sha256": "f7cfd2296b553a8357c7383253a737789eadd925d54ed079581b897c85f34331"
+    },
+    {
+      "path": "tests/test_provenance.py",
+      "size_bytes": 7698,
+      "sha256": "ebdcfe2e11767f36d1ea0a668dbf0e5be4446822679305bce3b5fbc75ce8f483"
+    },
+    {
+      "path": "tests/test_report_audit.py",
+      "size_bytes": 7468,
+      "sha256": "8ff17558bd4ac2ab9999bec3809787f9d9b117d3cd08788decccbb88384235c8"
+    }
+  ]
+}

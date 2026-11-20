@@ -1,0 +1,329 @@
+{
+  "schema": "paper-generic-contract-probes/v1",
+  "recorded_at_utc": "2026-11-13T12:53:56.965346+00:00",
+  "scope": "Isolated generic class definitions, dimensionless synthetic fields, Python telemetry path only. No simulation execution.",
+  "environment": {
+    "python": "3.12.14",
+    "numpy": "2.3.5",
+    "system": "Windows",
+    "machine": "AMD64"
+  },
+  "class_extraction": [
+    {
+      "source": "state_schema.py",
+      "source_sha256": "1f96cfeaff7e355aac9fb13c002864b38657f9d24ed533b49be0ef4b18f2910d",
+      "selection": [
+        {
+          "name": "StateField",
+          "line_start": 23,
+          "line_end": 33,
+          "class_text_sha256": "d278fadec2854f9d157f11a11ca18d8a0db55cb3b61a6b231c5274009d85b83a"
+        },
+        {
+          "name": "StateSchema",
+          "line_start": 36,
+          "line_end": 87,
+          "class_text_sha256": "ba2d7d5cd9fde36bf1cee72cda3ee0ab7f09e98fcebb063d8d4964844bbfcaf0"
+        }
+      ]
+    },
+    {
+      "source": "telemetry.py",
+      "source_sha256": "74d0b98a0aecfc6fc375b2f3ea32337eeff02093ede147d579d52f7321770b1b",
+      "selection": [
+        {
+          "name": "TelemetryLogger",
+          "line_start": 17,
+          "line_end": 87,
+          "class_text_sha256": "4886fd3263f8b15c8305bff0d79da6e30396a81eb0ae958f6fbb159048b33cf4"
+        },
+        {
+          "name": "SimLoggerDefaults",
+          "line_start": 90,
+          "line_end": 92,
+          "class_text_sha256": "99bad6dad7e809186e432bce1b6b1b1e353e1af5a5b69cf00933c2fca2538cd8"
+        }
+      ]
+    }
+  ],
+  "probes": [
+    {
+      "name": "pack_unpack_roundtrip",
+      "area": "schema",
+      "property_observed": true,
+      "desired_property": true,
+      "requirement_met": true,
+      "detail": ""
+    },
+    {
+      "name": "missing_key_rejected",
+      "area": "schema",
+      "property_observed": true,
+      "desired_property": true,
+      "requirement_met": true,
+      "detail": ""
+    },
+    {
+      "name": "extra_key_rejected",
+      "area": "schema",
+      "property_observed": true,
+      "desired_property": true,
+      "requirement_met": true,
+      "detail": ""
+    },
+    {
+      "name": "array_shape_rejected",
+      "area": "schema",
+      "property_observed": true,
+      "desired_property": true,
+      "requirement_met": true,
+      "detail": ""
+    },
+    {
+      "name": "nonscalar_label_rejected",
+      "area": "schema",
+      "property_observed": true,
+      "desired_property": true,
+      "requirement_met": true,
+      "detail": ""
+    },
+    {
+      "name": "nonfinite_pack_rejected",
+      "area": "schema",
+      "property_observed": true,
+      "desired_property": true,
+      "requirement_met": true,
+      "detail": ""
+    },
+    {
+      "name": "duplicate_field_key_rejected",
+      "area": "schema",
+      "property_observed": true,
+      "desired_property": true,
+      "requirement_met": true,
+      "detail": ""
+    },
+    {
+      "name": "wrong_packed_length_rejected",
+      "area": "schema",
+      "property_observed": true,
+      "desired_property": true,
+      "requirement_met": true,
+      "detail": ""
+    },
+    {
+      "name": "unpack_returns_array_copy",
+      "area": "schema",
+      "property_observed": true,
+      "desired_property": true,
+      "requirement_met": true,
+      "detail": ""
+    },
+    {
+      "name": "metadata_change_changes_layout_hash",
+      "area": "schema",
+      "property_observed": true,
+      "desired_property": true,
+      "requirement_met": true,
+      "detail": ""
+    },
+    {
+      "name": "nonfinite_unpack_rejected",
+      "area": "schema",
+      "property_observed": false,
+      "desired_property": true,
+      "requirement_met": false,
+      "detail": "Diagnostic requirement: unpack checks shape but does not reject nonfinite values."
+    },
+    {
+      "name": "valid_row_accepted",
+      "area": "telemetry",
+      "property_observed": true,
+      "desired_property": true,
+      "requirement_met": true,
+      "detail": ""
+    },
+    {
+      "name": "wrong_row_width_rejected",
+      "area": "telemetry",
+      "property_observed": true,
+      "desired_property": true,
+      "requirement_met": true,
+      "detail": ""
+    },
+    {
+      "name": "nonfinite_values_rejected",
+      "area": "telemetry",
+      "property_observed": true,
+      "desired_property": true,
+      "requirement_met": true,
+      "detail": ""
+    },
+    {
+      "name": "zero_capacity_rejected",
+      "area": "telemetry",
+      "property_observed": true,
+      "desired_property": true,
+      "requirement_met": true,
+      "detail": ""
+    },
+    {
+      "name": "equal_timestamp_dropped",
+      "area": "telemetry",
+      "property_observed": true,
+      "desired_property": true,
+      "requirement_met": true,
+      "detail": ""
+    },
+    {
+      "name": "earlier_timestamp_dropped",
+      "area": "telemetry",
+      "property_observed": true,
+      "desired_property": true,
+      "requirement_met": true,
+      "detail": ""
+    },
+    {
+      "name": "capacity_overflow_dropped_and_counted",
+      "area": "telemetry",
+      "property_observed": true,
+      "desired_property": true,
+      "requirement_met": true,
+      "detail": ""
+    },
+    {
+      "name": "as_dict_returns_copies",
+      "area": "telemetry",
+      "property_observed": true,
+      "desired_property": true,
+      "requirement_met": true,
+      "detail": ""
+    },
+    {
+      "name": "get_returns_column_view",
+      "area": "telemetry",
+      "property_observed": true,
+      "desired_property": true,
+      "requirement_met": true,
+      "detail": "Observed ownership semantics; get is not an immutable snapshot."
+    },
+    {
+      "name": "unknown_column_rejected",
+      "area": "telemetry",
+      "property_observed": true,
+      "desired_property": true,
+      "requirement_met": true,
+      "detail": ""
+    },
+    {
+      "name": "csv_uses_six_decimal_places",
+      "area": "telemetry",
+      "property_observed": true,
+      "desired_property": true,
+      "requirement_met": true,
+      "detail": ""
+    },
+    {
+      "name": "nonfinite_timestamp_rejected",
+      "area": "telemetry",
+      "property_observed": false,
+      "desired_property": true,
+      "requirement_met": false,
+      "detail": "Diagnostic requirement: the tested Python path accepts a NaN timestamp; no repair is applied."
+    }
+  ],
+  "probe_count": 23,
+  "requirements_met": 21,
+  "limitations_observed": [
+    "nonfinite_unpack_rejected",
+    "nonfinite_timestamp_rejected"
+  ],
+  "allocation_experiment": [
+    {
+      "capacity": 256,
+      "channels_including_time": 8,
+      "dtype": "float64",
+      "payload_bytes": 16384,
+      "predicted_payload_bytes": 16384
+    },
+    {
+      "capacity": 256,
+      "channels_including_time": 32,
+      "dtype": "float64",
+      "payload_bytes": 65536,
+      "predicted_payload_bytes": 65536
+    },
+    {
+      "capacity": 256,
+      "channels_including_time": 128,
+      "dtype": "float64",
+      "payload_bytes": 262144,
+      "predicted_payload_bytes": 262144
+    },
+    {
+      "capacity": 1024,
+      "channels_including_time": 8,
+      "dtype": "float64",
+      "payload_bytes": 65536,
+      "predicted_payload_bytes": 65536
+    },
+    {
+      "capacity": 1024,
+      "channels_including_time": 32,
+      "dtype": "float64",
+      "payload_bytes": 262144,
+      "predicted_payload_bytes": 262144
+    },
+    {
+      "capacity": 1024,
+      "channels_including_time": 128,
+      "dtype": "float64",
+      "payload_bytes": 1048576,
+      "predicted_payload_bytes": 1048576
+    },
+    {
+      "capacity": 4096,
+      "channels_including_time": 8,
+      "dtype": "float64",
+      "payload_bytes": 262144,
+      "predicted_payload_bytes": 262144
+    },
+    {
+      "capacity": 4096,
+      "channels_including_time": 32,
+      "dtype": "float64",
+      "payload_bytes": 1048576,
+      "predicted_payload_bytes": 1048576
+    },
+    {
+      "capacity": 4096,
+      "channels_including_time": 128,
+      "dtype": "float64",
+      "payload_bytes": 4194304,
+      "predicted_payload_bytes": 4194304
+    },
+    {
+      "capacity": 16384,
+      "channels_including_time": 8,
+      "dtype": "float64",
+      "payload_bytes": 1048576,
+      "predicted_payload_bytes": 1048576
+    },
+    {
+      "capacity": 16384,
+      "channels_including_time": 32,
+      "dtype": "float64",
+      "payload_bytes": 4194304,
+      "predicted_payload_bytes": 4194304
+    },
+    {
+      "capacity": 16384,
+      "channels_including_time": 128,
+      "dtype": "float64",
+      "payload_bytes": 16777216,
+      "predicted_payload_bytes": 16777216
+    }
+  ],
+  "allocation_predictions_match": true,
+  "allocation_metric": "NumPy data-array payload only; excludes Python objects, process RSS, output copies, and allocator overhead."
+}

@@ -1,0 +1,16 @@
+{
+  "pdf": "paper.pdf",
+  "source_zip": "arxiv-source.zip",
+  "source_files": [
+    "figures/data_contracts.pdf",
+    "figures/framework_architecture.pdf",
+    "figures/multirate_timeline.pdf",
+    "figures/verification_layers.pdf",
+    "main.bbl",
+    "main.tex",
+    "references.bib",
+    "verification_numbers.tex"
+  ],
+  "latex_warnings": [],
+  "zip_compile_check": "compiled successfully using bundled bibliography"
+}

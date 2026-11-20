@@ -162,9 +162,13 @@ test("all ten camera modes switch, including body close-ups", async ({ page }) =
 
   const track = page.locator(".camera-dock button", { hasText: "Track" });
   await expect(track).toHaveClass(/is-active/);
-  await track.click();
+  // The software GL runner renders at a few FPS; Playwright's actionability
+  // stability check can starve there. Dispatch the click on the DOM node so the
+  // React handler is still exercised without waiting for frame stability.
+  const toggleTrack = () => track.evaluate((el) => (el as HTMLElement).click());
+  await toggleTrack();
   await expect(track).not.toHaveClass(/is-active/);
-  await track.click();
+  await toggleTrack();
   await expect(track).toHaveClass(/is-active/);
 });
 

@@ -235,9 +235,10 @@ def integrate(rhs, t_span, y0, step, events=None, before_step=None,
         Called once at the beginning of every outer step; this is where
         sensors, guidance and actuators are updated (ZOH).
     after_step : callable(t, y, dy)
-        Called once after every accepted step; used to refresh cached state.
-        ``dy`` is the RK4 average derivative over the step, not the endpoint
-        derivative, so an INS can integrate it exactly.
+        Called once after every accepted step (including event-truncated
+        ones); used to refresh cached state.  ``dy`` is the accepted average
+        derivative over that step, not the endpoint derivative, so an INS can
+        integrate it exactly.
     """
     t0 = float(t_span[0])
     t1 = float(t_span[1])
@@ -280,27 +281,45 @@ def integrate(rhs, t_span, y0, step, events=None, before_step=None,
         if before_step is not None:
             before_step(t, y)
 
-        h = min(fixed_step if fixed_step is not None else float(step(t, y)),
-                t1 - t)
-        if h <= 0.0:
+        # The outer sample grid is frozen for the whole interval.  A
+        # non-terminal event splits the step but never re-samples the ZOH
+        # controls or shifts the grid.
+        h_outer = (fixed_step if fixed_step is not None else float(step(t, y)))
+        if h_outer <= 0.0:
             raise ValueError("step provider returned a non-positive step")
-        y_next, _f_start, _f_end, f_avg = rk4_step(rhs, t, y, h)
-        nfev += 4
-        nsteps += 1
+        step_end = min(t + h_outer, t1)
+        stop = False
 
-        next_guards = [_guard(ev, t + h, y_next, event_guard_tolerance)
-                       for ev in ev_list]
-        candidates = []
-        for i, ev in enumerate(ev_list):
-            if _crosses(guards[i], next_guards[i], directions[i]):
-                root_t, root_y, used = _refine_root(
-                    rhs, ev, t, y, t + h, y_next, guards[i], next_guards[i],
-                    directions[i], event_time_tolerance,
-                    event_guard_tolerance, max_event_iterations)
-                nfev += used
-                candidates.append((root_t, i, root_y))
+        while t < step_end - 1e-15:
+            h = step_end - t
+            y_next, _f_start, _f_end, f_avg = rk4_step(rhs, t, y, h)
+            nfev += 4
+            nsteps += 1
 
-        if candidates:
+            next_guards = [_guard(ev, t + h, y_next, event_guard_tolerance)
+                           for ev in ev_list]
+            candidates = []
+            for i, ev in enumerate(ev_list):
+                if _crosses(guards[i], next_guards[i], directions[i]):
+                    root_t, root_y, used = _refine_root(
+                        rhs, ev, t, y, t + h, y_next, guards[i],
+                        next_guards[i], directions[i], event_time_tolerance,
+                        event_guard_tolerance, max_event_iterations)
+                    nfev += used
+                    candidates.append((root_t, i, root_y))
+
+            if not candidates:
+                t = step_end
+                y = y_next
+                guards = next_guards
+                if after_step is not None:
+                    after_step(t, y, f_avg)
+                if nsteps >= max_steps:
+                    success = False
+                    message = "max_steps reached"
+                    stop = True
+                break
+
             root_time = min(c[0] for c in candidates)
             tie_tol = max(event_time_tolerance,
                           16.0 * np.finfo(float).eps * max(1.0, abs(root_time)))
@@ -312,38 +331,33 @@ def integrate(rhs, t_span, y0, step, events=None, before_step=None,
 
             index = tied[0][1]
             root_t, root_y = tied[0][0], np.array(tied[0][2], dtype=float)
-            # Re-evaluate the RHS once at the accepted root: it restores any
-            # cached diagnostics a stage-writing RHS may keep and supplies the
-            # endpoint derivative for the sampled-data consumers.
-            f_root = np.asarray(rhs(root_t, root_y), dtype=float)
-            nfev += 1
-
-            if terminals[index]:
-                t = root_t
-                y = root_y
-                message = "terminal event"
-                if after_step is not None:
-                    after_step(t, y, f_root)
-                break
-
-            # Non-terminal event: restart from the root and keep the same ZOH
-            # controls for the remainder of the interval.
+            # The callback receives the accepted average derivative of the
+            # truncated step, so sampled-data consumers integrate the exact
+            # state change instead of the endpoint rate.
+            h_root = root_t - t
+            f_trunc = (root_y - y) / h_root if h_root > 0.0 else f_avg
             t = root_t
             y = root_y
             guards = [_guard(ev, t, y, event_guard_tolerance) for ev in ev_list]
+
+            if terminals[index]:
+                message = "terminal event"
+                if after_step is not None:
+                    after_step(t, y, f_trunc)
+                stop = True
+                break
+
+            # Non-terminal event: resume the remainder of the frozen interval
+            # without re-sampling the ZOH controls.
             if after_step is not None:
-                after_step(t, y, f_root)
-            continue
+                after_step(t, y, f_trunc)
+            if nsteps >= max_steps:
+                success = False
+                message = "max_steps reached"
+                stop = True
+                break
 
-        t += h
-        y = y_next
-        guards = next_guards
-        if after_step is not None:
-            after_step(t, y, f_avg)
-
-        if nsteps >= max_steps:
-            success = False
-            message = "max_steps reached"
+        if stop:
             break
 
     return IntegrationResult(

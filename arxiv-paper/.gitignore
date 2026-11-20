@@ -1,7 +1,0 @@
-build/
-__pycache__/
-.pytest_cache/
-*.aux
-*.log
-*.out
-*.blg

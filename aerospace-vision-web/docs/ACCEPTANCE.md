@@ -105,11 +105,13 @@ Screenshots produced during the run are in `test-results/visual/`; the curated
 
 ### CI deployment run
 
-Commit `8fe3e3d` — workflow run
-[44744503544](https://github.com/PaoShou-China/missile-interception/actions/runs/44744503544):
-`build` and `deploy` both **success**. The CI browser uses SwiftShader: five
-scene/interaction tests passed, and the FPS test recorded **5.9 FPS** as a
-software-rendering annotation rather than a hardware result.
+Commit `1d4f622` — workflow run
+[44753808320](https://github.com/PaoShou-China/missile-interception/actions/runs/44753808320):
+`build` and `deploy` **success**. The deployment gate runs Chromium and WebKit
+(full functional suite, including screenshots). Firefox is exercised in CI as an
+informational step with software Mesa GL and does not block deployment; the same
+Firefox suite passed locally on Windows (5/5). Chromium CI uses SwiftShader and
+records ~2.5 FPS as a software annotation rather than a hardware verdict.
 
 ### Public URL verification (G5)
 
@@ -117,8 +119,11 @@ software-rendering annotation rather than a hardware result.
 URL:    https://paoshou-china.github.io/missile-interception/
 title:  Aerospace Vision Web · Scientific Trajectory Visualisation
 status: TELEMETRY VERIFIED · 10 CHECKS
-canvas: 1600 × 900
-clock:  T+00:00:49, altitude 0.00 → 12.50 km after pressing play
+canvas: 1920 × 1080
+assets: earth_day_8k.jpg 200 · earth_clouds_4k.jpg 200
+ui:     Track emphasis toggle present
+clock:  T+00:00:42, altitude 11.45 km after pressing play
+load:   10.3 s first visit (8K + 4K textures over the Pages CDN)
 legacy: https://paoshou-china.github.io/missile-interception/legacy/ → 200,
         original report title
 errors: none (console, page errors, HTTP >= 400)
@@ -148,10 +153,12 @@ High quality streams 8K/4K textures (~7.2 MB); Medium/Low use the 2K/1K pair
 
 1. **Mobile and high-DPI devices** are not part of the current verified matrix;
    the High tier streams 8K textures (≈7 MB) and automatically falls back to 2K
-   when the GPU reports `maxTextureSize < 8192`.
+   when the GPU reports `maxTextureSize < 8192`. First-load time on the Pages
+   CDN was 10.3 s for the 8K assets.
 2. **Firefox/WebKit performance** was verified functionally (all tests passed)
    but not profiled for frame rate; only Chromium passed the 60 FPS hardware
-   gate. CI has no GPU and records SwiftShader (~5.9 FPS) as an annotation.
+   gate. CI Firefox runs without a GPU and is informational; local Windows
+   Firefox passed the functional suite.
 3. **Earth LOD.** The 8K map is a single equirectangular texture, not tiled LOD;
    close chase passes can still look soft when the camera is metres above the
    surface. A tiled/streamed Earth is the next visual upgrade.
@@ -164,8 +171,9 @@ High quality streams 8K/4K textures (~7.2 MB); Medium/Low use the 2K/1K pair
 6. **Target attitude** is derived from its ECEF velocity (source telemetry has
    no target attitude). It affects orientation only and is documented in the
    UI's provenance section.
-7. **CI deployment** was verified for the previous commit chain; re-verify after
-   any future deployment changes.
+7. **CI Firefox environment.** The informational Firefox job needs software
+   Mesa; its result may vary by runner image and is not part of the deployment
+   gate. Local Firefox 5/5 is the authoritative functional evidence.
 
 ## Next highest-priority work
 

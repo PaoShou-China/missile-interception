@@ -75,9 +75,11 @@ function CompareTrajectory({ run, color }: { run: LoadedRun; color: string }) {
 function CompareVehicle({
   view,
   showAxes,
+  modelScale,
 }: {
   view: CompareRunView;
   showAxes: boolean;
+  modelScale: number;
 }) {
   const group = useRef<THREE.Group>(null);
   const fins = useRef<(THREE.Group | null)[]>([null, null, null, null]);
@@ -114,7 +116,7 @@ function CompareVehicle({
   );
 
   return (
-    <group ref={group} name={`compare-run-${view.tag}`}>
+    <group ref={group} name={`compare-run-${view.tag}`} scale={modelScale}>
       <mesh material={material} rotation={[0, 0, -Math.PI / 2]}>
         <cylinderGeometry args={[0.00017, 0.00017, 0.0056, 20]} />
       </mesh>
@@ -244,11 +246,13 @@ export function CompareScene({
   reference,
   cameraPreset,
   quality = "low",
+  modelScale = 1,
 }: {
   runs: CompareRunView[];
   reference: CompareRunView;
   cameraPreset: CameraPreset;
   quality?: "low" | "medium";
+  modelScale?: number;
 }) {
   return (
     <Canvas
@@ -263,7 +267,7 @@ export function CompareScene({
           <CompareTrajectory key={`line-${v.tag}`} run={v.run} color={v.color} />
         ))}
         {runs.map((v) => (
-          <CompareVehicle key={`veh-${v.tag}`} view={v} showAxes={cameraPreset === "attitude" || cameraPreset === "structure"} />
+          <CompareVehicle key={`veh-${v.tag}`} view={v} modelScale={modelScale} showAxes={cameraPreset === "attitude" || cameraPreset === "structure"} />
         ))}
         <CompareTargets runs={runs} />
       </Suspense>

@@ -71,46 +71,59 @@ test("mobile explorer exposes mission and telemetry tabs", async ({ page }) => {
   await page.screenshot({ path: path.join(SHOTS, "10-mobile-telemetry.png") });
 });
 
-test("comparison studio loads real Run A and states the missing Run B", async ({ page }) => {
+test("configuration studio loads registry options and real Run A", async ({ page }) => {
   await page.addInitScript(() => window.localStorage.setItem("av.lang", "en"));
   await page.goto("/#/compare");
-  await expect(page.locator("h1")).toHaveText("Algorithm Comparison Studio", { timeout: 45_000 });
-  await expect(page.locator(".cmp-level")).toContainText("Not directly comparable");
-  await expect(page.locator(".cmp-runs .cmp-run-card")).toHaveCount(2);
-  await expect(page.locator(".cmp-run-card").nth(1)).toContainText("Awaiting comparable experiment");
-  await expect(page.locator(".cmp-empty").first()).toBeVisible();
-  await expect(page.locator("canvas")).toHaveCount(1);
-  await page.screenshot({ path: path.join(SHOTS, "13-compare-awaiting-b.png"), fullPage: true });
-});
+  await expect(page.locator("h1")).toHaveText("Experiment Configuration Studio", { timeout: 45_000 });
 
-test("comparison modes, synthetic demo, playback and language preservation", async ({ page }) => {
-  await page.addInitScript(() => window.localStorage.setItem("av.lang", "en"));
-  await page.goto("/#/compare");
-  await expect(page.locator(".cmp-toolbar").first()).toBeVisible({ timeout: 45_000 });
+  // Two side-by-side panels, four dropdowns each, all sourced from the registry.
+  await expect(page.locator(".cfg-card")).toHaveCount(2);
+  await expect(page.locator(".cfg-card select")).toHaveCount(8);
+  await expect(page.locator(".cfg-card--A select").nth(3)).toHaveValue("coastal-intercept");
+  await expect(page.locator(".cfg-card--B select").nth(3)).toHaveValue("coastal-intercept-demo");
 
-  // No B: overlay shows A only, slider shows the import state, statistics show A curves.
-  await page.getByRole("tab", { name: "Overlay" }).click();
-  await expect(page.locator(".cmp-overlay-stage canvas")).toHaveCount(1);
-  await expect(page.locator(".cmp-legend")).toContainText("Run A only");
-  await page.getByRole("tab", { name: "Before / After" }).click();
-  await expect(page.locator(".cmp-empty--wide")).toBeVisible();
-  await page.getByRole("tab", { name: "Statistics" }).click();
+  // Read-only vehicle profile is shown for both panels.
+  await expect(page.locator(".cfg-profile")).toHaveCount(2);
+  await expect(page.locator(".cfg-profile").first()).toContainText("8.11");
+
+  // The synthetic B is explicitly labelled; real A is not fabricated.
+  await expect(page.locator(".callout--warn")).toContainText("synthetic data");
+  await expect(page.locator(".cfg-card--A .cmp-tag")).toContainText("PASS");
+
+  // Side-by-side 3D stage renders one canvas per run.
+  await expect(page.locator(".cmp-split canvas")).toHaveCount(2, { timeout: 45_000 });
   await expect(page.locator(".cmp-chart-grid .chart-card")).toHaveCount(4);
 
-  // Load the explicitly labelled synthetic demo so every mode can be exercised.
-  await page.getByRole("button", { name: /synthetic demo/i }).first().click();
-  await expect(page.locator(".callout--warn")).toContainText("synthetic data");
-  await expect(page.locator(".cmp-run-card").nth(1)).toContainText("Synthetic UI demo");
-  await page.getByRole("tab", { name: "Side-by-side" }).click();
-  await expect(page.locator(".cmp-split canvas")).toHaveCount(2);
-  await page.getByRole("tab", { name: "Overlay" }).click();
-  await expect(page.locator(".cmp-legend")).toContainText("B · Proposed");
-  await page.getByRole("tab", { name: "Before / After" }).click();
-  await expect(page.locator(".cmp-slider-input")).toBeVisible();
-  await page.getByRole("tab", { name: "Statistics" }).click();
-  await expect(page.locator(".cmp-chart-grid .chart-card")).toHaveCount(7);
+  // Summary table carries A, B, unit, source and no fabricated deltas.
+  await expect(page.locator(".cmp-table").first()).toContainText("Source");
+  await expect(page.locator(".cmp-table").first()).toContainText("N/A");
 
-  // Comparison clock advances and pauses.
+  await page.screenshot({ path: path.join(SHOTS, "13-config-studio.png"), fullPage: true });
+});
+
+test("compare, swap, save reference, overlay and playback", async ({ page }) => {
+  await page.addInitScript(() => window.localStorage.setItem("av.lang", "en"));
+  await page.goto("/#/compare");
+  await expect(page.locator(".cfg-compare")).toBeVisible({ timeout: 45_000 });
+
+  // Swap A/B then compare: selections are exchanged.
+  await page.getByRole("button", { name: "Swap A / B" }).click();
+  await expect(page.locator(".cfg-card--A select").nth(3)).toHaveValue("coastal-intercept-demo");
+  await expect(page.locator(".cfg-card--B select").nth(3)).toHaveValue("coastal-intercept");
+  await page.locator(".cfg-compare").click();
+  await expect(page.locator(".cmp-split canvas")).toHaveCount(2);
+
+  // Save the selection reference locally.
+  await page.getByRole("button", { name: "Save selection reference" }).click();
+  await expect(page.locator(".cfg-toast")).toBeVisible();
+  await expect(page.locator(".cfg-saved")).toBeVisible();
+
+  // Overlay stage shares one camera and one clock.
+  await page.getByRole("button", { name: "Trajectory overlay" }).click();
+  await expect(page.locator(".cmp-overlay-stage canvas")).toHaveCount(1);
+  await expect(page.locator(".cmp-legend")).toContainText("A · Baseline");
+
+  // Comparison clock advances then pauses.
   const now = page.locator(".cmp-track-labels b");
   const before = await now.textContent();
   await page.locator(".cmp-play").click();
@@ -118,11 +131,12 @@ test("comparison modes, synthetic demo, playback and language preservation", asy
   expect(await now.textContent()).not.toBe(before);
   await page.locator(".cmp-play").click();
 
-  // Language switch must not reset the loaded B run or the time axis.
+  // Language switch keeps selections and loaded runs intact.
   await page.locator(".lang-switch button", { hasText: "中" }).click();
-  await expect(page.locator("h1")).toHaveText("算法对比实验室");
-  await expect(page.locator(".cmp-run-card").nth(1)).toContainText("合成 UI 演示");
-  await page.screenshot({ path: path.join(SHOTS, "14-compare-synthetic-zh.png"), fullPage: true });
+  await expect(page.locator("h1")).toHaveText("实验配置对比工作台");
+  await expect(page.locator(".cfg-card--A select").nth(3)).toHaveValue("coastal-intercept-demo");
+  await expect(page.locator(".cfg-card--B select").nth(3)).toHaveValue("coastal-intercept");
+  await page.screenshot({ path: path.join(SHOTS, "14-config-studio-zh.png"), fullPage: true });
 });
 
 test("legacy reports stay reachable at their original paths", async ({ page }) => {

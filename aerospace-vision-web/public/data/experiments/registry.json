@@ -1,0 +1,141 @@
+{
+  "schemaVersion": "1.0.0",
+  "registry_id": "av-experiments-2026-11-21",
+  "generated_from": "aerospace-vision-web/public/data/compare/comparison.json",
+  "guidance": [
+    {
+      "id": "zem-apn",
+      "name": { "zh": "ZEM/APN 末制导 + Bezier 中制导", "en": "ZEM/APN terminal + Bezier midcourse" },
+      "version": "workspace",
+      "source": "missile_intercept/guidance/{midcourse,terminal}_guidance.py",
+      "description": {
+        "zh": "中段三次 Bezier 塑形，末段零控脱靶量/增强比例导引。仓库中唯一实现的制导链。",
+        "en": "Cubic Bezier midcourse shaping with zero-effort-miss / augmented PN terminal guidance. The only implemented guidance chain in the repository."
+      }
+    }
+  ],
+  "control": [
+    {
+      "id": "three-loop",
+      "name": { "zh": "三回路过载自动驾驶仪", "en": "Three-loop acceleration autopilot" },
+      "version": "workspace",
+      "source": "missile_intercept/control/autopilot.py",
+      "description": {
+        "zh": "过载指令 → 角速率 → 舵偏的三回路结构，含控制延迟预测。",
+        "en": "Load-command to rate to fin three-loop structure with control-delay prediction."
+      }
+    }
+  ],
+  "vehicles": [
+    {
+      "id": "lifting-body-2000",
+      "name": { "zh": "2000 km 级升力体拦截弹", "en": "2000 km-class lifting-body interceptor" },
+      "model_id": "interceptor-v4",
+      "version": "v4",
+      "source": "missile_intercept/config.py",
+      "length_m": 8.11,
+      "diameter_m": 0.63,
+      "launch_mass_kg": 2565,
+      "dry_mass_kg": 1000,
+      "fin_span_m": 0.364,
+      "physical_note": {
+        "zh": "三维模型为示意几何，长度与直径按档案比例绘制；气动数据来自 DATCOM 与修正牛顿法。",
+        "en": "The 3D model is schematic but proportioned to the archived length and diameter; aerodynamics come from DATCOM and modified Newtonian data."
+      }
+    }
+  ],
+  "scenarios": [
+    {
+      "id": "coastal-intercept",
+      "name": { "zh": "沿海拦截（已验证遥测）", "en": "Coastal intercept (validated telemetry)" },
+      "synthetic": false,
+      "description": {
+        "zh": "内陆发射、F-35 级目标自海上来袭的单一标称算例。",
+        "en": "Single nominal case: inland launch against an F-35-class target approaching from the sea."
+      }
+    },
+    {
+      "id": "coastal-intercept-demo",
+      "name": { "zh": "沿海拦截 · 合成 UI 演示（非科研结果）", "en": "Coastal intercept · synthetic UI demo (not a result)" },
+      "synthetic": true,
+      "description": {
+        "zh": "由真实 A 组轨迹在浏览器内平滑扰动生成，仅用于验证界面与差值计算。",
+        "en": "Generated in the browser by a smooth perturbation of Run A; UI and difference testing only."
+      }
+    }
+  ],
+  "experiments": [
+    {
+      "id": "exp-nominal",
+      "combo": {
+        "guidance": "zem-apn",
+        "control": "three-loop",
+        "vehicle": "lifting-body-2000",
+        "scenario": "coastal-intercept"
+      },
+      "synthetic": false,
+      "validation_status": "PASS",
+      "run": {
+        "run_id": "run-a",
+        "display_name": "Baseline — validated 6-DoF telemetry",
+        "algorithm_id": "missile-interception-6dof",
+        "algorithm_version": "workspace",
+        "source_commit": "workspace",
+        "scenario_id": "missile-intercept-001",
+        "configuration_hash": "f1813403f099b348",
+        "seed": null,
+        "trajectory_file": "data/missile-intercept/scenario.json",
+        "metrics_file": null,
+        "data_hash": "f1813403f099b348bdd46c051b08a89580a0ac6662dec1a26931edb34a2704a2",
+        "time_start": 0,
+        "time_end": 672.75,
+        "reference_frame": "WGS84 ECEF",
+        "units": "SI",
+        "validation_status": "PASS",
+        "availability": "available",
+        "is_synthetic": false,
+        "notes": ["Single deterministic shot from a dirty working tree (commit=workspace)."]
+      },
+      "notes": {
+        "zh": "唯一具备完整轨迹与验证状态的实验记录。",
+        "en": "The only experiment record with a complete trajectory and validation status."
+      }
+    },
+    {
+      "id": "exp-demo",
+      "combo": {
+        "guidance": "zem-apn",
+        "control": "three-loop",
+        "vehicle": "lifting-body-2000",
+        "scenario": "coastal-intercept-demo"
+      },
+      "synthetic": true,
+      "validation_status": "NOT RUN",
+      "run": {
+        "run_id": "run-b-demo",
+        "display_name": "Synthetic UI demo",
+        "algorithm_id": "synthetic-demo",
+        "algorithm_version": "ui-only",
+        "source_commit": "synthetic",
+        "scenario_id": "coastal-intercept-demo",
+        "configuration_hash": "synthetic",
+        "seed": null,
+        "trajectory_file": "",
+        "metrics_file": null,
+        "data_hash": "synthetic",
+        "time_start": 0,
+        "time_end": 672.75,
+        "reference_frame": "WGS84 ECEF",
+        "units": "SI",
+        "validation_status": "NOT RUN",
+        "availability": "available",
+        "is_synthetic": true,
+        "notes": ["Browser-generated from Run A for UI testing only."]
+      },
+      "notes": {
+        "zh": "合成演示记录，不参与任何科研结论。",
+        "en": "Synthetic demonstration record; excluded from all scientific claims."
+      }
+    }
+  ]
+}

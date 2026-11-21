@@ -1,7 +1,8 @@
-# Algorithm Comparison Studio
+# Experiment Configuration Studio
 
-Status: implemented on 2026-11-21. This document defines the comparison policy,
-the frozen data contract and the current validation status.
+Status: V4.2, implemented on 2026-11-21. This document defines the comparison
+policy, the registry contract, the frozen data contract and the current
+validation status.
 
 ## 1. What is compared
 
@@ -17,10 +18,34 @@ Current workspace audit:
 | `output/validation/validation_results.csv` | envelope sweep, different protocol | not a paired Run B |
 | legacy HTML/MD reports | different versions and statistical units | provenance only |
 
-**No independent Run B exists.** The page therefore shows Run A from the real
-payload and a clearly marked “awaiting comparable experiment” state for Run B.
-A synthetic demo can be loaded in the browser for UI testing; it is labelled
-“not a scientific result” and is excluded from performance claims.
+**No independent Run B exists.** The default B selection is therefore the
+explicitly labelled synthetic demo, which is excluded from performance claims.
+When a user selects any combination without a record, the panel shows
+`No Available Experiment` and the Compare action is disabled. Results are never
+fabricated.
+
+### Registry-driven dropdowns
+
+`public/data/experiments/registry.json` is the single source of truth for the
+four dropdown columns:
+
+| Column | Current entries | Source |
+| --- | --- | --- |
+| Guidance method | `zem-apn` | `missile_intercept/guidance/*.py` |
+| Attitude control | `three-loop` | `missile_intercept/control/autopilot.py` |
+| Vehicle profile | `lifting-body-2000` (v4) | `missile_intercept/config.py` |
+| Scenario | `coastal-intercept` (real), `coastal-intercept-demo` (synthetic) | scenario payload |
+
+Only one real implementation of each algorithm and one audited vehicle profile
+exist in the repository, so the dropdowns expose exactly those entries. The UI
+is registry-driven: adding a new option or experiment record to the JSON makes
+it selectable without code changes. Combinations absent from `experiments`
+resolve to `null` via `findExperiment()` and are reported, never approximated.
+
+Vehicle profiles are read-only: length, diameter, masses, fin semi-span, version
+and source are displayed from the archive. Only visual parameters (model scale,
+camera preset, playback rate) are adjustable and they never touch the physical
+model or the experiment record.
 
 ## 2. Comparison levels
 
@@ -65,35 +90,46 @@ with A and displays a warning that absolute times are not equal. Independent
 playback lets each run hold its own time; point-wise difference curves are then
 disabled.
 
-## 5. Modes
+## 5. Unified comparison page
+
+There is one page and two 3D layouts; the old four-way mode switcher was removed
+to keep the studio simple.
 
 - **Side-by-side**: two canvases, identical camera rule, shared time.
 - **Overlay**: both full trajectories in one ECEF frame; fixed colours
   (A `#2f7fd0`, B `#37b9d8`).
-- **Before/After**: two identical cameras stacked; the B layer is clipped by a
-  draggable divider.
-- **Statistics**: A/B curves, Δ(t) (only for matching units/definitions), metric
-  table and experiment-condition diff.
 
 Cameras: global, flight, attitude (body axes), control surfaces. Both panes use
-Run A's pose as the reference so projection and framing are identical.
+Run A's pose as the reference so projection and framing are identical. Sun,
+Moon, day/night and atmosphere follow the shared astronomical model.
 
-## 6. Importing Run B
+The lower half of the page contains:
 
-Accepted file: a scenario payload with schema 1.1.0 (`scenario.json`). On import
-the reader validates the schema, derives run metadata, and runs the matcher.
-Importing a payload whose scenario/datums/time differ produces Level C and a
-visible warning. Only trajectories are used; no algorithm parameters are
-exposed or modified.
+1. **Science charts** — altitude, speed, load and dynamic pressure for A/B.
+   Δ(t) charts appear only when the comparison is eligible (matching
+   definitions/units and non-synthetic data).
+2. **Result summary** — metric, unit, A value, B value, difference and source;
+   differences are shown as `N/A` whenever eligibility fails.
+3. **Conditions** — guidance/control/vehicle/scenario ids, configuration hash,
+   source commit and validation status, plus every matcher issue.
+
+## 6. Swapping and saving
+
+- **Swap A / B** exchanges the selections and loaded runs without reloading.
+- **Save selection reference** writes a JSON reference
+  (`registry_id`, `generated_from`, timestamp, A/B selection and experiment id)
+  to `localStorage` and the clipboard. It is a reference only — no data is
+  re-generated.
 
 ## 7. Known gaps / NOT RUN
 
 - No paired multi-run campaign is present, so distribution, confidence
   intervals and paired-difference statistics are **NOT RUN**.
+- Only one real guidance/control/vehicle implementation exists, so switching is
+  registry-complete but currently has one real entry per column. Adding records
+  to `registry.json` extends the dropdowns without code changes.
 - The synthetic demo exercises UI/difference maths only; it is not a scientific
   result and is not included in any aggregate.
-- Import has been tested with synthetic payloads only; a real second experiment
-  has not been supplied.
 - Comparison rendering is verified in Chromium and WebKit; a long-duration
   dual-canvas soak is **NOT RUN**.
 - Legacy hit rates and single-shot miss distances use different statistical
@@ -102,8 +138,11 @@ exposed or modified.
 ## 8. Tests
 
 - Unit: manifest validation, A/B/C matching, commit warning, blocked initial
-  conditions, synthetic exclusion, Δ(t) on common interval, event alignment.
-- E2E: `/compare` load, real A metadata, pending B, four modes, synthetic demo,
+  conditions, synthetic exclusion, Δ(t) on common interval, event alignment,
+  registry uniqueness, record coverage, single real experiment and synthetic
+  labelling.
+- E2E: `/compare` studio load, eight dropdowns, read-only profile, real A tag,
+  two canvases, four charts, summary `N/A`, swap, save reference, overlay,
   shared clock playback, language switch preserving selection.
 
 See `docs/ACCEPTANCE.md` for the current run log.

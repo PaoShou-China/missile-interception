@@ -58,6 +58,33 @@ $ playwright webkit                13 passed, 1 skipped
 $ visual agent                     Run A real, synthetic warning, 2 canvases, 7 charts, clock playback
 ```
 
+### V4.6 Experiment Configuration Studio (2026-11-21)
+
+| Item | Result | Evidence |
+| --- | --- | --- |
+| Registry-driven dropdowns | PASS | `public/data/experiments/registry.json` + `src/compare/registry.ts`; two panels × four selects; unit test asserts unique ids and record coverage |
+| Real records only | PASS | `findExperiment()` returns `null` for unsupported combinations; panel shows `No Available Experiment`, Compare is disabled |
+| Read-only vehicle profile | PASS | Profile panel shows id, model, length, diameter, masses, fin semi-span, version and source; no physical edit path |
+| Visual-only parameters | PASS | Model scale slider, four camera presets and playback rates; never written back to the profile or record |
+| Compare loads real data | PASS | Default A = `exp-nominal` (PASS), B = `exp-demo` (synthetic, labelled); 1 504 real samples |
+| 3D comparison | PASS | Side-by-side two canvases and overlay; shared camera reference; Sun/Moon/day-night preserved |
+| Science charts | PASS | Altitude, speed, load, dynamic pressure; Δ(t) only when eligible; eligibility false for the synthetic B |
+| Summary table | PASS | Metric, unit, A, B, difference (`N/A` when ineligible), source; condition table with hash/commit/validation |
+| Swap and save | PASS | One-click Swap A/B; selection reference saved to `localStorage` and clipboard |
+| Bilingual + mobile | PASS | zh/en preserved across swap/compare; single-column panels under 900 px |
+| Documentation | PASS | `docs/COMPARISON.md` updated with registry, unified page and NOT RUN list |
+
+### V4.6 test evidence
+
+```
+$ npx tsc --noEmit                  PASS
+$ npm test                          61 passed (9 files)
+$ npm run build                     PASS (ComparePage 28.7 kB, CSS 56.3 kB)
+$ playwright chromium               14 passed, 60.2 FPS (Intel UHD, D3D11)
+$ playwright webkit                 13 passed, 1 skipped
+$ screenshots                       config studio (en/zh) reviewed
+```
+
 ### V4.4 model and camera consolidation (2026-11-21)
 
 | Item | Result | Evidence |

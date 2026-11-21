@@ -143,26 +143,33 @@ export function ComparePage() {
     }
     setConfigError(null);
     setLoadError(null);
-    const nominal = reg.experiments.find((e) => !e.synthetic && e.run.trajectory_file);
-    if (!nominal) {
-      setLoadError(t("cfg.noExperiment"));
-      return;
-    }
-    const base = await loadDeclaredRun(nominal.run);
-    const materialize = (exp: ExperimentRecord): RuntimeRun => {
-      if (!exp.synthetic) return withSamplers(base);
-      const demo = makeSyntheticDemo(base);
-      demo.meta = { ...exp.run };
-      demo.scenario = {
-        ...base.scenario,
-        id: exp.run.scenario_id,
-        title: exp.run.display_name,
-        validation: { status: "NOT RUN", checks: [] },
+    try {
+      const real = (exp: ExperimentRecord) => loadDeclaredRun(exp.run);
+      const needsBaseline = expA.synthetic || expB.synthetic;
+      const baselineExp = reg.experiments.find((e) => !e.synthetic && e.run.trajectory_file);
+      if (needsBaseline && !baselineExp) throw new Error(t("cfg.noExperiment"));
+      const [loadedA, loadedB, baseline] = await Promise.all([
+        expA.synthetic ? Promise.resolve(null) : real(expA),
+        expB.synthetic ? Promise.resolve(null) : real(expB),
+        needsBaseline ? real(baselineExp!) : Promise.resolve(null),
+      ]);
+      const materialize = (exp: ExperimentRecord, loaded: Awaited<ReturnType<typeof real>> | null): RuntimeRun => {
+        if (!exp.synthetic) return withSamplers(loaded!);
+        const demo = makeSyntheticDemo(baseline!);
+        demo.meta = { ...exp.run };
+        demo.scenario = {
+          ...baseline!.scenario,
+          id: exp.run.scenario_id,
+          title: exp.run.display_name,
+          validation: { status: "NOT RUN", checks: [] },
+        };
+        return withSamplers(demo);
       };
-      return withSamplers(demo);
-    };
-    setRunA(materialize(expA));
-    setRunB(materialize(expB));
+      setRunA(materialize(expA, loadedA));
+      setRunB(materialize(expB, loadedB));
+    } catch (e) {
+      setLoadError(e instanceof Error ? e.message : String(e));
+    }
   };
 
   useEffect(() => {
@@ -173,8 +180,9 @@ export function ComparePage() {
         if (cancelled) return;
         setRegistry(reg);
         setManifest(man);
-        const a = reg.experiments.find((e) => !e.synthetic)!.combo;
-        const b = reg.experiments.find((e) => e.synthetic)!.combo;
+        const realRuns = reg.experiments.filter((e) => !e.synthetic);
+        const a = (realRuns.find((e) => e.id === "exp-bezier-zem") ?? realRuns[0]!).combo;
+        const b = (realRuns.find((e) => e.id === "exp-bezier-pn") ?? realRuns[1] ?? realRuns[0]!).combo;
         setSelA(a);
         setSelB(b);
         await buildRuns(reg, a, b);

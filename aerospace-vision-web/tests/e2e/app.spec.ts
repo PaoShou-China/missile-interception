@@ -79,24 +79,33 @@ test("configuration studio loads registry options and real Run A", async ({ page
   // Two side-by-side panels, four dropdowns each, all sourced from the registry.
   await expect(page.locator(".cfg-card")).toHaveCount(2);
   await expect(page.locator(".cfg-card select")).toHaveCount(8);
+  await expect(page.locator(".cfg-card--A select").nth(0)).toHaveValue("bezier-zem-apn");
+  await expect(page.locator(".cfg-card--B select").nth(0)).toHaveValue("bezier-pn");
   await expect(page.locator(".cfg-card--A select").nth(3)).toHaveValue("coastal-intercept");
-  await expect(page.locator(".cfg-card--B select").nth(3)).toHaveValue("coastal-intercept-demo");
+  await expect(page.locator(".cfg-card--B select").nth(3)).toHaveValue("coastal-intercept");
+
+  // Three guidance laws and three attitude controllers are selectable.
+  const guidanceOptions = await page.locator(".cfg-card--A select").nth(0).locator("option").allTextContents();
+  expect(guidanceOptions.length).toBeGreaterThanOrEqual(3);
+  const controlOptions = await page.locator(".cfg-card--A select").nth(1).locator("option").allTextContents();
+  expect(controlOptions.length).toBeGreaterThanOrEqual(3);
 
   // Read-only vehicle profile is shown for both panels.
   await expect(page.locator(".cfg-profile")).toHaveCount(2);
   await expect(page.locator(".cfg-profile").first()).toContainText("8.11");
 
-  // The synthetic B is explicitly labelled; real A is not fabricated.
-  await expect(page.locator(".callout--warn")).toContainText("synthetic data");
+  // Both default runs are real and comparable; no synthetic banner.
+  await expect(page.locator(".callout--warn")).toHaveCount(0);
   await expect(page.locator(".cfg-card--A .cmp-tag")).toContainText("PASS");
+  await expect(page.locator(".cmp-level--A")).toBeVisible();
 
   // Side-by-side 3D stage renders one canvas per run.
   await expect(page.locator(".cmp-split canvas")).toHaveCount(2, { timeout: 45_000 });
-  await expect(page.locator(".cmp-chart-grid .chart-card")).toHaveCount(4);
+  await expect(page.locator(".cmp-chart-grid .chart-card")).toHaveCount(7);
 
-  // Summary table carries A, B, unit, source and no fabricated deltas.
+  // Summary table carries A, B, unit, source and computed differences.
   await expect(page.locator(".cmp-table").first()).toContainText("Source");
-  await expect(page.locator(".cmp-table").first()).toContainText("N/A");
+  await expect(page.locator(".cmp-table").first()).not.toContainText("N/A");
 
   await page.screenshot({ path: path.join(SHOTS, "13-config-studio.png"), fullPage: true });
 });
@@ -108,8 +117,8 @@ test("compare, swap, save reference, overlay and playback", async ({ page }) => 
 
   // Swap A/B then compare: selections are exchanged.
   await page.getByRole("button", { name: "Swap A / B" }).click();
-  await expect(page.locator(".cfg-card--A select").nth(3)).toHaveValue("coastal-intercept-demo");
-  await expect(page.locator(".cfg-card--B select").nth(3)).toHaveValue("coastal-intercept");
+  await expect(page.locator(".cfg-card--A select").nth(0)).toHaveValue("bezier-pn");
+  await expect(page.locator(".cfg-card--B select").nth(0)).toHaveValue("bezier-zem-apn");
   await page.locator(".cfg-compare").click();
   await expect(page.locator(".cmp-split canvas")).toHaveCount(2);
 
@@ -134,9 +143,32 @@ test("compare, swap, save reference, overlay and playback", async ({ page }) => 
   // Language switch keeps selections and loaded runs intact.
   await page.locator(".lang-switch button", { hasText: "中" }).click();
   await expect(page.locator("h1")).toHaveText("实验配置对比工作台");
-  await expect(page.locator(".cfg-card--A select").nth(3)).toHaveValue("coastal-intercept-demo");
-  await expect(page.locator(".cfg-card--B select").nth(3)).toHaveValue("coastal-intercept");
+  await expect(page.locator(".cfg-card--A select").nth(0)).toHaveValue("bezier-pn");
+  await expect(page.locator(".cfg-card--B select").nth(0)).toHaveValue("bezier-zem-apn");
   await page.screenshot({ path: path.join(SHOTS, "14-config-studio-zh.png"), fullPage: true });
+});
+
+test("synthetic scenario is labelled and withholds differences", async ({ page }) => {
+  await page.addInitScript(() => window.localStorage.setItem("av.lang", "en"));
+  await page.goto("/#/compare");
+  await expect(page.locator(".cfg-compare")).toBeVisible({ timeout: 45_000 });
+
+  // PIP + the demo scenario has no record: the UI must refuse to fabricate it.
+  await page.locator(".cfg-card--B select").nth(3).selectOption("coastal-intercept-demo");
+  await expect(page.locator(".cfg-card--B .cfg-unavailable")).toBeVisible();
+  await expect(page.locator(".cfg-compare")).toBeDisabled();
+
+  // The demo record exists only with the baseline guidance law.
+  await page.locator(".cfg-card--B select").nth(0).selectOption("bezier-zem-apn");
+  await expect(page.locator(".cfg-compare")).toBeEnabled();
+  await page.locator(".cfg-compare").click();
+
+  await expect(page.locator(".callout--warn")).toContainText("synthetic data");
+  await expect(page.locator(".cmp-level--C")).toBeVisible();
+  await expect(page.locator(".cfg-card--B .cmp-tag")).toContainText("Synthetic");
+  await expect(page.locator(".cmp-chart-grid .chart-card")).toHaveCount(4);
+  await expect(page.locator(".cmp-table").first()).toContainText("N/A");
+  await page.screenshot({ path: path.join(SHOTS, "15-config-studio-synthetic.png"), fullPage: true });
 });
 
 test("legacy reports stay reachable at their original paths", async ({ page }) => {

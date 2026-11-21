@@ -43,11 +43,40 @@ from control.fin_mixer import FinMixer
 from control.thrust_controller import ThrustController
 from guidance.boost_guidance import BoostGuidance
 from guidance.midcourse_guidance import MidcourseGuidance
+from guidance.pip_midcourse_guidance import PipMidcourseGuidance
 from guidance.terminal_guidance import TerminalGuidance
+from guidance.pure_pn_guidance import PurePNGuidance
 from guidance.handover_manager import HandoverManager
 
 BOOST_END_TIME = C.BOOST_END_TIME
 PHASE_CODE = {"boost": 0.0, "midcourse": 1.0, "terminal": 2.0}
+
+# Guidance-law factories: the law name lives in SimConfig so a batch case is
+# fully described by (SimConfig, Scenario) and stays reproducible.
+_MIDCOURSE_LAWS = {
+    "bezier": MidcourseGuidance,
+    "pip_pn": PipMidcourseGuidance,
+}
+_TERMINAL_LAWS = {
+    "zem_apn": TerminalGuidance,
+    "pn": PurePNGuidance,
+}
+
+
+def make_midcourse_guidance(law):
+    try:
+        return _MIDCOURSE_LAWS[law]()
+    except KeyError:
+        raise ValueError("Unknown midcourse law %r (choose from %s)"
+                         % (law, ", ".join(sorted(_MIDCOURSE_LAWS))))
+
+
+def make_terminal_guidance(law):
+    try:
+        return _TERMINAL_LAWS[law]()
+    except KeyError:
+        raise ValueError("Unknown terminal law %r (choose from %s)"
+                         % (law, ", ".join(sorted(_TERMINAL_LAWS))))
 
 # Aggregate slices derived from the schema (never hard-coded offsets).
 SL_M_STATE = slice(SL_M_POS.start, SL_M_MASS.stop)
@@ -145,8 +174,8 @@ class Simulation(object):
         self.thrust_ctrl = ThrustController()
         self.throttle_cmd = 1.0
         self.boost = BoostGuidance()
-        self.midcourse = MidcourseGuidance()
-        self.terminal = TerminalGuidance()
+        self.midcourse = make_midcourse_guidance(self.cfg.midcourse_law)
+        self.terminal = make_terminal_guidance(self.cfg.terminal_law)
         self.handover = HandoverManager()
         self.scheduler = MultiRateScheduler(self.cfg)
         columns = (C.TELEMETRY_COLUMNS if self.cfg.telemetry_profile == "full"
@@ -853,6 +882,12 @@ def main(argv=None):
                         help="midcourse outer step s")
     parser.add_argument("--duration", type=float, default=None, help="simulation stop time s")
     parser.add_argument("--no-plot", action="store_true", help="skip plotting")
+    parser.add_argument("--midcourse-law", default="bezier",
+                        choices=sorted(_MIDCOURSE_LAWS),
+                        help="midcourse guidance law (comparison switch)")
+    parser.add_argument("--terminal-law", default="zem_apn",
+                        choices=sorted(_TERMINAL_LAWS),
+                        help="terminal guidance law (comparison switch)")
     parser.add_argument("--batch", type=int, default=None, help="Monte-Carlo batch cases")
     parser.add_argument("--workers", type=int, default=None, help="batch worker processes")
     parser.add_argument("--seed", type=int, default=2026, help="batch base seed")
@@ -867,6 +902,8 @@ def main(argv=None):
     C.validate_data()
 
     cfg = C.SimConfig()
+    cfg.midcourse_law = args.midcourse_law
+    cfg.terminal_law = args.terminal_law
     if args.max_step is not None:
         cfg.max_step = args.max_step
     if args.midcourse_step is not None:

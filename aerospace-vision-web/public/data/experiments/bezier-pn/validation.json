@@ -1,0 +1,94 @@
+{
+  "source": {
+    "title": "missile-interception 6-DoF telemetry",
+    "repository": "https://github.com/PaoShou-China/missile-interception",
+    "commit": "workspace",
+    "telemetryFile": "missile_intercept/output/experiments/bezier_pn/telemetry.csv",
+    "telemetryRows": 67275,
+    "sha256": "1d3abfc442ef92c544d93dc726e56f6dc7f0944ee1fd87c55daea30c673c17f8",
+    "generatedAt": "2026-11-21T08:48:17+00:00",
+    "generator": "tools/data-adapter/build_scenario.py",
+    "license": "MIT (source repository)"
+  },
+  "checks": [
+    {
+      "id": "timeline-monotonic",
+      "description": "Telemetry time strictly increases",
+      "status": "PASS",
+      "detail": "dt_min=0.01 s, dt_max=0.01 s"
+    },
+    {
+      "id": "finite-values",
+      "description": "All telemetry values are finite",
+      "status": "PASS",
+      "detail": "rows=67275, columns=132"
+    },
+    {
+      "id": "eci-ecef-alignment",
+      "description": "ECI and ECEF coincide at t=0",
+      "status": "PASS",
+      "detail": "|r_eci - r_ecef| at t=0 = 0.000e+00 m"
+    },
+    {
+      "id": "velocity-frame",
+      "description": "ECEF velocity = Rz(-omega t)(v_ECI - omega x r_ECI)",
+      "status": "PASS",
+      "detail": "at t=336.4 s, frame error = 5.733e-07 m/s"
+    },
+    {
+      "id": "llh-ecef-roundtrip",
+      "description": "WGS84 lat/lon/alt reproduce telemetry ECEF position",
+      "status": "PASS",
+      "detail": "max ||LLH->ECEF - r_ECEF|| = 0.073 m"
+    },
+    {
+      "id": "quaternion-normalized",
+      "description": "Attitude quaternions are unit length (scalar first)",
+      "status": "PASS",
+      "detail": "max |‖q‖-1| = 8.255e-07 (CSV is printed with 6 decimals)"
+    },
+    {
+      "id": "speed-semantics",
+      "description": "Source m_speed is inertial speed |v_ECI|; web speed uses |v_ECEF|",
+      "status": "PASS",
+      "detail": "max |m_speed - ‖v_ECI‖| = 0.0000 m/s; |v_ECEF| at t=0 = 0.000 m/s"
+    },
+    {
+      "id": "speed-and-mach-semantics",
+      "description": "Source airspeed = |v_ECEF|; Mach is wind-corrected air-relative",
+      "status": "PASS",
+      "detail": "max |airspeed - ‖v_ECEF‖| = 0.000 m/s; max |Mach - airspeed/a| = 0.050 (wind correction, < 0.06)"
+    },
+    {
+      "id": "altitude-units",
+      "description": "Altitude is WGS84 geodetic height in metres",
+      "status": "PASS",
+      "detail": "alt range [0.0, 29897.1] m"
+    },
+    {
+      "id": "sample-recovery",
+      "description": "Converted samples reproduce source position and altitude",
+      "status": "PASS",
+      "detail": "lat err <= 0.06 m, alt err <= 0.00 m"
+    },
+    {
+      "id": "actuator-channels",
+      "description": "Recorded fin deflections and body rates are present and non-trivial",
+      "status": "PASS",
+      "detail": "max |fin| = 0.4363 rad, max |body rate| = 8.6712 rad/s"
+    }
+  ],
+  "metrics": {
+    "missDistanceM": 12.9196,
+    "interceptTimeS": 672.74,
+    "maxSpeedMS": 2802.2924,
+    "maxMach": 9.4935,
+    "maxDynamicPressurePa": 891257.861,
+    "maxLoadG": 40.0,
+    "maxAltitudeM": 29897.122,
+    "downrangeKM": 1655.3847,
+    "fuelUsedKg": 1466.9599,
+    "handoverTimeS": 665.08,
+    "flightDurationS": 672.74
+  }
+}

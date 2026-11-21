@@ -1,28 +1,99 @@
 {
-  "schemaVersion": "1.0.0",
-  "registry_id": "av-experiments-2026-11-21",
-  "generated_from": "aerospace-vision-web/public/data/compare/comparison.json",
+  "schemaVersion": "1.1.0",
+  "registry_id": "av-experiments-2026-11-21-guidance-matrix",
+  "generated_from": "missile_intercept/main.py guidance-law matrix + public/data/compare/comparison.json",
   "guidance": [
     {
-      "id": "zem-apn",
-      "name": { "zh": "ZEM/APN 末制导 + Bezier 中制导", "en": "ZEM/APN terminal + Bezier midcourse" },
-      "version": "workspace",
-      "source": "missile_intercept/guidance/{midcourse,terminal}_guidance.py",
+      "id": "bezier-zem-apn",
+      "name": {
+        "zh": "Bezier 中制导 + ZEM/APN 末制导",
+        "en": "Bezier midcourse + ZEM/APN terminal"
+      },
+      "version": "bezier+zem_apn",
+      "source": "missile_intercept/guidance/{midcourse_guidance,terminal_guidance}.py",
       "description": {
-        "zh": "中段三次 Bezier 塑形，末段零控脱靶量/增强比例导引。仓库中唯一实现的制导链。",
-        "en": "Cubic Bezier midcourse shaping with zero-effort-miss / augmented PN terminal guidance. The only implemented guidance chain in the repository."
+        "zh": "基准制导律：三次 Bezier 中段塑形，末段零控脱靶量 / 增强比例导引。",
+        "en": "Baseline law: cubic Bezier midcourse shaping with zero-effort-miss / augmented PN terminal guidance."
+      }
+    },
+    {
+      "id": "pip-zem-apn",
+      "name": {
+        "zh": "PIP 中制导 + ZEM/APN 末制导",
+        "en": "PIP midcourse + ZEM/APN terminal"
+      },
+      "version": "pip_pn+zem_apn",
+      "source": "missile_intercept/guidance/{pip_midcourse_guidance,terminal_guidance}.py",
+      "description": {
+        "zh": "中段改用预测拦截点（PIP）导引，末段与基准相同的 ZEM/APN。",
+        "en": "Predicted-intercept-point (PIP) midcourse with the same ZEM/APN terminal law as the baseline."
+      }
+    },
+    {
+      "id": "bezier-pn",
+      "name": {
+        "zh": "Bezier 中制导 + 纯 PN 末制导",
+        "en": "Bezier midcourse + pure PN terminal"
+      },
+      "version": "bezier+pn",
+      "source": "missile_intercept/guidance/{midcourse_guidance,pure_pn_guidance}.py",
+      "description": {
+        "zh": "中段保持基准 Bezier，末段改为经典纯比例导引（无目标加速度前馈）。",
+        "en": "Baseline Bezier midcourse with classical pure proportional navigation (no target-acceleration feed-forward) in the terminal phase."
+      }
+    },
+    {
+      "id": "pip-pn",
+      "name": {
+        "zh": "PIP 中制导 + 纯 PN 末制导",
+        "en": "PIP midcourse + pure PN terminal"
+      },
+      "version": "pip_pn+pn",
+      "source": "missile_intercept/guidance/{pip_midcourse_guidance,pure_pn_guidance}.py",
+      "description": {
+        "zh": "预测拦截点中段与纯比例导引末段的组合。",
+        "en": "Predicted-intercept-point midcourse combined with pure PN terminal guidance."
       }
     }
   ],
   "control": [
     {
       "id": "three-loop",
-      "name": { "zh": "三回路过载自动驾驶仪", "en": "Three-loop acceleration autopilot" },
-      "version": "workspace",
-      "source": "missile_intercept/control/autopilot.py",
+      "name": {
+        "zh": "三回路自动驾驶仪（延迟预测 + 过载反馈）",
+        "en": "Three-loop autopilot (dead-time prediction + load feedback)"
+      },
+      "version": "v4-predictive",
+      "source": "missile_intercept/control/autopilot.py; config.py AP_PREDICT_ENABLE=1, AP_NZ_LOOP=1",
       "description": {
-        "zh": "过载指令 → 角速率 → 舵偏的三回路结构，含控制延迟预测。",
-        "en": "Load-command to rate to fin three-loop structure with control-delay prediction."
+        "zh": "基准姿态控制：过载指令 → 角速率 → 舵偏三回路，含 Smith 延迟预测与直接 n_z PI。",
+        "en": "Baseline attitude control: load-command to rate to fin three-loop with Smith dead-time prediction and direct n_z PI."
+      }
+    },
+    {
+      "id": "three-loop-uncomp",
+      "name": {
+        "zh": "三回路（无延迟预测补偿）",
+        "en": "Three-loop, uncompensated dead time"
+      },
+      "version": "v4-uncompensated",
+      "source": "missile_intercept/control/autopilot.py; config.py AP_PREDICT_ENABLE=0",
+      "description": {
+        "zh": "关闭控制指令传输延迟的预测补偿，其余增益与基准一致。",
+        "en": "Dead-time prediction disabled; all other gains identical to the baseline."
+      }
+    },
+    {
+      "id": "three-loop-no-nz",
+      "name": {
+        "zh": "三回路（无直接过载反馈）",
+        "en": "Three-loop, no direct load feedback"
+      },
+      "version": "v4-no-nz",
+      "source": "missile_intercept/control/autopilot.py; config.py AP_NZ_LOOP=0",
+      "description": {
+        "zh": "保留延迟预测与外环角回路，关闭直接 n_z PI 回路。",
+        "en": "Dead-time prediction retained, outer angle loop retained, direct n_z PI loop disabled."
       }
     }
   ],
@@ -47,11 +118,11 @@
   "scenarios": [
     {
       "id": "coastal-intercept",
-      "name": { "zh": "沿海拦截（已验证遥测）", "en": "Coastal intercept (validated telemetry)" },
+      "name": { "zh": "沿海拦截（同一初始条件）", "en": "Coastal intercept (identical initial conditions)" },
       "synthetic": false,
       "description": {
-        "zh": "内陆发射、F-35 级目标自海上来袭的单一标称算例。",
-        "en": "Single nominal case: inland launch against an F-35-class target approaching from the sea."
+        "zh": "内陆发射、F-35 级目标自海上来袭。所有对照实验使用同一发射点、目标点、时间基准与传感器随机种子。",
+        "en": "Inland launch against an F-35-class target approaching from the sea. Every compared run uses the same datums, time base and sensor seeds."
       }
     },
     {
@@ -66,27 +137,22 @@
   ],
   "experiments": [
     {
-      "id": "exp-nominal",
-      "combo": {
-        "guidance": "zem-apn",
-        "control": "three-loop",
-        "vehicle": "lifting-body-2000",
-        "scenario": "coastal-intercept"
-      },
+      "id": "exp-bezier-zem",
+      "combo": { "guidance": "bezier-zem-apn", "control": "three-loop", "vehicle": "lifting-body-2000", "scenario": "coastal-intercept" },
       "synthetic": false,
       "validation_status": "PASS",
       "run": {
-        "run_id": "run-a",
-        "display_name": "Baseline — validated 6-DoF telemetry",
+        "run_id": "run-bezier-zem",
+        "display_name": "Bezier + ZEM/APN · three-loop baseline",
         "algorithm_id": "missile-interception-6dof",
-        "algorithm_version": "workspace",
+        "algorithm_version": "bezier+zem_apn/three-loop",
         "source_commit": "workspace",
         "scenario_id": "missile-intercept-001",
-        "configuration_hash": "f1813403f099b348",
+        "configuration_hash": "12db0509ef04605e",
         "seed": null,
-        "trajectory_file": "data/missile-intercept/scenario.json",
+        "trajectory_file": "data/experiments/bezier-zem/scenario.json",
         "metrics_file": null,
-        "data_hash": "f1813403f099b348bdd46c051b08a89580a0ac6662dec1a26931edb34a2704a2",
+        "data_hash": "75353276be436322e1a16eb929206f8a6ff991cb45bcc609093dad37154e347f",
         "time_start": 0,
         "time_end": 672.75,
         "reference_frame": "WGS84 ECEF",
@@ -94,21 +160,171 @@
         "validation_status": "PASS",
         "availability": "available",
         "is_synthetic": false,
-        "notes": ["Single deterministic shot from a dirty working tree (commit=workspace)."]
+        "notes": ["Payload-integrity checks PASS; the source run is deterministic. Independent scientific validation is NOT RUN."]
       },
       "notes": {
-        "zh": "唯一具备完整轨迹与验证状态的实验记录。",
-        "en": "The only experiment record with a complete trajectory and validation status."
+        "zh": "基准组。由当前工作区代码重新仿真生成，与其余对照共享同一初始条件与随机种子。",
+        "en": "Baseline. Re-simulated from the current working tree with the same initial conditions and seeds as every other run."
+      }
+    },
+    {
+      "id": "exp-pip-zem",
+      "combo": { "guidance": "pip-zem-apn", "control": "three-loop", "vehicle": "lifting-body-2000", "scenario": "coastal-intercept" },
+      "synthetic": false,
+      "validation_status": "PASS",
+      "run": {
+        "run_id": "run-pip-zem",
+        "display_name": "PIP midcourse + ZEM/APN terminal",
+        "algorithm_id": "missile-interception-6dof",
+        "algorithm_version": "pip_pn+zem_apn/three-loop",
+        "source_commit": "workspace",
+        "scenario_id": "missile-intercept-001",
+        "configuration_hash": "1d68d3574f9af516",
+        "seed": null,
+        "trajectory_file": "data/experiments/pip-zem/scenario.json",
+        "metrics_file": null,
+        "data_hash": "b2901d3a6fd7380b6f7a3b7b3568632f76c72072a64272c67e4616a8d73d1a5b",
+        "time_start": 0,
+        "time_end": 682.12,
+        "reference_frame": "WGS84 ECEF",
+        "units": "SI",
+        "validation_status": "PASS",
+        "availability": "available",
+        "is_synthetic": false,
+        "notes": ["Payload-integrity checks PASS; independent scientific validation NOT RUN."]
+      },
+      "notes": {
+        "zh": "仅切换中段制导律为 PIP；末段、姿控、飞行器与初始条件不变。",
+        "en": "Only the midcourse law changes to PIP; terminal law, control, vehicle and initial conditions are unchanged."
+      }
+    },
+    {
+      "id": "exp-bezier-pn",
+      "combo": { "guidance": "bezier-pn", "control": "three-loop", "vehicle": "lifting-body-2000", "scenario": "coastal-intercept" },
+      "synthetic": false,
+      "validation_status": "PASS",
+      "run": {
+        "run_id": "run-bezier-pn",
+        "display_name": "Bezier midcourse + pure PN terminal",
+        "algorithm_id": "missile-interception-6dof",
+        "algorithm_version": "bezier+pn/three-loop",
+        "source_commit": "workspace",
+        "scenario_id": "missile-intercept-001",
+        "configuration_hash": "8afc53f50ab08ce2",
+        "seed": null,
+        "trajectory_file": "data/experiments/bezier-pn/scenario.json",
+        "metrics_file": null,
+        "data_hash": "1d3abfc442ef92c544d93dc726e56f6dc7f0944ee1fd87c55daea30c673c17f8",
+        "time_start": 0,
+        "time_end": 672.74,
+        "reference_frame": "WGS84 ECEF",
+        "units": "SI",
+        "validation_status": "PASS",
+        "availability": "available",
+        "is_synthetic": false,
+        "notes": ["Payload-integrity checks PASS; independent scientific validation NOT RUN."]
+      },
+      "notes": {
+        "zh": "仅切换末段制导律为纯 PN；中段、姿控、飞行器与初始条件不变。",
+        "en": "Only the terminal law changes to pure PN; midcourse, control, vehicle and initial conditions are unchanged."
+      }
+    },
+    {
+      "id": "exp-pip-pn",
+      "combo": { "guidance": "pip-pn", "control": "three-loop", "vehicle": "lifting-body-2000", "scenario": "coastal-intercept" },
+      "synthetic": false,
+      "validation_status": "PASS",
+      "run": {
+        "run_id": "run-pip-pn",
+        "display_name": "PIP midcourse + pure PN terminal",
+        "algorithm_id": "missile-interception-6dof",
+        "algorithm_version": "pip_pn+pn/three-loop",
+        "source_commit": "workspace",
+        "scenario_id": "missile-intercept-001",
+        "configuration_hash": "2a7a1293b665190f",
+        "seed": null,
+        "trajectory_file": "data/experiments/pip-pn/scenario.json",
+        "metrics_file": null,
+        "data_hash": "bd2da8c23da51825015f1df5dfa178c6bb425397b6bca51fdebbda780f6780b7",
+        "time_start": 0,
+        "time_end": 681.91,
+        "reference_frame": "WGS84 ECEF",
+        "units": "SI",
+        "validation_status": "PASS",
+        "availability": "available",
+        "is_synthetic": false,
+        "notes": ["Payload-integrity checks PASS; independent scientific validation NOT RUN."]
+      },
+      "notes": {
+        "zh": "中段与末段同时切换；用于观察两段组合效应。",
+        "en": "Both midcourse and terminal laws change; shows the combined effect of the two stages."
+      }
+    },
+    {
+      "id": "exp-bezier-zem-uncomp",
+      "combo": { "guidance": "bezier-zem-apn", "control": "three-loop-uncomp", "vehicle": "lifting-body-2000", "scenario": "coastal-intercept" },
+      "synthetic": false,
+      "validation_status": "PASS",
+      "run": {
+        "run_id": "run-bezier-zem-uncomp",
+        "display_name": "ZEM/APN · three-loop without dead-time prediction",
+        "algorithm_id": "missile-interception-6dof",
+        "algorithm_version": "bezier+zem_apn/three-loop-uncomp",
+        "source_commit": "workspace",
+        "scenario_id": "missile-intercept-001",
+        "configuration_hash": "e797c35786d578b1",
+        "seed": null,
+        "trajectory_file": "data/experiments/bezier-zem-uncomp/scenario.json",
+        "metrics_file": null,
+        "data_hash": "0c5a2691f07de590e6ceff19edf2e16604fc5726a6ebaaf66b6f3074ea01a7fc",
+        "time_start": 0,
+        "time_end": 671.63,
+        "reference_frame": "WGS84 ECEF",
+        "units": "SI",
+        "validation_status": "PASS",
+        "availability": "available",
+        "is_synthetic": false,
+        "notes": ["Payload-integrity checks PASS; independent scientific validation NOT RUN."]
+      },
+      "notes": {
+        "zh": "仅关闭姿控死区时间预测；制导、飞行器与初始条件与基准一致。",
+        "en": "Only the autopilot dead-time predictor is disabled; guidance, vehicle and initial conditions match the baseline."
+      }
+    },
+    {
+      "id": "exp-bezier-zem-nzoff",
+      "combo": { "guidance": "bezier-zem-apn", "control": "three-loop-no-nz", "vehicle": "lifting-body-2000", "scenario": "coastal-intercept" },
+      "synthetic": false,
+      "validation_status": "PASS",
+      "run": {
+        "run_id": "run-bezier-zem-nzoff",
+        "display_name": "ZEM/APN · three-loop without direct n_z feedback",
+        "algorithm_id": "missile-interception-6dof",
+        "algorithm_version": "bezier+zem_apn/three-loop-no-nz",
+        "source_commit": "workspace",
+        "scenario_id": "missile-intercept-001",
+        "configuration_hash": "1575d0ae07e5e6eb",
+        "seed": null,
+        "trajectory_file": "data/experiments/bezier-zem-nzoff/scenario.json",
+        "metrics_file": null,
+        "data_hash": "99b9fd8b2f7bc976ca8d4cbbbe3eab37cce08d8280945c2d38fb42bbafbcf06b",
+        "time_start": 0,
+        "time_end": 674.83,
+        "reference_frame": "WGS84 ECEF",
+        "units": "SI",
+        "validation_status": "PASS",
+        "availability": "available",
+        "is_synthetic": false,
+        "notes": ["Payload-integrity checks PASS; independent scientific validation NOT RUN."]
+      },
+      "notes": {
+        "zh": "仅关闭姿控直接过载 PI；制导、飞行器与初始条件与基准一致。",
+        "en": "Only the direct load-factor PI is disabled; guidance, vehicle and initial conditions match the baseline."
       }
     },
     {
       "id": "exp-demo",
-      "combo": {
-        "guidance": "zem-apn",
-        "control": "three-loop",
-        "vehicle": "lifting-body-2000",
-        "scenario": "coastal-intercept-demo"
-      },
+      "combo": { "guidance": "bezier-zem-apn", "control": "three-loop", "vehicle": "lifting-body-2000", "scenario": "coastal-intercept-demo" },
       "synthetic": true,
       "validation_status": "NOT RUN",
       "run": {

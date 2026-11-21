@@ -10,7 +10,9 @@ import pytest
 import config as C
 import math_utils as MU
 from guidance.midcourse_guidance import BezierPath, MidcourseGuidance
+from guidance.pip_midcourse_guidance import PipMidcourseGuidance
 from guidance.terminal_guidance import TerminalGuidance
+from guidance.pure_pn_guidance import PurePNGuidance
 from guidance.handover_manager import HandoverManager
 
 
@@ -241,3 +243,57 @@ def test_terminal_guidance_corrects_los_offset():
     assert np.all(np.isfinite(cmd.a_cmd_eci))
     assert 0.0 < np.linalg.norm(cmd.a_cmd_eci) <= C.MAX_LOAD_TERMINAL_G * C.G0 + 1e-6
     assert cmd.phase == "terminal"
+
+
+# ============================================================
+# Guidance-law comparison baselines
+# ============================================================
+def _crossing_geometry():
+    r_m = MU.llh_to_eci(40.0, 110.0, 20000.0, 0.0)
+    up = MU.normalize(r_m)
+    east = MU.normalize(MU.perpendicular(np.array([0.0, 0.0, 1.0]), up))
+    r_t = r_m + east * 12000.0 - up * 1500.0
+    v_m = east * 1800.0
+    v_t = -east * 500.0
+    return r_m, v_m, r_t, v_t
+
+
+def test_pure_pn_law_is_true_pn():
+    """a = N * Vc * (omega x u): perpendicular to the LOS and at the PN gain."""
+    r_m, v_m, r_t, v_t = _crossing_geometry()
+    geo = MU.los_geometry(r_m, v_m, r_t, v_t)
+    vc = max(-geo["range_rate"], 50.0)
+    guidance = PurePNGuidance()
+    a = guidance._command_accel(geo, vc, 10.0, np.zeros(3))
+    expected = C.TERMINAL_PN_N * vc * MU.cross3(geo["omega"], geo["u"])
+    assert np.allclose(a, expected)
+    assert abs(float(np.dot(a, geo["u"]))) < 1e-9 * max(MU.norm3(a), 1.0)
+    assert MU.norm3(a) > 0.0
+
+
+def test_pure_pn_compute_respects_load_limit():
+    r_m, v_m, r_t, v_t = _crossing_geometry()
+    nav = SimpleNamespace(r_eci=r_m, v_eci=v_m, timestamp=0.0)
+    cmd = PurePNGuidance().compute(
+        0.0, nav, np.concatenate([r_t, v_t]),
+        np.array([1.0, 0.0, 0.0, 0.0]), None)
+    assert cmd.phase == "terminal"
+    assert np.all(np.isfinite(cmd.a_cmd_eci))
+    assert MU.norm3(cmd.a_cmd_eci) <= C.MAX_LOAD_TERMINAL_G * C.G0 + 1e-6
+
+
+def test_pip_midcourse_commands_finite_acceleration_toward_intercept():
+    r_m, v_m, r_t, v_t = _crossing_geometry()
+    nav = SimpleNamespace(r_eci=r_m, v_eci=v_m, timestamp=0.0)
+    guidance = PipMidcourseGuidance()
+    cmd = guidance.compute(0.0, nav, np.concatenate([r_t, v_t]))
+    assert cmd.phase == "midcourse"
+    assert np.all(np.isfinite(cmd.a_cmd_eci))
+    assert 0.0 < MU.norm3(cmd.a_cmd_eci) <= C.PIP_MIDCOURSE_ACC_MAX + 1e-6
+    # The lateral component must turn the velocity toward the predicted
+    # intercept, not away from it.
+    pip, _ = guidance.handover_point(nav, np.concatenate([r_t, v_t]))
+    los = MU.normalize(pip - r_m)
+    lateral = MU.perpendicular(cmd.a_cmd_eci, MU.normalize(v_m))
+    turn = MU.cross3(v_m, los)
+    assert float(np.dot(lateral, MU.normalize(turn))) > 0.0

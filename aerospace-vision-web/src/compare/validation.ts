@@ -21,6 +21,11 @@ export function fingerprint(value: unknown): string {
   return (h >>> 0).toString(16).padStart(8, "0");
 }
 
+/**
+ * Initial-condition fingerprint. Flight duration is deliberately excluded:
+ * two guidance laws can legitimately reach intercept at different times, and
+ * that difference is a result, not a mismatch in experimental conditions.
+ */
 export function scenarioFingerprint(s: ScenarioManifest): string {
   return fingerprint({
     id: s.id,
@@ -28,7 +33,6 @@ export function scenarioFingerprint(s: ScenarioManifest): string {
     launch: { lat: s.launchSite.latDeg, lon: s.launchSite.lonDeg, alt: s.launchSite.altM },
     target: { lat: s.targetSite.latDeg, lon: s.targetSite.lonDeg, alt: s.targetSite.altM },
     start: s.time.startS,
-    end: s.time.endS,
   });
 }
 

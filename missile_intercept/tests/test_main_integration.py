@@ -188,3 +188,18 @@ def test_datalink_pulls_back_cue_error():
     err_off = np.linalg.norm(off.tracker.position() - truth_off)
     err_on = np.linalg.norm(on.tracker.position() - truth_on)
     assert err_on < 0.5 * err_off
+
+
+def test_guidance_law_selection_is_wired():
+    """SimConfig law names must select the baseline algorithms without error."""
+    cfg = _short_cfg(t_end=2.0, max_steps=2000,
+                     midcourse_law="pip_pn", terminal_law="pn")
+    sim = sim_main.Simulation(cfg)
+    sim.run()
+    assert isinstance(sim.midcourse, sim_main.PipMidcourseGuidance)
+    assert isinstance(sim.terminal, sim_main.PurePNGuidance)
+
+    with pytest.raises(ValueError):
+        sim_main.make_midcourse_guidance("does-not-exist")
+    with pytest.raises(ValueError):
+        sim_main.make_terminal_guidance("does-not-exist")

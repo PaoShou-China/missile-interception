@@ -546,6 +546,13 @@ MIDCOURSE_COPLANAR_RANGE = 2100000.0  # Range where the coplanar ramp starts m
 MIDCOURSE_COPLANAR_TGO_MIN = 8.0      # Time-to-go floor for the 1/t_go^2 term s
 MIDCOURSE_COPLANAR_ACC_MAX = 3.0 * G0 # Cross-plane authority cap m/s^2
 MIDCOURSE_PN_GAIN = 2.0               # Tuned PN baseline gain (a_I analogue)
+# Classical midcourse baseline used by the comparison experiments: direct PN
+# to the live predicted intercept point, with no Bezier shaping, loft-dive
+# profile, coplanar constraint or predictive terminal-error feedback.
+PIP_MIDCOURSE_PN_GAIN = 4.0           # PN gain toward the predicted intercept
+PIP_MIDCOURSE_ACC_MAX = 5.0 * G0      # command cap (same as the reference)
+PIP_MIDCOURSE_BLEND = 2.0             # command cross-fade after midcourse entry s
+PIP_MIDCOURSE_DESCENT_RANGE = 300000.0  # fixed range where the baseline descent starts m
 HANDOVER_SPEED_MIN = 1800.0  # Minimum handover speed m/s
 HANDOVER_ANGLE_MAX = 12.0 * DEG   # Lead-angle limit rad
 HANDOVER_FOV_MARGIN = 0.90   # Fraction of the seeker half-FOV allowed at handover
@@ -558,6 +565,9 @@ HANDOVER_N_PN = 4.0          # Terminal PN gain used for the diagnostic n_req
 TERMINAL_PN_TGO_REF = 20.0   # s, time-to-go where the boost starts to ramp
 TERMINAL_PN_BOOST = 0.40      # fractional N increase near impact
 TERMINAL_PN_MIN = 3.0         # floor on the effective navigation constant
+# Classical pure-PN baseline used by the guidance-law comparison experiments.
+# Constant navigation constant, no target-acceleration feed-forward.
+TERMINAL_PN_N = 4.0           # classic true-PN navigation constant
 # Robust target-acceleration estimate: the raw finite difference is bounded
 # before it enters the APN feed-forward.
 TERMINAL_AT_MAX_G = 9.0       # acceleration estimate clamp g (airframe limit)
@@ -812,6 +822,10 @@ class SimConfig:
     """Simulation run configuration (injected by main.py / tests)."""
     max_step: float = DEFAULT_MAX_STEP
     midcourse_max_step: float = DEFAULT_MIDCOURSE_MAX_STEP
+    # Guidance-law selection for controlled comparisons.  Defaults reproduce
+    # the reference design; the experiment driver flips one stage at a time.
+    midcourse_law: str = "bezier"     # "bezier" | "pip_pn"
+    terminal_law: str = "zem_apn"     # "zem_apn" | "pn"
     t_end: float = DEFAULT_T_END
     dt_seeker: float = DT_SEEKER
     dt_autopilot: float = DT_AUTOPILOT

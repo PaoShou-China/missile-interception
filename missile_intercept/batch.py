@@ -42,6 +42,10 @@ class Dispersion:
     target_alt_sigma_m: float = 500.0    # target altitude deviation 1sigma
     target_mach_sigma: float = 0.05      # target Mach number deviation 1sigma
     evade_g_sigma: float = 1.0           # target evasive load deviation 1sigma
+    # Optional fixed nominal for the target manoeuvre level.  ``None`` keeps
+    # the global scenario value; a number pins the level so a parameter sweep
+    # can vary it while every other dispersion stays identical.
+    evade_g_nominal: float = None
 
 
 # ============================================================
@@ -84,7 +88,9 @@ def build_case(case_id, base_seed, cfg, dispersion):
     target_mach = base.target_mach + (
         rng.normal(0.0, dispersion.target_mach_sigma)
         if dispersion.target_mach_sigma > 0 else 0.0)
-    evade_g = base.target_evade_g + (
+    evade_g = (dispersion.evade_g_nominal
+               if dispersion.evade_g_nominal is not None
+               else base.target_evade_g) + (
         rng.normal(0.0, dispersion.evade_g_sigma)
         if dispersion.evade_g_sigma > 0 else 0.0)
 
@@ -178,6 +184,70 @@ def _terminal_fields(sim):
         }
 
 
+def _stage_fields(sim):
+    """Per-phase aggregates used by the guidance-law comparison study.
+
+    One record covers the whole chain (boost exit -> midcourse -> handover ->
+    terminal) so a single experiment can report every stage instead of only
+    the final miss distance.
+    """
+    nan = float("nan")
+    try:
+        d = sim.telemetry.as_dict()
+        t = np.asarray(d["time"], dtype=float)
+        ph = np.asarray(d["phase"], dtype=float)
+        if t.size == 0:
+            raise ValueError("empty telemetry")
+        mid = ph >= 0.5
+        term = ph >= 1.5
+        if not np.any(mid):
+            raise ValueError("no midcourse")
+        i_mid = int(np.where(mid)[0][0])
+        i_term = int(np.where(term)[0][0]) if np.any(term) else None
+        sl = slice(i_mid, i_term if i_term is not None else None)
+        speed = np.sqrt(d["m_vx"] ** 2 + d["m_vy"] ** 2 + d["m_vz"] ** 2)
+        out = {
+            "boost_end_time": float(t[i_mid]),
+            "boost_end_alt_km": float(d["alt"][i_mid] / 1000.0),
+            "boost_end_mach": float(d["mach"][i_mid]),
+            "boost_end_speed": float(speed[i_mid]),
+            "midcourse_duration_s": (float(t[i_term] - t[i_mid])
+                                     if i_term is not None else nan),
+            "midcourse_peak_mach": float(np.max(d["mach"][sl])),
+            "midcourse_peak_alt_km": float(np.max(d["alt"][sl]) / 1000.0),
+            "midcourse_min_speed": float(np.min(speed[sl])),
+            "midcourse_peak_q_kpa": float(np.max(d["q_dyn"][sl]) / 1000.0),
+            "midcourse_peak_alpha_deg": float(
+                np.degrees(np.max(np.abs(d["alpha"][sl])))),
+            "midcourse_fin_sat_pct": float(
+                100.0 * np.mean(np.asarray(d["fin_sat"][sl], dtype=float))),
+        }
+        if i_term is not None and i_term > 0:
+            # Specific mechanical energy at handover: the midcourse energy
+            # the terminal loop inherits.
+            out["handover_specific_energy_mjkg"] = float(
+                (0.5 * speed[i_term] ** 2
+                 + C.G0 * d["alt"][i_term]) / 1.0e6)
+        else:
+            out["handover_specific_energy_mjkg"] = nan
+        return out
+    except Exception:  # noqa: BLE001 - diagnostics must never abort a case
+        return {
+            "boost_end_time": nan,
+            "boost_end_alt_km": nan,
+            "boost_end_mach": nan,
+            "boost_end_speed": nan,
+            "midcourse_duration_s": nan,
+            "midcourse_peak_mach": nan,
+            "midcourse_peak_alt_km": nan,
+            "midcourse_min_speed": nan,
+            "midcourse_peak_q_kpa": nan,
+            "midcourse_peak_alpha_deg": nan,
+            "midcourse_fin_sat_pct": nan,
+            "handover_specific_energy_mjkg": nan,
+        }
+
+
 def run_case(payload):
     """Execute a single case, returning only scalar metrics."""
     case_id, cfg, scenario = payload
@@ -200,9 +270,12 @@ def run_case(payload):
             "evade_g": scenario.target_evade_g,
             "launch_lat": scenario.launch_lat,
             "launch_lon": scenario.launch_lon,
+            "midcourse_law": cfg.midcourse_law,
+            "terminal_law": cfg.terminal_law,
             "error": "",
         }
         result.update(_handover_fields(sim))
+        result.update(_stage_fields(sim))
         result.update(_terminal_fields(sim))
         return result
     except Exception as exc:  # noqa: BLE001 - a single case failure must not abort the whole batch
@@ -221,6 +294,8 @@ def run_case(payload):
             "evade_g": scenario.target_evade_g,
             "launch_lat": scenario.launch_lat,
             "launch_lon": scenario.launch_lon,
+            "midcourse_law": cfg.midcourse_law,
+            "terminal_law": cfg.terminal_law,
             "error": repr(exc),
             "first_lock_time": float("nan"),
             "first_lock_range": float("nan"),
@@ -235,6 +310,18 @@ def run_case(payload):
             "handover_n_avail_g": float("nan"),
             "handover_n_req_g": float("nan"),
             "handover_gates": "",
+            "boost_end_time": float("nan"),
+            "boost_end_alt_km": float("nan"),
+            "boost_end_mach": float("nan"),
+            "boost_end_speed": float("nan"),
+            "midcourse_duration_s": float("nan"),
+            "midcourse_peak_mach": float("nan"),
+            "midcourse_peak_alt_km": float("nan"),
+            "midcourse_min_speed": float("nan"),
+            "midcourse_peak_q_kpa": float("nan"),
+            "midcourse_peak_alpha_deg": float("nan"),
+            "midcourse_fin_sat_pct": float("nan"),
+            "handover_specific_energy_mjkg": float("nan"),
             "terminal_duration_s": float("nan"),
             "terminal_peak_cmd_g": float("nan"),
             "terminal_peak_act_g": float("nan"),
@@ -477,9 +564,17 @@ def main(argv=None):
                         help="Resume from the checkpoint file")
     parser.add_argument("--no-plot", action="store_true",
                         help="Do not plot the distribution")
+    parser.add_argument("--midcourse-law", type=str, default="bezier",
+                        choices=["bezier", "pip_pn"],
+                        help="Midcourse guidance law")
+    parser.add_argument("--terminal-law", type=str, default="zem_apn",
+                        choices=["zem_apn", "pn"],
+                        help="Terminal guidance law")
     args = parser.parse_args(argv)
 
     cfg = C.SimConfig()
+    cfg.midcourse_law = args.midcourse_law
+    cfg.terminal_law = args.terminal_law
     if args.max_step is not None:
         cfg.max_step = args.max_step
     if args.midcourse_step is not None:

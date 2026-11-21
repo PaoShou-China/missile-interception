@@ -9,6 +9,7 @@ import {
   eventAlignmentOffset,
   makeSyntheticDemo,
   matchRuns,
+  scenarioFingerprint,
   validateComparisonManifest,
 } from "../../src/compare/validation";
 
@@ -88,6 +89,15 @@ describe("comparison contract", () => {
     expect(result.level).toBe("C");
     expect(result.eligibleForPerformanceClaims).toBe(false);
     expect(demo.meta.validation_status).toBe("NOT RUN");
+  });
+
+  it("ignores flight duration but not initial conditions in the fingerprint", () => {
+    const longer = structuredClone(scenario);
+    longer.time.endS += 9.4;
+    expect(scenarioFingerprint(longer)).toBe(scenarioFingerprint(scenario));
+    const moved = structuredClone(scenario);
+    moved.targetSite.latDeg += 0.2;
+    expect(scenarioFingerprint(moved)).not.toBe(scenarioFingerprint(scenario));
   });
 
   it("keeps B values unavailable until a run is imported", () => {

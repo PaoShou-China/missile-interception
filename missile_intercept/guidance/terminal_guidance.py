@@ -19,6 +19,11 @@ Law
   blind-range switching term is used, so the PN command is not fought by a
   second law.
 
+The shared pipeline (``_aligned_state`` / ``compute``) is also used by the
+classical pure-PN baseline in ``guidance/pure_pn_guidance.py``; only the
+acceleration law (``_command_accel``) differs, which keeps a guidance-law
+comparison free of implementation confounds.
+
 Ref: ZEM/APN survey (Evduzen, 2026); APN form from standard PN literature.
 """
 
@@ -79,8 +84,12 @@ class TerminalGuidance(BaseGuidance):
         return self.a_T
 
     # --------------------------------------------------------
-    def compute(self, t, nav, target_state, q=None, seeker=None,
-                target_acc=None):
+    def _aligned_state(self, t, nav, target_state, seeker, target_acc=None):
+        """Time-align nav/seeker and return ``(r, v, r_t, v_t, a_T)``.
+
+        Shared by every terminal law so the comparison between laws only
+        changes the acceleration law, not the sensor/time-alignment pipeline.
+        """
         # Time-align the delayed navigation estimate with the current tick.
         # Both position and velocity are propagated, using the last guidance
         # command plus gravity as the inertial acceleration estimate, so the
@@ -126,14 +135,18 @@ class TerminalGuidance(BaseGuidance):
             r_t = r_t - C.TERMINAL_AIMPOINT_OFFSET * MU.normalize(v_t)
 
         a_T = self._target_acceleration(t, v_t, target_acc)
+        return r, v, r_t, v_t, a_T
 
-        geo = MU.los_geometry(r, v, r_t, v_t)
-        R = geo["range"]
+    # --------------------------------------------------------
+    def _command_accel(self, geo, vc, t_go, a_T):
+        """Acceleration law.  Base implementation: ZEM / APN.
+
+        Subclasses (e.g. the classical pure-PN baseline) override only this
+        method, so time alignment, seeker handling, FOV guard, gravity
+        compensation, smoothing and load limiting are identical across laws.
+        """
         u = geo["u"]
         v_rel = geo["v_rel"]
-        vc = max(-geo["range_rate"], 50.0)
-        t_go = max(R / vc, self.t_go_min)
-
         # Zero-effort miss with the APN target-acceleration feed-forward.
         zem = geo["rho"] + v_rel * t_go + 0.5 * a_T * t_go * t_go
         # Adaptive navigation constant: the finite-horizon optimal gain grows
@@ -146,7 +159,20 @@ class TerminalGuidance(BaseGuidance):
                                  0.0, 1.0))
             n_eff = max(C.TERMINAL_PN_MIN,
                         self.n * (1.0 + C.TERMINAL_PN_BOOST * ramp))
-        a_cmd = n_eff * MU.perpendicular(zem, u) / (t_go * t_go)
+        return n_eff * MU.perpendicular(zem, u) / (t_go * t_go)
+
+    # --------------------------------------------------------
+    def compute(self, t, nav, target_state, q=None, seeker=None,
+                target_acc=None):
+        r, v, r_t, v_t, a_T = self._aligned_state(
+            t, nav, target_state, seeker, target_acc)
+
+        geo = MU.los_geometry(r, v, r_t, v_t)
+        R = geo["range"]
+        u = geo["u"]
+        vc = max(-geo["range_rate"], 50.0)
+        t_go = max(R / vc, self.t_go_min)
+        a_cmd = self._command_accel(geo, vc, t_go, a_T)
 
         # Soft FOV guard: extrapolate the off-boresight angle over the predict
         # horizon and start correcting before the target actually reaches the

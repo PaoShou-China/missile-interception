@@ -44,11 +44,31 @@ describe("experiment registry", () => {
     expect(comboKey(missing)).toContain("not-implemented");
   });
 
-  it("keeps exactly one real validated experiment", () => {
+  it("offers at least three guidance laws and three attitude controllers", () => {
+    expect(registry.guidance.length).toBeGreaterThanOrEqual(3);
+    expect(registry.control.length).toBeGreaterThanOrEqual(3);
+  });
+
+  it("has a real experiment for every guidance and control option", () => {
     const real = registry.experiments.filter((e) => !e.synthetic);
-    expect(real).toHaveLength(1);
-    expect(real[0].validation_status).toBe("PASS");
-    expect(real[0].run.is_synthetic).toBe(false);
+    expect(real.length).toBeGreaterThanOrEqual(4);
+    for (const option of registry.guidance) {
+      expect(real.some((e) => e.combo.guidance === option.id), option.id).toBe(true);
+    }
+    for (const option of registry.control) {
+      expect(real.some((e) => e.combo.control === option.id), option.id).toBe(true);
+    }
+  });
+
+  it("keeps every real record on the same scenario and validation state", () => {
+    const real = registry.experiments.filter((e) => !e.synthetic);
+    const scenarioIds = new Set(real.map((e) => e.run.scenario_id));
+    expect(scenarioIds.size).toBe(1);
+    for (const exp of real) {
+      expect(exp.run.trajectory_file).not.toBe("");
+      expect(exp.validation_status).toBe("PASS");
+      expect(exp.run.is_synthetic).toBe(false);
+    }
   });
 
   it("marks every synthetic record as a UI-only demo", () => {

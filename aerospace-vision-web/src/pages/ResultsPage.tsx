@@ -108,16 +108,16 @@ export function ResultsPage() {
           <table className="data-table">
             <thead>
               <tr>
-                <th>Phase</th>
-                <th>Start</th>
-                <th>End</th>
-                <th>Duration</th>
+                <th>{t("results.table.phase")}</th>
+                <th>{t("results.table.start")}</th>
+                <th>{t("results.table.end")}</th>
+                <th>{t("results.table.duration")}</th>
               </tr>
             </thead>
             <tbody>
               {manifest.phases.map((p) => (
                 <tr key={p.phase}>
-                  <td className="mono">{p.phase}</td>
+                  <td className="mono">{t(`phase.${p.phase}`)}</td>
                   <td>{formatClock(p.startT)}</td>
                   <td>{formatClock(p.endT)}</td>
                   <td>{fmt(p.endT - p.startT, 1)} s</td>

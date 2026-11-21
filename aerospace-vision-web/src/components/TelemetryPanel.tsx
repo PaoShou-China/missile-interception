@@ -41,7 +41,7 @@ export function TelemetryPanel() {
       {open && (
         <div className="panel__body">
           <div className="phase-row">
-            <span className={`phase-badge phase-badge--${state.phase}`}>{state.phase.toUpperCase()}</span>
+            <span className={`phase-badge phase-badge--${state.phase}`}>{t(`phase.${state.phase}`)}</span>
             <span className={`flag ${state.seekerLock ? "flag--on" : ""}`}>{t("telemetry.seeker")} {state.seekerLock ? t("telemetry.lock") : t("telemetry.search")}</span>
             <span className={`flag ${state.handover ? "flag--on" : ""}`}>{t("telemetry.handover")} {state.handover ? t("telemetry.on") : t("telemetry.off")}</span>
           </div>

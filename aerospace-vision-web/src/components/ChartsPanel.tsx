@@ -1,16 +1,17 @@
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import * as echarts from "echarts/core";
 import { LineChart } from "echarts/charts";
-import { GridComponent, TooltipComponent, MarkLineComponent } from "echarts/components";
+import { GridComponent, TooltipComponent, MarkLineComponent, DataZoomComponent } from "echarts/components";
 import { CanvasRenderer } from "echarts/renderers";
 import { useAppStore } from "../state/store";
 import type { TrajectorySample } from "../scientific/types";
 import { useI18n } from "../i18n";
 
-echarts.use([LineChart, GridComponent, TooltipComponent, MarkLineComponent, CanvasRenderer]);
+echarts.use([LineChart, GridComponent, TooltipComponent, MarkLineComponent, DataZoomComponent, CanvasRenderer]);
 
-const AXIS_COLOR = "rgba(140,168,198,0.5)";
-const LABEL_COLOR = "rgba(160,185,210,0.72)";
+const AXIS_COLOR = "rgba(150,180,210,0.55)";
+const LABEL_COLOR = "rgba(185,208,230,0.86)";
 
 function pairs(samples: TrajectorySample[], fn: (s: TrajectorySample) => number) {
   const stride = Math.max(1, Math.ceil(samples.length / 700));
@@ -34,20 +35,47 @@ interface ChartSpec {
   digitsB: number;
 }
 
-function Chart({ spec, time }: { spec: ChartSpec; time: number }) {
+function Chart({
+  spec,
+  time,
+  large = false,
+  onExpand,
+  onClose,
+}: {
+  spec: ChartSpec;
+  time: number;
+  large?: boolean;
+  onExpand?: () => void;
+  onClose?: () => void;
+}) {
   const ref = useRef<HTMLDivElement>(null);
   const chart = useRef<echarts.ECharts | null>(null);
+  const { t } = useI18n();
 
   const option = useMemo<echarts.EChartsCoreOption>(() => ({
     animation: false,
-    grid: { left: 42, right: 44, top: 18, bottom: 20 },
+    grid: { left: 54, right: 54, top: 24, bottom: 42 },
     tooltip: {
       trigger: "axis",
-      backgroundColor: "rgba(8,14,24,0.92)",
-      borderColor: "rgba(120,160,200,0.25)",
-      textStyle: { color: "#cfe3f5", fontSize: 11 },
-      axisPointer: { type: "line", lineStyle: { color: "rgba(255,178,87,0.5)" } },
+      backgroundColor: "rgba(8,14,24,0.94)",
+      borderColor: "rgba(120,160,200,0.28)",
+      textStyle: { color: "#dcecfa", fontSize: 12 },
+      axisPointer: { type: "line", lineStyle: { color: "rgba(255,178,87,0.55)" } },
     },
+    dataZoom: [
+      { type: "inside", throttle: 40 },
+      {
+        type: "slider",
+        height: 16,
+        bottom: 6,
+        borderColor: "rgba(120,150,180,0.25)",
+        backgroundColor: "rgba(255,255,255,0.03)",
+        fillerColor: "rgba(55,185,216,0.14)",
+        handleStyle: { color: "rgba(55,185,216,0.8)" },
+        textStyle: { color: LABEL_COLOR, fontSize: 10 },
+        labelFormatter: (v: number) => `${Math.round(v)}s`,
+      },
+    ],
     xAxis: {
       type: "value",
       min: "dataMin",
@@ -55,41 +83,43 @@ function Chart({ spec, time }: { spec: ChartSpec; time: number }) {
       axisLine: { lineStyle: { color: AXIS_COLOR } },
       axisTick: { show: false },
       splitLine: { show: false },
-      axisLabel: { color: LABEL_COLOR, fontSize: 9, formatter: (v: number) => `${Math.round(v)}s` },
+      axisLabel: { color: LABEL_COLOR, fontSize: 10, formatter: (v: number) => `${Math.round(v)}s` },
     },
     yAxis: [
       {
         type: "value",
-        axisLabel: { color: LABEL_COLOR, fontSize: 9 },
-        splitLine: { lineStyle: { color: "rgba(120,150,180,0.09)" } },
+        axisLabel: { color: LABEL_COLOR, fontSize: 10 },
+        splitLine: { lineStyle: { color: "rgba(120,150,180,0.1)" } },
       },
       {
         type: "value",
-        axisLabel: { color: LABEL_COLOR, fontSize: 9 },
+        axisLabel: { color: LABEL_COLOR, fontSize: 10 },
         splitLine: { show: false },
       },
     ],
     series: [
       {
+        name: spec.unitA,
         type: "line",
         data: spec.seriesA,
         showSymbol: false,
-        lineStyle: { width: 1.4, color: spec.colorA },
+        lineStyle: { width: 1.8, color: spec.colorA },
         areaStyle: { color: spec.colorA, opacity: 0.12 },
         markLine: {
           silent: true,
           symbol: "none",
           data: [{ xAxis: time }],
-          lineStyle: { color: "rgba(255,255,255,0.55)", width: 1, type: "dashed" },
+          lineStyle: { color: "rgba(255,255,255,0.58)", width: 1, type: "dashed" },
           label: { show: false },
         },
       },
       {
+        name: spec.unitB,
         type: "line",
         yAxisIndex: 1,
         data: spec.seriesB,
         showSymbol: false,
-        lineStyle: { width: 1.2, color: spec.colorB },
+        lineStyle: { width: 1.4, color: spec.colorB },
       },
     ],
   }), [spec, time]);
@@ -119,15 +149,31 @@ function Chart({ spec, time }: { spec: ChartSpec; time: number }) {
   }, [option]);
 
   return (
-    <div className="chart-card">
+    <div className={`chart-card ${large ? "chart-card--large" : ""}`}>
       <div className="chart-card__head">
         <span>{spec.title}</span>
         <div className="chart-card__legend">
           <i style={{ background: spec.colorA }} /> {spec.unitA}
           <i style={{ background: spec.colorB }} /> {spec.unitB}
         </div>
+        {large ? (
+          <div className="chart-card__actions">
+            <button
+              type="button"
+              onClick={() => chart.current?.dispatchAction({ type: "dataZoom", start: 0, end: 100 })}
+            >
+              {t("chart.resetZoom")}
+            </button>
+            <button type="button" onClick={onClose}>{t("chart.close")}</button>
+          </div>
+        ) : (
+          <button type="button" className="chart-card__expand" onClick={onExpand} aria-label={t("chart.expand")}>
+            ⤢
+          </button>
+        )}
       </div>
       <div className="chart-card__canvas" ref={ref} />
+      {large && <p className="chart-card__hint">{t("chart.zoomHint")}</p>}
     </div>
   );
 }
@@ -137,7 +183,15 @@ export function ChartsPanel() {
   const time = useAppStore((s) => s.time);
   const panels = useAppStore((s) => s.panels);
   const togglePanel = useAppStore((s) => s.togglePanel);
+  const [expanded, setExpanded] = useState<ChartSpec | null>(null);
   const { t } = useI18n();
+
+  useEffect(() => {
+    if (!expanded) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setExpanded(null); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [expanded]);
 
   const charts = useMemo<ChartSpec[]>(() => {
     if (!runtime) return [];
@@ -197,9 +251,19 @@ export function ChartsPanel() {
       </button>
       {open && (
         <div className="panel__body charts-panel__body">
-          {charts.map((c) => <Chart key={c.id} spec={c} time={time} />)}
+          {charts.map((c) => (
+            <Chart key={c.id} spec={c} time={time} onExpand={() => setExpanded(c)} />
+          ))}
           <p className="charts-note">{t("science.note")}</p>
         </div>
+      )}
+      {expanded && createPortal(
+        <div className="chart-modal" role="dialog" aria-modal="true" aria-label={expanded.title}>
+          <div className="chart-modal__inner">
+            <Chart spec={expanded} time={time} large onClose={() => setExpanded(null)} />
+          </div>
+        </div>,
+        document.body,
       )}
     </section>
   );

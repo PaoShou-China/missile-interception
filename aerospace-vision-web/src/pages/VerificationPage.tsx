@@ -19,16 +19,18 @@ export function VerificationPage() {
         {manifest && (
           <div className="check-table">
             <div className="check-table__head">
-              <span>STATUS</span>
-              <span>ID</span>
-              <span>DESCRIPTION / DETAIL</span>
+              <span>{t("verify.table.status")}</span>
+              <span>{t("verify.table.id")}</span>
+              <span>{t("verify.table.detail")}</span>
             </div>
             {manifest.validation.checks.map((c) => (
               <div className="check-row" key={c.id}>
-                <span className={`badge ${c.status === "PASS" ? "badge--ok" : "badge--bad"}`}>{c.status}</span>
+                <span className={`badge ${c.status === "PASS" ? "badge--ok" : "badge--bad"}`}>
+                  {c.status === "PASS" ? t("common.pass") : t("common.fail")}
+                </span>
                 <code>{c.id}</code>
                 <div>
-                  <b>{c.description}</b>
+                  <b>{t(`check.${c.id}.desc`)}</b>
                   <span>{c.detail}</span>
                 </div>
               </div>

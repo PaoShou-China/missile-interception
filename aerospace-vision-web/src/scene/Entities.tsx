@@ -50,9 +50,9 @@ function BodyAxes({ groupRef }: { groupRef: RefObject<THREE.Group | null> }) {
   );
 }
 
-/** Procedural PBR interceptor, 6.5 m long, body +x forward, +z down. */
+/** Procedural high-fidelity interceptor, 6.5 m long, body +x forward, +z down. */
 function MissileBody() {
-  const plume = useRef<THREE.Mesh>(null);
+  const plume = useRef<THREE.Group>(null);
   const nozzleGlow = useRef<THREE.Mesh>(null);
   const finUp = useRef<THREE.Group>(null);
   const finDown = useRef<THREE.Group>(null);
@@ -60,21 +60,74 @@ function MissileBody() {
   const finRight = useRef<THREE.Group>(null);
   const axes = useRef<THREE.Group>(null);
 
-  useFrame(() => {
+  // Smooth ogive/boattail body produced by a lathe profile, plus a tapered
+  // extruded fin shared by all four tail surfaces.
+  const { bodyGeo, finGeo } = useMemo(() => {
+    const profile: [number, number][] = [
+      [0.00030, -0.00255],
+      [0.00046, -0.00238],
+      [0.00053, -0.00200],
+      [0.00055, 0.00080],
+      [0.00055, 0.00170],
+      [0.00053, 0.00210],
+      [0.00047, 0.00245],
+      [0.00037, 0.00290],
+      [0.00024, 0.00340],
+      [0.00012, 0.00385],
+      [0.00002, 0.00418],
+    ];
+    const body = new THREE.LatheGeometry(
+      profile.map(([r, y]) => new THREE.Vector2(r, y)),
+      56,
+    );
+    body.rotateZ(-Math.PI / 2); // +Y -> +X
+    body.computeVertexNormals();
+
+    const shape = new THREE.Shape();
+    shape.moveTo(0, 0);
+    shape.lineTo(-0.00095, 0.00010);
+    shape.lineTo(-0.00086, 0.00044);
+    shape.lineTo(-0.00005, 0.00050);
+    shape.closePath();
+    const fin = new THREE.ExtrudeGeometry(shape, {
+      depth: 0.000034,
+      bevelEnabled: true,
+      bevelThickness: 0.000006,
+      bevelSize: 0.000006,
+      bevelSegments: 2,
+      curveSegments: 2,
+    });
+    fin.translate(0, 0, -0.000017);
+    fin.computeVertexNormals();
+    return { bodyGeo: body, finGeo: fin };
+  }, []);
+
+  const finAngles: { key: string; angle: number; ref: RefObject<THREE.Group | null> }[] = [
+    { key: "right", angle: 0, ref: finRight },
+    { key: "up", angle: -Math.PI / 2, ref: finUp },
+    { key: "left", angle: Math.PI, ref: finLeft },
+    { key: "down", angle: Math.PI / 2, ref: finDown },
+  ];
+
+  useFrame(({ clock }) => {
     const rt = useAppStore.getState().runtime;
     const boostEnd = rt?.manifest.phases.find((p) => p.phase === "boost")?.endT ?? 20;
     const powered = simClock.time <= boostEnd;
-    if (plume.current) plume.current.visible = powered;
+    if (plume.current) {
+      plume.current.visible = powered;
+      const flicker = 1 + 0.07 * Math.sin(clock.elapsedTime * 47);
+      plume.current.scale.set(flicker, flicker, flicker);
+    }
     if (nozzleGlow.current) nozzleGlow.current.visible = powered;
 
     if (rt) {
       const s = rt.missileSampler.sampleAt(simClock.time);
       const f = s.finDeflectionsRad;
       const clamp = (v: number) => Math.max(-0.55, Math.min(0.55, v));
-      if (finUp.current) finUp.current.rotation.y = -clamp(f.up);
-      if (finDown.current) finDown.current.rotation.y = -clamp(f.down);
-      if (finLeft.current) finLeft.current.rotation.z = clamp(f.left);
-      if (finRight.current) finRight.current.rotation.z = -clamp(f.right);
+      if (finUp.current) finUp.current.rotation.y = clamp(f.up);
+      if (finDown.current) finDown.current.rotation.y = clamp(f.down);
+      if (finLeft.current) finLeft.current.rotation.y = clamp(f.left);
+      if (finRight.current) finRight.current.rotation.y = clamp(f.right);
     }
     if (axes.current) {
       const mode = useAppStore.getState().cameraMode;
@@ -84,57 +137,103 @@ function MissileBody() {
 
   return (
     <group>
-      <mesh rotation={[0, 0, -Math.PI / 2]}>
-        <cylinderGeometry args={[0.00042, 0.00055, 0.0046, 24]} />
-        <meshStandardMaterial color="#dfe7f0" metalness={0.68} roughness={0.34} emissive="#24303d" emissiveIntensity={0.35} />
-      </mesh>
-      <mesh position={[0.00305, 0, 0]} rotation={[0, 0, -Math.PI / 2]}>
-        <coneGeometry args={[0.00042, 0.0016, 24]} />
-        <meshStandardMaterial color="#2b3138" metalness={0.85} roughness={0.25} />
-      </mesh>
-      <mesh position={[-0.0024, 0, 0]} rotation={[0, 0, -Math.PI / 2]}>
-        <cylinderGeometry args={[0.0006, 0.00046, 0.0005, 20]} />
-        <meshStandardMaterial color="#4a4f57" metalness={0.9} roughness={0.3} />
-      </mesh>
-      <mesh position={[0.0007, 0, 0]} rotation={[0, 0, -Math.PI / 2]}>
-        <cylinderGeometry args={[0.00047, 0.00047, 0.00022, 24]} />
-        <meshStandardMaterial color={COLORS.accent} emissive={COLORS.accent} emissiveIntensity={0.35} metalness={0.5} roughness={0.35} />
+      {/* Monocoque body with ogive radome and boat-tail. */}
+      <mesh geometry={bodyGeo}>
+        <meshPhysicalMaterial
+          color="#e9eff6"
+          metalness={0.42}
+          roughness={0.34}
+          clearcoat={0.65}
+          clearcoatRoughness={0.28}
+          emissive="#1a2733"
+          emissiveIntensity={0.18}
+        />
       </mesh>
 
-      {/* Cruciform tail fins. Rotation is driven by the recorded fin channels. */}
-      <group ref={finUp} position={[-0.0019, 0, 0]}>
-        <mesh position={[0, 0, -0.00042]}>
-          <boxGeometry args={[0.0008, 0.000045, 0.00086]} />
-          <meshStandardMaterial color="#9aa6b2" metalness={0.6} roughness={0.42} />
-        </mesh>
-      </group>
-      <group ref={finDown} position={[-0.0019, 0, 0]}>
-        <mesh position={[0, 0, 0.00042]}>
-          <boxGeometry args={[0.0008, 0.000045, 0.00086]} />
-          <meshStandardMaterial color="#9aa6b2" metalness={0.6} roughness={0.42} />
-        </mesh>
-      </group>
-      <group ref={finLeft} position={[-0.0019, 0, 0]}>
-        <mesh position={[0, -0.00042, 0]}>
-          <boxGeometry args={[0.0008, 0.00086, 0.000045]} />
-          <meshStandardMaterial color="#8d97a3" metalness={0.6} roughness={0.42} />
-        </mesh>
-      </group>
-      <group ref={finRight} position={[-0.0019, 0, 0]}>
-        <mesh position={[0, 0.00042, 0]}>
-          <boxGeometry args={[0.0008, 0.00086, 0.000045]} />
-          <meshStandardMaterial color="#8d97a3" metalness={0.6} roughness={0.42} />
-        </mesh>
-      </group>
+      {/* Seeker radome window. */}
+      <mesh position={[0.00398, 0, 0]} rotation={[0, 0, -Math.PI / 2]}>
+        <coneGeometry args={[0.00013, 0.00030, 24, 1, true]} />
+        <meshPhysicalMaterial
+          color="#10283d"
+          metalness={0.25}
+          roughness={0.12}
+          clearcoat={1}
+          emissive={COLORS.cyan}
+          emissiveIntensity={0.55}
+          side={THREE.DoubleSide}
+        />
+      </mesh>
 
-      <mesh ref={nozzleGlow} position={[-0.0030, 0, 0]} rotation={[0, 0, Math.PI / 2]}>
-        <circleGeometry args={[0.00042, 20]} />
-        <meshBasicMaterial color="#ffd09a" transparent opacity={0.85} blending={THREE.AdditiveBlending} depthWrite={false} side={THREE.DoubleSide} />
+      {/* Panel rings / interfaces. */}
+      {[0.00115, 0.00162, -0.00035].map((x) => (
+        <mesh key={x} position={[x, 0, 0]} rotation={[0, Math.PI / 2, 0]}>
+          <torusGeometry args={[0.000552, 0.000008, 8, 40]} />
+          <meshStandardMaterial color="#8b99a8" metalness={0.75} roughness={0.35} />
+        </mesh>
+      ))}
+      {/* Service bands and accent stripe. */}
+      <mesh position={[-0.00105, 0, 0]} rotation={[0, 0, -Math.PI / 2]}>
+        <cylinderGeometry args={[0.000558, 0.000558, 0.00006, 40]} />
+        <meshStandardMaterial color="#26313d" metalness={0.6} roughness={0.45} />
       </mesh>
-      <mesh ref={plume} position={[-0.0032, 0, 0]} rotation={[0, 0, Math.PI / 2]}>
-        <coneGeometry args={[0.00035, 0.0014, 16, 1, true]} />
-        <meshBasicMaterial color="#9fd9ff" transparent opacity={0.55} blending={THREE.AdditiveBlending} depthWrite={false} side={THREE.DoubleSide} />
+      <mesh position={[0.00192, 0, 0]} rotation={[0, 0, -Math.PI / 2]}>
+        <cylinderGeometry args={[0.000548, 0.000548, 0.00005, 40]} />
+        <meshStandardMaterial color={COLORS.accent} emissive={COLORS.accent} emissiveIntensity={0.35} metalness={0.5} roughness={0.3} />
       </mesh>
+
+      {/* Mid-body strakes. */}
+      {[0, Math.PI / 2, Math.PI, (3 * Math.PI) / 2].map((a) => (
+        <group key={a} rotation={[a, 0, 0]}>
+          <mesh position={[0.00055, 0.00056, 0]}>
+            <boxGeometry args={[0.00145, 0.000016, 0.000028]} />
+            <meshStandardMaterial color="#77828e" metalness={0.7} roughness={0.4} />
+          </mesh>
+        </group>
+      ))}
+
+      {/* Forward canards. */}
+      {[0, Math.PI / 2, Math.PI, (3 * Math.PI) / 2].map((a) => (
+        <group key={`c${a}`} position={[0.00152, 0, 0]} rotation={[a, 0, 0]}>
+          <mesh geometry={finGeo} position={[0, 0.00043, 0]} scale={[0.42, 0.42, 0.42]}>
+            <meshStandardMaterial color="#5d6874" metalness={0.65} roughness={0.42} />
+          </mesh>
+        </group>
+      ))}
+
+      {/* Cruciform tail fins. Inner group rotation is driven by recorded fin data. */}
+      {finAngles.map(({ key, angle, ref }) => (
+        <group key={key} position={[-0.00136, 0, 0]} rotation={[angle, 0, 0]}>
+          <group ref={ref}>
+            <mesh geometry={finGeo} position={[0, 0.00047, 0]}>
+              <meshStandardMaterial color="#9aa6b2" metalness={0.7} roughness={0.38} side={THREE.DoubleSide} />
+            </mesh>
+          </group>
+        </group>
+      ))}
+
+      {/* Nozzle bell and throat glow. */}
+      <mesh position={[-0.00262, 0, 0]} rotation={[0, 0, -Math.PI / 2]}>
+        <cylinderGeometry args={[0.00040, 0.00052, 0.00030, 32, 1, true]} />
+        <meshStandardMaterial color="#3a3f47" metalness={0.92} roughness={0.28} side={THREE.DoubleSide} />
+      </mesh>
+      <mesh ref={nozzleGlow} position={[-0.00277, 0, 0]} rotation={[0, -Math.PI / 2, 0]}>
+        <circleGeometry args={[0.00035, 28]} />
+        <meshBasicMaterial color="#ffc078" transparent opacity={0.9} blending={THREE.AdditiveBlending} depthWrite={false} side={THREE.DoubleSide} />
+      </mesh>
+
+      {/* Layered exhaust plume. */}
+      <group ref={plume} position={[-0.00282, 0, 0]}>
+        {[
+          { len: 0.0011, r: 0.00030, color: "#fff3d0", opacity: 0.95 },
+          { len: 0.0019, r: 0.00036, color: "#ffb35c", opacity: 0.42 },
+          { len: 0.0029, r: 0.00046, color: "#5cc8ff", opacity: 0.16 },
+        ].map((p) => (
+          <mesh key={p.len} position={[0, 0, 0]} rotation={[0, 0, Math.PI / 2]}>
+            <coneGeometry args={[p.r, p.len, 20, 1, true]} />
+            <meshBasicMaterial color={p.color} transparent opacity={p.opacity} blending={THREE.AdditiveBlending} depthWrite={false} side={THREE.DoubleSide} />
+          </mesh>
+        ))}
+      </group>
 
       <BodyAxes groupRef={axes} />
     </group>

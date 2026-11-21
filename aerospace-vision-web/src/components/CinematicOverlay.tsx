@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { useAppStore } from "../state/store";
 import { shotAtWall, simToWall, wallToSim, CINEMATIC_WALL_S } from "../cinematic/shots";
 import { useClockDisplay } from "./useDisplayState";
@@ -11,7 +12,15 @@ export function CinematicOverlay() {
   const toggle = useAppStore((s) => s.toggle);
   const playing = useAppStore((s) => s.playing);
   const time = useClockDisplay(100);
+  const [fullscreen, setFullscreen] = useState(false);
   const { t } = useI18n();
+
+  useEffect(() => {
+    const onChange = () => setFullscreen(Boolean(document.fullscreenElement));
+    document.addEventListener("fullscreenchange", onChange);
+    return () => document.removeEventListener("fullscreenchange", onChange);
+  }, []);
+
   if (!runtime) return null;
 
   const start = runtime.manifest.time.startS;
@@ -25,6 +34,15 @@ export function CinematicOverlay() {
     seek(target);
   };
 
+  const toggleFullscreen = async () => {
+    try {
+      if (document.fullscreenElement) await document.exitFullscreen();
+      else await document.documentElement.requestFullscreen();
+    } catch {
+      // Fullscreen can be denied; the film still plays inline.
+    }
+  };
+
   return (
     <div className="cinematic">
       <div className="cinematic__bar cinematic__bar--top" />
@@ -32,15 +50,28 @@ export function CinematicOverlay() {
 
       <div className="cinematic__brand">
         <span>{t("brand.latin")}</span>
-        <b>{runtime.manifest.title}</b>
+        <b>{t("scenario.title")}</b>
       </div>
 
       <div className="cinematic__controls">
-        <button type="button" onClick={() => skip(-15)} title={t("cinematic.skipBack")}>−15s</button>
-        <button type="button" className="cinematic__play" onClick={toggle} title={playing ? t("cinematic.pause") : t("cinematic.resume")}>
+        <button type="button" onClick={() => skip(-15)} title={t("cinematic.skipBack")} aria-label={t("cinematic.skipBack")}>
+          « 15s
+        </button>
+        <button
+          type="button"
+          className="cinematic__play"
+          onClick={toggle}
+          title={playing ? t("cinematic.pause") : t("cinematic.resume")}
+          aria-label={playing ? t("cinematic.pause") : t("cinematic.resume")}
+        >
           {playing ? "❚❚" : "▶"}
         </button>
-        <button type="button" onClick={() => skip(15)} title={t("cinematic.skipForward")}>+15s</button>
+        <button type="button" onClick={() => skip(15)} title={t("cinematic.skipForward")} aria-label={t("cinematic.skipForward")}>
+          15s »
+        </button>
+        <button type="button" onClick={toggleFullscreen} title={t("cinematic.fullscreen")}>
+          {fullscreen ? "⤡" : "⤢"} {t("cinematic.fullscreen")}
+        </button>
         <button type="button" className="cinematic__exit" onClick={() => setPresentation("scientific")}>
           {t("cinematic.exit")} <span>ESC</span>
         </button>
@@ -52,8 +83,25 @@ export function CinematicOverlay() {
         <p>{t(shot.captionKey)}</p>
       </div>
 
-      <div className="cinematic__progress">
-        <div style={{ width: `${progress}%` }} />
+      <div
+        className="cinematic__progress"
+        role="slider"
+        tabIndex={0}
+        aria-label={t("cinematic.scrub")}
+        aria-valuemin={0}
+        aria-valuemax={CINEMATIC_WALL_S}
+        aria-valuenow={Math.round(wall)}
+        onPointerDown={(e) => {
+          const r = e.currentTarget.getBoundingClientRect();
+          const f = Math.min(1, Math.max(0, (e.clientX - r.left) / r.width));
+          seek(wallToSim(f * CINEMATIC_WALL_S, start, end));
+        }}
+        onKeyDown={(e) => {
+          if (e.key === "ArrowLeft") skip(-5);
+          if (e.key === "ArrowRight") skip(5);
+        }}
+      >
+        <div className="cinematic__progress-fill" style={{ width: `${progress}%` }} />
         <span className="cinematic__clock">
           {t("cinematic.elapsed")} {formatTime(wall)} / {formatTime(CINEMATIC_WALL_S)}
         </span>

@@ -2,16 +2,7 @@ import { useState } from "react";
 import { useAppStore } from "../state/store";
 import { fmt, formatClock } from "../utils/format";
 import { useI18n } from "../i18n";
-
-const EVENT_KEYS: Record<string, string> = {
-  LAUNCH: "event.launch",
-  MIDCOURSE: "event.midcourse",
-  APOGEE: "event.apogee",
-  "SEEKER LOCK": "event.seeker_lock",
-  TERMINAL: "event.terminal",
-  "TERMINAL HANDOVER": "event.terminal_handover",
-  INTERCEPT: "event.intercept",
-};
+import { eventLabel } from "../i18n/events";
 
 export function MissionPanel() {
   const runtime = useAppStore((s) => s.runtime);
@@ -31,14 +22,14 @@ export function MissionPanel() {
       <button type="button" className="panel__header" onClick={() => togglePanel("mission")}>
         <div>
           <span className="panel__eyebrow">{t("mission.eyebrow")}</span>
-          <h2>{runtime.manifest.title}</h2>
+          <h2>{t("scenario.title")}</h2>
         </div>
         <span className="panel__chevron">{open ? "−" : "+"}</span>
       </button>
 
       {open && (
         <div className="panel__body">
-          <p className="mission-panel__desc">{runtime.manifest.description}</p>
+          <p className="mission-panel__desc">{t("scenario.description")}</p>
 
           <div className="hero-metrics">
             <div>
@@ -88,7 +79,7 @@ export function MissionPanel() {
                 onClick={() => seek(e.t)}
               >
                 <span className="event-row__time">{formatClock(e.t)}</span>
-                <span className="event-row__label">{EVENT_KEYS[e.label] ? t(EVENT_KEYS[e.label]) : e.label}</span>
+                <span className="event-row__label">{eventLabel(t, e.label)}</span>
               </button>
             ))}
           </div>
@@ -115,9 +106,9 @@ export function MissionPanel() {
               <ul className="check-list">
                 {runtime.manifest.validation.checks.map((c) => (
                   <li key={c.id}>
-                    <span className="check-list__status">{c.status}</span>
+                    <span className="check-list__status">{c.status === "PASS" ? t("common.pass") : t("common.fail")}</span>
                     <div>
-                      <b>{c.id}</b>
+                      <b>{t(`check.${c.id}.desc`)}</b>
                       <span>{c.detail}</span>
                     </div>
                   </li>

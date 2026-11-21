@@ -33,7 +33,7 @@ export function TopBar() {
 
       <div className="topbar__scenario">
         <span className="topbar__id">{runtime.manifest.id.toUpperCase()}</span>
-        <span className="topbar__title">{runtime.manifest.title}</span>
+        <span className="topbar__title">{t("scenario.title")}</span>
         <span className={`status-pill status-pill--${runtime.manifest.validation.status === "PASS" ? "ok" : "bad"}`}>
           <span className="status-pill__dot" />
           {t("topbar.verified")} · {checkCount} {t("topbar.checks")}

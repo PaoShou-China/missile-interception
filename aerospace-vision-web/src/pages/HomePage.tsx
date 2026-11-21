@@ -44,7 +44,7 @@ export function HomePage() {
             </div>
             <div className="orbit-card__body">
               <div className="orbit-card__label">WGS84 · ECEF</div>
-              <div className="orbit-card__value">{manifest?.title ?? "—"}</div>
+              <div className="orbit-card__value">{manifest ? t("scenario.title") : "—"}</div>
               <div className="orbit-card__meta">
                 {manifest ? `${manifest.time.sampleCount} / ${manifest.time.sourceRows} rows` : "loading"}
               </div>

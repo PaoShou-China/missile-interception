@@ -138,7 +138,7 @@ test("seeking to the intercept event updates the scene state", async ({ page }) 
   await page.locator(".event-row").filter({ hasText: "Intercept" }).last().click();
   await page.waitForTimeout(700);
   await expect(page.locator(".timeline__now")).toContainText("11:1");
-  await expect(page.locator(".phase-badge")).toContainText("TERMINAL");
+  await expect(page.locator(".phase-badge")).toContainText("Terminal");
   await page.screenshot({ path: path.join(SHOTS, "02-intercept-terminal.png") });
 });
 
@@ -172,6 +172,19 @@ test("all ten camera modes switch, including body close-ups", async ({ page }) =
   await expect(track).toHaveClass(/is-active/);
 });
 
+test("chart cards expand into a zoomable modal", async ({ page }) => {
+  await gotoExplore(page);
+  await expect(page.locator(".charts-panel"), "charts panel").toBeVisible({ timeout: 45_000 });
+
+  await page.locator(".chart-card__expand").first().click();
+  await expect(page.locator(".chart-modal")).toBeVisible();
+  await expect(page.locator(".chart-card--large .chart-card__canvas")).toBeVisible();
+  await page.locator(".chart-card__actions button", { hasText: "Reset zoom" }).click();
+  await page.screenshot({ path: path.join(SHOTS, "11-chart-modal.png") });
+  await page.locator(".chart-card__actions button", { hasText: "Close" }).click();
+  await expect(page.locator(".chart-modal")).toHaveCount(0);
+});
+
 test("cinematic mode runs the three-minute presentation and exits cleanly", async ({ page }) => {
   await gotoExplore(page);
   await expect(page.locator(".segmented"), "top bar").toBeVisible({ timeout: 45_000 });
@@ -181,6 +194,14 @@ test("cinematic mode runs the three-minute presentation and exits cleanly", asyn
   await expect(page.locator(".cinematic__clock")).toContainText("03:00");
   await page.waitForTimeout(2500);
   await page.screenshot({ path: path.join(SHOTS, "04-cinematic-ignition.png") });
+
+  // Scrub to the middle of the film with a real click on the progress bar;
+  // the caption must follow the wall clock.
+  const bar = page.locator(".cinematic__progress");
+  const box = await bar.boundingBox();
+  expect(box).not.toBeNull();
+  await page.mouse.click(box!.x + box!.width * 0.56, box!.y + box!.height / 2);
+  await expect(page.locator(".cinematic__caption h1")).toHaveText("Midcourse");
 
   await page.locator(".cinematic__exit").click();
   await expect(page.locator(".mission-panel")).toBeVisible();

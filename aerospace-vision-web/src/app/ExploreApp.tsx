@@ -13,6 +13,7 @@ import { TrajectorySampler } from "../scientific/interpolate";
 import { useAppStore } from "../state/store";
 import { useI18n } from "../i18n";
 import { CAMERA_MODES } from "../state/cameraModes";
+import { resetCameraInput } from "../scene/cameraInput";
 
 class RenderErrorBoundary extends Component<{ children: ReactNode; title: string; body: string }, { error: Error | null }> {
   state = { error: null as Error | null };
@@ -92,7 +93,12 @@ export function ExploreApp() {
   return (
     <div className={`app-shell ${presentation === "cinematic" ? "is-cinematic" : ""} mobile-${mobilePanel}`}>
       <RenderErrorBoundary title="3D renderer unavailable" body={t("loading.webgl")}>
-        <SceneCanvas missileLabel={t("entity.interceptor")} targetLabel={t("entity.target")} />
+        <SceneCanvas
+          missileLabel={t("entity.interceptor")}
+          targetLabel={t("entity.target")}
+          launchLabel={t("entity.launchSite")}
+          targetDatumLabel={t("entity.targetDatum")}
+        />
       </RenderErrorBoundary>
 
       <div className="vignette" aria-hidden />
@@ -123,6 +129,10 @@ export function ExploreApp() {
             {panels.charts && <ChartsPanel />}
           </aside>
           <CameraDock />
+          <div className="camera-help">
+            <span>{t("camera.hint")}</span>
+            <button type="button" onClick={resetCameraInput}>{t("camera.reset")}</button>
+          </div>
           <Timeline />
         </>
       )}

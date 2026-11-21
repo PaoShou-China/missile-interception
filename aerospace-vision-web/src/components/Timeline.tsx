@@ -2,6 +2,7 @@ import { useCallback, useRef } from "react";
 import { useAppStore } from "../state/store";
 import { formatClock, formatTime } from "../utils/format";
 import { useI18n } from "../i18n";
+import { eventLabel } from "../i18n/events";
 
 const RATES = [0.5, 1, 5, 20, 60];
 
@@ -54,7 +55,7 @@ export function Timeline() {
               type="button"
               className={rate === r ? "is-active" : ""}
               onClick={() => setRate(r)}
-              title={`Playback ${r}×`}
+              title={`${t("timeline.rate")} ${r}×`}
             >
               {r}×
             </button>
@@ -65,7 +66,7 @@ export function Timeline() {
       <div className="timeline__track-wrap">
         <div className="timeline__labels">
           <span className="timeline__now">{formatClock(time)}</span>
-          <span className="timeline__phase">{runtime.missileSampler.sampleAt(time).phase.toUpperCase()}</span>
+          <span className="timeline__phase">{t(`phase.${runtime.missileSampler.sampleAt(time).phase}`)}</span>
           <span className="timeline__total">{formatTime(end)}</span>
         </div>
 
@@ -86,7 +87,7 @@ export function Timeline() {
           }}
           onPointerCancel={() => { dragging.current = false; }}
           role="slider"
-          aria-label="Simulation time"
+          aria-label={t("timeline.simulationTime")}
           aria-valuemin={start}
           aria-valuemax={end}
           aria-valuenow={time}
@@ -118,8 +119,8 @@ export function Timeline() {
               className={`timeline__event timeline__event--${e.severity}`}
               style={{ left: `${((e.t - start) / (end - start)) * 100}%` }}
               onClick={(ev) => { ev.stopPropagation(); seek(e.t); }}
-              title={`${e.label} · ${formatClock(e.t)}`}
-              aria-label={`Seek to ${e.label}`}
+              title={`${eventLabel(t, e.label)} · ${formatClock(e.t)}`}
+              aria-label={`${t("timeline.seekTo")} ${eventLabel(t, e.label)}`}
             />
           ))}
           <div className="timeline__playhead" style={{ left: `${progress}%` }}>

@@ -35,6 +35,25 @@ as such. Bundled Firefox and WebKit were installed locally and run.
 | Mobile explorer | PASS | mission/telemetry/chart tab sheet, horizontally scrolling camera dock; E2E at 390 × 844 |
 | Provenance copy | PASS | commit/SHA/Demo UTC are copyable with bilingual confirmation |
 
+### V4.1 UX and model pass (2026-11-21)
+
+| Item | Result | Evidence |
+| --- | --- | --- |
+| Readable type scale | PASS | Explorer labels/values raised ~20–35 % (timeline 16 px, telemetry 19 px, panel titles 16 px, chart titles 12 px) |
+| Orbit/zoom in every mode | PASS | Canvas drag/yaw-pitch and wheel zoom applied on top of the automatic rig; double-click or “Reset view” clears it; free mode keeps OrbitControls |
+| Chart expand + time zoom | PASS | Per-chart expand opens a portal modal with ECharts dataZoom (inside + slider), reset and close; E2E covers it |
+| Full Chinese coverage | PASS | Scenario title/description, phases, event labels, validation descriptions, PASS/FAIL, table headers and canvas beacons are translated |
+| Controllable cinematic | PASS | Clickable/draggable progress bar, keyboard seek, pause, ±15 s, fullscreen and exit; slow camera drift removes static shots; E2E scrubs to “Midcourse” |
+| High-fidelity interceptor | PASS | Lathe ogive/boattail body, clearcoat material, radome window, panel rings, strakes, canards, extruded cruciform fins driven by recorded data, nozzle bell and layered plume; visually verified by browser agent |
+
+### V4.1 test evidence
+
+```
+$ npm test                         46 passed
+$ playwright chromium              12 passed, 58.8 FPS (Intel UHD, D3D11)
+$ playwright webkit                11 passed, 1 skipped
+```
+
 ### V4 test evidence (local, 2026-11-20)
 
 ```
@@ -43,11 +62,12 @@ Test Files  7 passed (7)
 Tests       46 passed (46)
 
 $ npx playwright test --project=chromium   (Edge channel)
-11 passed — includes academic home, language persistence, route metadata,
-mobile panel tabs, legacy paths, 10 cameras, cinematic, 57.0 FPS hardware
+12 passed — includes academic home, language persistence, route metadata,
+mobile panel tabs, legacy paths, 10 cameras, chart modal, cinematic scrub,
+58.8 FPS hardware
 
 $ npx playwright test --project=webkit
-10 passed, 1 skipped (FPS gate is Chromium-only)
+11 passed, 1 skipped (FPS gate is Chromium-only)
 
 $ npx playwright test --project=firefox
 10 passed, 1 skipped (FPS gate is Chromium-only)

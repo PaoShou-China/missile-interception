@@ -76,7 +76,17 @@ function CameraFillLight() {
   return <pointLight ref={light} intensity={0.1} distance={0.3} decay={2} color="#cfe0ff" />;
 }
 
-function ScenarioScene({ missileLabel, targetLabel }: { missileLabel: string; targetLabel: string }) {
+function ScenarioScene({
+  missileLabel,
+  targetLabel,
+  launchLabel,
+  targetDatumLabel,
+}: {
+  missileLabel: string;
+  targetLabel: string;
+  launchLabel: string;
+  targetDatumLabel: string;
+}) {
   const runtime = useAppStore((s) => s.runtime);
   const presentation = useAppStore((s) => s.presentation);
   if (!runtime) return null;
@@ -92,7 +102,7 @@ function ScenarioScene({ missileLabel, targetLabel }: { missileLabel: string; ta
         latDeg={manifest.launchSite.latDeg}
         lonDeg={manifest.launchSite.lonDeg}
         altM={manifest.launchSite.altM}
-        label={manifest.launchSite.label}
+        label={launchLabel}
         color={COLORS.accent}
         kind="launch"
       />
@@ -100,7 +110,7 @@ function ScenarioScene({ missileLabel, targetLabel }: { missileLabel: string; ta
         latDeg={manifest.targetSite.latDeg}
         lonDeg={manifest.targetSite.lonDeg}
         altM={manifest.targetSite.altM}
-        label={manifest.targetSite.label}
+        label={targetDatumLabel}
         color={COLORS.cyan}
         kind="target"
       />
@@ -109,7 +119,17 @@ function ScenarioScene({ missileLabel, targetLabel }: { missileLabel: string; ta
   );
 }
 
-export function SceneCanvas({ missileLabel, targetLabel }: { missileLabel: string; targetLabel: string }) {
+export function SceneCanvas({
+  missileLabel,
+  targetLabel,
+  launchLabel,
+  targetDatumLabel,
+}: {
+  missileLabel: string;
+  targetLabel: string;
+  launchLabel: string;
+  targetDatumLabel: string;
+}) {
   const quality = useAppStore((s) => s.quality);
   const dpr: [number, number] = quality === "low" ? [1, 1.3] : quality === "medium" ? [1, 1.7] : [1, 2];
   return (
@@ -122,7 +142,12 @@ export function SceneCanvas({ missileLabel, targetLabel }: { missileLabel: strin
       <RendererSetup />
       <ClockDriver />
       <Suspense fallback={null}>
-        <ScenarioScene missileLabel={missileLabel} targetLabel={targetLabel} />
+        <ScenarioScene
+          missileLabel={missileLabel}
+          targetLabel={targetLabel}
+          launchLabel={launchLabel}
+          targetDatumLabel={targetDatumLabel}
+        />
       </Suspense>
       <Effects />
     </Canvas>

@@ -141,11 +141,11 @@ test("seeking to the intercept event updates the scene state", async ({ page }) 
   await page.screenshot({ path: path.join(SHOTS, "02-intercept-terminal.png") });
 });
 
-test("all eight camera modes switch, including body close-ups", async ({ page }) => {
+test("all six camera modes switch, including body close-ups", async ({ page }) => {
   await gotoExplore(page);
   await expect(page.locator(".camera-dock")).toBeVisible({ timeout: 45_000 });
 
-  const modes = ["Earth", "Chase", "Launch", "Intercept", "Fin", "Engine", "Attitude", "Seeker"];
+  const modes = ["Earth", "Chase", "Intercept", "Fin", "Engine", "Attitude"];
   for (const mode of modes) {
     await page.getByRole("button", { name: mode, exact: true }).click();
     await expect(page.locator("button[data-camera].is-active")).toHaveText(mode);

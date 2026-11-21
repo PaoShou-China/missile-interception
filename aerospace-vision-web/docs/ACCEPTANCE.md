@@ -22,7 +22,7 @@ as such. Bundled Firefox and WebKit were installed locally and run.
 | Academic home + navigation | PASS | `#/`, `#/methodology`, `#/results`, `#/verification`, `#/resources`; E2E asserts nav and explorer CTA |
 | Bilingual zh/en | PASS | Language switch persists in `localStorage`; `document.lang` becomes `zh-CN`; E2E reload check |
 | Frozen data contract | PASS | schema 1.1.0; `finDeflectionsRad`, `bodyRatesRadS`, `experiment`, `time.demoUtc`; unit test asserts recorded actuator channels |
-| Eight cameras incl. close-ups | PASS | Earth, Chase, Launch, Intercept, Fin, Engine, Attitude, Seeker (Free and Plan removed by request); browser agent visually confirmed fin/attitude/engine views |
+| Six cameras incl. close-ups | PASS | Earth, Chase, Intercept, Fin, Engine, Attitude (Launch/Seeker removed as near-duplicates); browser agent confirmed the strake-wing missile and F-35-style target |
 | Sun / moon / day-night | PASS | `src/scientific/astronomy.ts`, 6 unit tests (equinox, solstice, day/night, launch-site elevation, elapsed-time drift); dynamic light and atmosphere uniform |
 | Three-minute cinematic | PASS | Independent 180 s wall clock mapped to the mission; E2E checks `03:00` total, pause/skip/exit controls |
 | Legacy paths preserved | PASS | CI stages original paths (`/missile-intercept-overview/...`, `/intercept-report/...`, `/test-report/...`) and `/legacy/`; E2E asserts HTTP 200 |
@@ -34,6 +34,23 @@ as such. Bundled Firefox and WebKit were installed locally and run.
 | Accessibility | PASS | skip link, `aria-pressed` on camera/mode toggles, focus-visible rings, reduced-motion support, print stylesheet |
 | Mobile explorer | PASS | mission/telemetry tab sheet, horizontally scrolling camera dock; E2E at 390 × 844 |
 | Provenance copy | PASS | commit/SHA/Demo UTC are copyable with bilingual confirmation |
+
+### V4.4 model and camera consolidation (2026-11-21)
+
+| Item | Result | Evidence |
+| --- | --- | --- |
+| Camera set de-duplicated | PASS | Launch (≈Chase) and Seeker (≈Intercept) removed; dock now has Earth, Chase, Intercept, Fin, Engine, Attitude |
+| Strake lifting surfaces | PASS | Mid-body boxes replaced with long swept leading-edge strake wings (边条翼), extruded with bevel, one per side |
+| F-35-style target | PASS | Octagonal blended fuselage, swept wings, horizontal stabs, twin canted tails, bubble canopy, intakes, EOTS, nozzle and nav lights |
+| Camera framing | PASS | Ignition shot uses Chase; body close-ups re-aimed for the new strake geometry; E2E covers all six modes |
+
+### V4.4 test evidence
+
+```
+$ npm test                         46 passed
+$ playwright chromium              12 passed, 60.1 FPS (Intel UHD, D3D11)
+$ playwright webkit                11 passed, 1 skipped
+```
 
 ### V4.3 third UX pass (2026-11-21)
 

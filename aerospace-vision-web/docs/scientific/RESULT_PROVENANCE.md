@@ -67,6 +67,8 @@ The following are **symbols**, disclosed in the interface:
 - Trajectory tube radius near orbital scale (centreline is exact telemetry).
 - Vehicle model size (physical length is 6.5 m; the model is drawn at a
   separately scaled but internally consistent size).
+- The target is a schematic F-35-style aircraft shape (blended fuselage, swept
+  wings, canted tails); it is not CAD data and implies no affiliation.
 - Seeker FOV cone, body-axis triad, and engine plume visuals.
 - The interceptor body colour and engine glow are illustrative, not measured.
 

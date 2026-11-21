@@ -62,7 +62,7 @@ function MissileBody() {
 
   // Smooth ogive/boattail body produced by a lathe profile, plus a tapered
   // extruded fin shared by all four tail surfaces.
-  const { bodyGeo, finGeo } = useMemo(() => {
+  const { bodyGeo, finGeo, strakeGeo } = useMemo(() => {
     const profile: [number, number][] = [
       [0.000105, -0.00300],
       [0.000145, -0.00286],
@@ -99,7 +99,27 @@ function MissileBody() {
     });
     fin.translate(0, 0, -0.000011);
     fin.computeVertexNormals();
-    return { bodyGeo: body, finGeo: fin };
+
+    // Long, slender leading-edge strake wing (边条翼), blended into the body
+    // and swept back from the forward fuselage to the wing root.
+    const strake = new THREE.Shape();
+    strake.moveTo(0.00235, 0.000155);
+    strake.lineTo(-0.00195, 0.000155);
+    strake.lineTo(-0.00135, 0.000305);
+    strake.lineTo(0.00045, 0.000475);
+    strake.closePath();
+    const strakeGeo = new THREE.ExtrudeGeometry(strake, {
+      depth: 0.000014,
+      bevelEnabled: true,
+      bevelThickness: 0.000003,
+      bevelSize: 0.000003,
+      bevelSegments: 1,
+      curveSegments: 2,
+    });
+    strakeGeo.translate(0, 0, -0.000007);
+    strakeGeo.computeVertexNormals();
+
+    return { bodyGeo: body, finGeo: fin, strakeGeo };
   }, []);
 
   const finAngles: { key: string; angle: number; ref: RefObject<THREE.Group | null> }[] = [
@@ -181,14 +201,11 @@ function MissileBody() {
         <meshStandardMaterial color={COLORS.accent} emissive={COLORS.accent} emissiveIntensity={0.35} metalness={0.5} roughness={0.3} />
       </mesh>
 
-      {/* Mid-body strakes. */}
-      {[0, Math.PI / 2, Math.PI, (3 * Math.PI) / 2].map((a) => (
-        <group key={a} rotation={[a, 0, 0]}>
-          <mesh position={[0.00062, 0.000176, 0]}>
-            <boxGeometry args={[0.00155, 0.000007, 0.000014]} />
-            <meshStandardMaterial color="#77828e" metalness={0.7} roughness={0.4} />
-          </mesh>
-        </group>
+      {/* Leading-edge strake wings, one per side. */}
+      {[1, -1].map((side) => (
+        <mesh key={`strake${side}`} geometry={strakeGeo} scale={[1, side, 1]}>
+          <meshStandardMaterial color="#8a929c" metalness={0.62} roughness={0.42} side={THREE.DoubleSide} />
+        </mesh>
       ))}
 
       {/* Forward canards. */}
@@ -240,21 +257,165 @@ function MissileBody() {
   );
 }
 
-/** Target silhouette, oriented by its velocity-derived attitude. */
+/** F-35-style target: blended octagonal fuselage, swept wings, canted tails. */
 function TargetBody() {
+  const geo = useMemo(() => {
+    const ring = [
+      [1, 0], [0.72, 0.72], [0, 1], [-0.72, 0.72],
+      [-1, 0], [-0.72, -0.72], [0, -1], [0.72, -0.72],
+    ];
+    const stations = [
+      { x: 0.00840, w: 0.00004, h: 0.00003, z: 0 },
+      { x: 0.00700, w: 0.00022, h: 0.00018, z: -0.00002 },
+      { x: 0.00500, w: 0.00042, h: 0.00034, z: -0.00004 },
+      { x: 0.00300, w: 0.00062, h: 0.00046, z: -0.00006 },
+      { x: 0.00000, w: 0.00080, h: 0.00050, z: -0.00005 },
+      { x: -0.00300, w: 0.00078, h: 0.00048, z: -0.00003 },
+      { x: -0.00540, w: 0.00064, h: 0.00042, z: 0 },
+      { x: -0.00720, w: 0.00046, h: 0.00034, z: 0 },
+    ];
+    const positions: number[] = [];
+    const indices: number[] = [];
+    for (const s of stations) {
+      for (const [rx, rz] of ring) {
+        positions.push(s.x, s.w * rx, s.z + s.h * rz);
+      }
+    }
+    for (let i = 0; i < stations.length - 1; i++) {
+      for (let j = 0; j < ring.length; j++) {
+        const a = i * ring.length + j;
+        const b = i * ring.length + ((j + 1) % ring.length);
+        const c = (i + 1) * ring.length + ((j + 1) % ring.length);
+        const d = (i + 1) * ring.length + j;
+        indices.push(a, b, d, b, c, d);
+      }
+    }
+    const fuselage = new THREE.BufferGeometry();
+    fuselage.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
+    fuselage.setIndex(indices);
+    fuselage.computeVertexNormals();
+
+    const extrude = (build: (s: THREE.Shape) => void, depth: number) => {
+      const shape = new THREE.Shape();
+      build(shape);
+      const g = new THREE.ExtrudeGeometry(shape, {
+        depth,
+        bevelEnabled: true,
+        bevelThickness: depth * 0.25,
+        bevelSize: depth * 0.25,
+        bevelSegments: 1,
+        curveSegments: 2,
+      });
+      g.translate(0, 0, -depth / 2);
+      g.computeVertexNormals();
+      return g;
+    };
+
+    const wing = extrude((s) => {
+      s.moveTo(0.00275, 0.00072);
+      s.lineTo(-0.00285, 0.00532);
+      s.lineTo(-0.00455, 0.00532);
+      s.lineTo(-0.00415, 0.00072);
+      s.closePath();
+    }, 0.000030);
+
+    const stab = extrude((s) => {
+      s.moveTo(-0.00490, 0.00060);
+      s.lineTo(-0.00680, 0.00245);
+      s.lineTo(-0.00810, 0.00245);
+      s.lineTo(-0.00790, 0.00060);
+      s.closePath();
+    }, 0.000022);
+
+    const tail = extrude((s) => {
+      s.moveTo(-0.00320, 0.00000);
+      s.lineTo(-0.00740, 0.00200);
+      s.lineTo(-0.00800, 0.00200);
+      s.lineTo(-0.00770, 0.00000);
+      s.closePath();
+    }, 0.000022);
+    tail.rotateX(-Math.PI / 2);
+
+    return { fuselage, wing, stab, tail };
+  }, []);
+
   return (
     <group>
-      <mesh rotation={[0, 0, -Math.PI / 2]}>
-        <coneGeometry args={[0.00034, 0.002, 18]} />
-        <meshStandardMaterial color="#59636f" metalness={0.6} roughness={0.4} />
+      <mesh geometry={geo.fuselage}>
+        <meshStandardMaterial color="#68737f" metalness={0.58} roughness={0.46} side={THREE.DoubleSide} />
       </mesh>
-      <mesh rotation={[0, 0, Math.PI / 2]}>
-        <boxGeometry args={[0.00012, 0.0018, 0.0012]} />
-        <meshStandardMaterial color="#4d565f" metalness={0.5} roughness={0.5} />
+
+      {/* Bubble canopy. */}
+      <mesh position={[0.00355, 0, -0.00034]} rotation={[0, 0, -Math.PI / 2]} scale={[1, 1.1, 0.72]}>
+        <capsuleGeometry args={[0.00020, 0.00145, 8, 18]} />
+        <meshPhysicalMaterial
+          color="#15252f"
+          metalness={0.35}
+          roughness={0.08}
+          clearcoat={1}
+          clearcoatRoughness={0.05}
+          emissive="#0a1a24"
+          emissiveIntensity={0.5}
+        />
       </mesh>
-      <mesh>
-        <sphereGeometry args={[0.00035, 12, 8]} />
-        <meshStandardMaterial color={COLORS.cyan} emissive={COLORS.cyan} emissiveIntensity={0.8} />
+
+      {/* Intakes and inlet faces. */}
+      {[1, -1].map((side) => (
+        <group key={`intake${side}`} position={[0.00105, side * 0.00058, 0.00020]}>
+          <mesh>
+            <boxGeometry args={[0.00265, 0.00024, 0.00040]} />
+            <meshStandardMaterial color="#5a646f" metalness={0.6} roughness={0.5} />
+          </mesh>
+          <mesh position={[0.00134, 0, 0]}>
+            <boxGeometry args={[0.00003, 0.00018, 0.00030]} />
+            <meshStandardMaterial color="#141a20" metalness={0.4} roughness={0.7} />
+          </mesh>
+        </group>
+      ))}
+
+      {/* Wings, horizontal stabilisers and canted vertical tails. */}
+      {[1, -1].map((side) => (
+        <mesh key={`wing${side}`} geometry={geo.wing} scale={[1, side, 1]}>
+          <meshStandardMaterial color="#737e8a" metalness={0.55} roughness={0.5} side={THREE.DoubleSide} />
+        </mesh>
+      ))}
+      {[1, -1].map((side) => (
+        <mesh key={`stab${side}`} geometry={geo.stab} scale={[1, side, 1]}>
+          <meshStandardMaterial color="#6b7682" metalness={0.55} roughness={0.5} side={THREE.DoubleSide} />
+        </mesh>
+      ))}
+      {[1, -1].map((side) => (
+        <group key={`tail${side}`} position={[-0.00555, side * 0.00032, 0]} rotation={[side * 0.42, 0, 0]}>
+          <mesh geometry={geo.tail}>
+            <meshStandardMaterial color="#6e7985" metalness={0.55} roughness={0.5} side={THREE.DoubleSide} />
+          </mesh>
+        </group>
+      ))}
+
+      {/* Engine nozzle and faint heat glow. */}
+      <mesh position={[-0.00734, 0, 0]} rotation={[0, 0, -Math.PI / 2]}>
+        <cylinderGeometry args={[0.00034, 0.00042, 0.00024, 28, 1, true]} />
+        <meshStandardMaterial color="#3a4047" metalness={0.9} roughness={0.3} side={THREE.DoubleSide} />
+      </mesh>
+      <mesh position={[-0.00744, 0, 0]} rotation={[0, -Math.PI / 2, 0]}>
+        <circleGeometry args={[0.00030, 24]} />
+        <meshBasicMaterial color="#ff9a52" transparent opacity={0.28} blending={THREE.AdditiveBlending} depthWrite={false} />
+      </mesh>
+
+      {/* EOTS turret under the nose. */}
+      <mesh position={[0.00455, 0, 0.00030]}>
+        <sphereGeometry args={[0.00013, 16, 12]} />
+        <meshStandardMaterial color="#1e2a35" metalness={0.5} roughness={0.15} />
+      </mesh>
+
+      {/* Wingtip navigation lights: red left, green right. */}
+      <mesh position={[-0.00120, 0.00532, -0.00002]}>
+        <sphereGeometry args={[0.000030, 8, 8]} />
+        <meshBasicMaterial color="#ff4d4d" />
+      </mesh>
+      <mesh position={[-0.00120, -0.00532, -0.00002]}>
+        <sphereGeometry args={[0.000030, 8, 8]} />
+        <meshBasicMaterial color="#4dff9a" />
       </mesh>
     </group>
   );

@@ -138,9 +138,9 @@ export function CameraRig() {
     if (BODY_CAMERAS.includes(mode)) {
       const q = new THREE.Quaternion(ms.attitude.x, ms.attitude.y, ms.attitude.z, ms.attitude.w);
       const bodyUp = new THREE.Vector3(0, 0, -1).applyQuaternion(q);
-      let off: THREE.Vector3;
-      let lookOff: THREE.Vector3 | null;
-      let fov = 45;
+      let off = new THREE.Vector3(0.0010, 0.0052, -0.0046);
+      let lookOff: THREE.Vector3 | null = new THREE.Vector3(0, 0, 0);
+      let fov = 50;
       switch (mode) {
         case "fin":
           off = new THREE.Vector3(-0.0026, 0.0011, -0.0013);
@@ -154,21 +154,11 @@ export function CameraRig() {
           lookOff = new THREE.Vector3(-0.0026, 0, 0);
           fov = 46;
           break;
-        case "attitude":
-          off = new THREE.Vector3(0.0010, 0.0052, -0.0046);
-          lookOff = new THREE.Vector3(0, 0, 0);
-          fov = 50;
-          break;
-        default: { // seeker
-          off = new THREE.Vector3(0.0041, 0.0005, -0.0004);
-          lookOff = null;
-          fov = 38;
-        }
       }
       const userQ = new THREE.Quaternion().setFromEuler(
         new THREE.Euler(userPitch * 0.8, userYaw * 0.8, 0, "YXZ"),
       );
-      if (mode !== "seeker") off.applyQuaternion(userQ);
+      off.applyQuaternion(userQ);
       off.multiplyScalar(userZoom);
       const desiredPos = off.clone().applyQuaternion(q).add(mpos);
       const desiredLook = lookOff ? lookOff.clone().applyQuaternion(q).add(mpos) : tpos;
@@ -191,22 +181,11 @@ export function CameraRig() {
     // Anchor for smoothing: near-field modes follow a moving vehicle, so the
     // camera offset is smoothed in the anchor's frame. Otherwise a 20x playback
     // rate would leave the camera kilometres behind at 60 fps.
-    const follow = mode === "chase" || mode === "target" || mode === "launch";
+    const follow = mode === "chase" || mode === "target";
     let anchorPoint = mpos;
     let lookAnchor = mpos;
 
-    if (mode === "launch") {
-      // Ground-observer framing: side-on to the boost, with the Earth in the
-      // lower part of the frame instead of pointing the chase camera at space.
-      const side = new THREE.Vector3().crossVectors(mvel, up).normalize();
-      const dist = 0.07;
-      desiredPos.copy(mpos)
-        .addScaledVector(side, dist)
-        .addScaledVector(up, dist * 0.16)
-        .addScaledVector(mvel, -dist * 0.28);
-      desiredLook.copy(mpos).addScaledVector(mvel, dist * 0.12);
-      cam.fov = 46;
-    } else if (mode === "chase") {
+    if (mode === "chase") {
       const dist = shot ? 0.035 + shot.distance * 0.5 : 0.075;
       const side = new THREE.Vector3().crossVectors(mvel, up).normalize();
       desiredPos.copy(mpos)

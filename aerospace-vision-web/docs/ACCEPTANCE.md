@@ -32,8 +32,26 @@ as such. Bundled Firefox and WebKit were installed locally and run.
 | Initial bundle / code splitting | PASS | entry 274 kB (86.9 kB gzip); three.js and ECharts are lazy chunks (no longer on the academic pages) |
 | SEO + social metadata | PASS | route-specific title/description/canonical; OG/Twitter tags and JSON-LD WebSite |
 | Accessibility | PASS | skip link, `aria-pressed` on camera/mode toggles, focus-visible rings, reduced-motion support, print stylesheet |
-| Mobile explorer | PASS | mission/telemetry/chart tab sheet, horizontally scrolling camera dock; E2E at 390 × 844 |
+| Mobile explorer | PASS | mission/telemetry tab sheet, horizontally scrolling camera dock; E2E at 390 × 844 |
 | Provenance copy | PASS | commit/SHA/Demo UTC are copyable with bilingual confirmation |
+
+### V4.3 third UX pass (2026-11-21)
+
+| Item | Result | Evidence |
+| --- | --- | --- |
+| Cinematic transport clickability | PASS | `.cinematic__controls` now re-enables pointer events; E2E clicks pause/resume twice and observes ▶/❚❚ toggling |
+| Realistic interceptor proportions | PASS | 6.5 m length × 0.34 m diameter (≈19:1), 0.48 m fin chord / 0.30 m semi-span, scaled close-up cameras; browser agent confirmed the slim body and fins |
+| More line charts | PASS | Dedicated Charts view now shows 8 series groups: altitude/speed, q/load, load command/response, attitude, body rates, four fins, Mach/range, mass/propellant |
+| Removed redundant panel | PASS | Right rail is telemetry only; the old “Science / Time series” accordion and its chart modal are gone |
+| Mobile tabs | PASS | Mission / Telemetry only, matching the removed panel |
+
+### V4.3 test evidence
+
+```
+$ npm test                         46 passed
+$ playwright chromium              12 passed, 60.2 FPS (Intel UHD, D3D11)
+$ playwright webkit                11 passed, 1 skipped
+```
 
 ### V4.2 second UX pass (2026-11-21)
 
@@ -44,7 +62,7 @@ as such. Bundled Firefox and WebKit were installed locally and run.
 | Per-phase cinematic pacing | PASS | Wall budget boost 0–60 s, midcourse 60–142 s, terminal 142–180 s; the three phases now play at clearly different speeds |
 | Cinematic controls | PASS | Centered 44 px control bar (pause, ±15 s, fullscreen, exit) plus a full-width clickable/draggable progress bar; Exit no longer escaped the bar |
 | Camera mode set | PASS | Free/Plan removed; Earth, Chase, Launch, Intercept, Fin, Engine, Attitude, Seeker remain |
-| Dedicated charts mode | PASS | Third presentation mode “Charts” shows four large time series with zoom, Esc/return to 3D |
+| Dedicated charts mode | PASS | Third presentation mode “Charts” shows eight large time series with zoom, Esc/return to 3D |
 | Centered mode dock | PASS | Mode buttons moved to a centered translucent dock above the timeline; rails end above it, so the left panel is never overlapped |
 
 ### V4.2 test evidence

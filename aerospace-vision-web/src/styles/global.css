@@ -1435,8 +1435,9 @@ button, select { font-family: inherit; color: inherit; }
 .telemetry-foot { font-size: 9.5px; }
 
 .chart-card__head > span { font-size: 12px; }
-.chart-card__legend { font-size: 9px; gap: 6px; }
-.chart-card__legend i { width: 9px; height: 3px; }
+.chart-card__legend { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-family: var(--mono); font-size: 9px; color: var(--muted-2); }
+.chart-card__legend-item { display: inline-flex; align-items: center; gap: 4px; }
+.chart-card__legend i { width: 9px; height: 3px; border-radius: 1px; }
 .chart-card__canvas { height: 136px; }
 .charts-note { font-size: 10px; line-height: 1.6; }
 .charts-panel__body { gap: 10px; }
@@ -1663,6 +1664,9 @@ button, select { font-family: inherit; color: inherit; }
   background: rgba(6, 13, 23, 0.82);
   backdrop-filter: blur(16px);
   box-shadow: 0 24px 60px -26px rgba(0, 0, 0, 0.95);
+  /* The cinematic letterbox layer disables pointer events; the transport must
+     explicitly re-enable them or only absolutely-positioned children work. */
+  pointer-events: auto;
 }
 .cinematic__controls button {
   min-height: 44px;
@@ -1717,6 +1721,9 @@ button, select { font-family: inherit; color: inherit; }
   margin-top: 16px;
 }
 .charts-view .chart-card--large { background: rgba(8, 16, 27, 0.8); border: 1px solid var(--border); padding: 10px; border-radius: 10px; }
+.charts-view .chart-card__head { flex-wrap: wrap; row-gap: 6px; }
+.charts-view .chart-card__head > span { font-size: 13.5px; font-weight: 600; color: #dcebf8; }
+.charts-view .chart-card__legend { font-size: 10px; }
 .charts-view .chart-card--large .chart-card__canvas { height: 31vh; min-height: 210px; }
 .charts-view .chart-card__hint { display: none; }
 

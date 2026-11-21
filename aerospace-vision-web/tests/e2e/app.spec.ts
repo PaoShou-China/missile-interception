@@ -56,7 +56,7 @@ test("route metadata updates title, description and canonical URL", async ({ pag
   expect(canonical).toContain("#/methodology");
 });
 
-test("mobile explorer exposes mission, telemetry and chart tabs", async ({ page }) => {
+test("mobile explorer exposes mission and telemetry tabs", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await gotoExplore(page);
   await expect(page.locator(".mobile-tabs")).toBeVisible({ timeout: 45_000 });
@@ -65,11 +65,10 @@ test("mobile explorer exposes mission, telemetry and chart tabs", async ({ page 
   await expect(page.locator(".rail--left")).toBeVisible();
   await expect(page.locator(".rail--right")).toBeHidden();
 
-  await page.getByRole("tab", { name: "Charts" }).click();
+  await page.getByRole("tab", { name: "Telemetry" }).click();
   await expect(page.locator(".rail--right")).toBeVisible();
-  await expect(page.locator(".charts-panel")).toBeVisible();
-  await expect(page.locator(".telemetry-panel")).toBeHidden();
-  await page.screenshot({ path: path.join(SHOTS, "10-mobile-charts.png") });
+  await expect(page.locator(".rail--left")).toBeHidden();
+  await page.screenshot({ path: path.join(SHOTS, "10-mobile-telemetry.png") });
 });
 
 test("legacy reports stay reachable at their original paths", async ({ page }) => {
@@ -176,25 +175,14 @@ test("all eight camera modes switch, including body close-ups", async ({ page })
   await expect(track).toHaveClass(/is-active/);
 });
 
-test("chart cards expand into a zoomable modal", async ({ page }) => {
-  await gotoExplore(page);
-  await expect(page.locator(".charts-panel"), "charts panel").toBeVisible({ timeout: 45_000 });
-
-  await page.locator(".chart-card__expand").first().click();
-  await expect(page.locator(".chart-modal")).toBeVisible();
-  await expect(page.locator(".chart-card--large .chart-card__canvas")).toBeVisible();
-  await page.locator(".chart-card__actions button", { hasText: "Reset zoom" }).click();
-  await page.screenshot({ path: path.join(SHOTS, "11-chart-modal.png") });
-  await page.locator(".chart-card__actions button", { hasText: "Close" }).click();
-  await expect(page.locator(".chart-modal")).toHaveCount(0);
-});
-
 test("dedicated charts presentation shows every series", async ({ page }) => {
   await gotoExplore(page);
   await expect(page.locator(".segmented"), "top bar").toBeVisible({ timeout: 45_000 });
   await page.getByRole("button", { name: "Charts" }).click();
   await expect(page.locator(".charts-view")).toBeVisible();
-  await expect(page.locator(".charts-view .chart-card")).toHaveCount(4);
+  await expect(page.locator(".charts-view .chart-card")).toHaveCount(8);
+  await expect(page.locator(".charts-view")).toContainText("Attitude angles");
+  await expect(page.locator(".charts-view")).toContainText("Four fin channels");
   await page.screenshot({ path: path.join(SHOTS, "12-charts-view.png") });
   await page.keyboard.press("Escape");
   await expect(page.locator(".charts-view")).toHaveCount(0);
@@ -208,7 +196,17 @@ test("cinematic mode runs the three-minute presentation and exits cleanly", asyn
   await expect(page.locator(".cinematic__caption h1")).toHaveText("Ignition");
   await expect(page.locator(".cinematic__progress")).toBeVisible();
   await expect(page.locator(".cinematic__clock")).toContainText("03:00");
-  await page.waitForTimeout(2500);
+  await page.waitForTimeout(1200);
+
+  // Transport buttons must be clickable (the letterbox layer disables pointer
+  // events by default, so the bar has to re-enable them).
+  const play = page.locator(".cinematic__play");
+  await expect(play).toHaveText("❚❚");
+  await play.click();
+  await expect(play).toHaveText("▶");
+  await play.click();
+  await expect(play).toHaveText("❚❚");
+
   await page.screenshot({ path: path.join(SHOTS, "04-cinematic-ignition.png") });
 
   // Scrub to the middle of the film with a real click on the progress bar;

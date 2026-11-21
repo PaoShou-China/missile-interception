@@ -3,7 +3,6 @@ import { SceneCanvas } from "../scene/SceneCanvas";
 import { TopBar } from "../components/TopBar";
 import { MissionPanel } from "../components/MissionPanel";
 import { TelemetryPanel } from "../components/TelemetryPanel";
-import { ChartsPanel } from "../components/ChartsPanel";
 import { ChartsView } from "../components/ChartsView";
 import { Timeline } from "../components/Timeline";
 import { CameraDock } from "../components/CameraDock";
@@ -41,7 +40,6 @@ export function ExploreApp() {
   const setStatus = useAppStore((s) => s.setStatus);
   const presentation = useAppStore((s) => s.presentation);
   const hudVisible = useAppStore((s) => s.hudVisible);
-  const panels = useAppStore((s) => s.panels);
   const mobilePanel = useAppStore((s) => s.mobilePanel);
   const setMobilePanel = useAppStore((s) => s.setMobilePanel);
   const runtime = useAppStore((s) => s.runtime);
@@ -110,7 +108,7 @@ export function ExploreApp() {
       {showScientificUI && (
         <>
           <div className="mobile-tabs" role="tablist" aria-label={t("telemetry.eyebrow")}>
-            {(["mission", "telemetry", "charts"] as const).map((p) => (
+            {(["mission", "telemetry"] as const).map((p) => (
               <button
                 key={p}
                 type="button"
@@ -128,7 +126,6 @@ export function ExploreApp() {
           </aside>
           <aside className="rail rail--right">
             <TelemetryPanel />
-            {panels.charts && <ChartsPanel />}
           </aside>
           <CameraDock />
           <div className="camera-help">

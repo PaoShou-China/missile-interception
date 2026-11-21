@@ -37,7 +37,7 @@ export function ChartsView() {
         </button>
       </header>
       <div className="charts-view__grid">
-        {charts.map((c) => <Chart key={c.id} spec={c} time={time} large />)}
+        {charts.map((c) => <Chart key={c.id} spec={c} time={time} />)}
       </div>
     </section>
   );

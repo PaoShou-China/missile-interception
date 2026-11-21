@@ -31,17 +31,17 @@ function BodyAxes({ groupRef }: { groupRef: RefObject<THREE.Group | null> }) {
     { dir: [0, 1, 0], rot: [0, 0, 0], color: "#63e6ff" },
     { dir: [0, 0, 1], rot: [Math.PI / 2, 0, 0], color: "#7fe0a8" },
   ];
-  const L = 0.007;
+  const L = 0.0042;
   return (
     <group ref={groupRef} visible={false}>
       {axes.map((a) => (
         <group key={a.color}>
           <mesh position={[a.dir[0] * L * 0.5, a.dir[1] * L * 0.5, a.dir[2] * L * 0.5]} rotation={a.rot}>
-            <cylinderGeometry args={[0.000018, 0.000018, L, 8]} />
+            <cylinderGeometry args={[0.000007, 0.000007, L, 8]} />
             <meshBasicMaterial color={a.color} />
           </mesh>
           <mesh position={[a.dir[0] * L, a.dir[1] * L, a.dir[2] * L]} rotation={a.rot}>
-            <coneGeometry args={[0.00006, 0.00022, 10]} />
+            <coneGeometry args={[0.000022, 0.00010, 10]} />
             <meshBasicMaterial color={a.color} />
           </mesh>
         </group>
@@ -64,40 +64,40 @@ function MissileBody() {
   // extruded fin shared by all four tail surfaces.
   const { bodyGeo, finGeo } = useMemo(() => {
     const profile: [number, number][] = [
-      [0.00030, -0.00255],
-      [0.00046, -0.00238],
-      [0.00053, -0.00200],
-      [0.00055, 0.00080],
-      [0.00055, 0.00170],
-      [0.00053, 0.00210],
-      [0.00047, 0.00245],
-      [0.00037, 0.00290],
-      [0.00024, 0.00340],
-      [0.00012, 0.00385],
-      [0.00002, 0.00418],
+      [0.000105, -0.00300],
+      [0.000145, -0.00286],
+      [0.000170, -0.00240],
+      [0.000170, 0.00160],
+      [0.000168, 0.00200],
+      [0.000160, 0.00230],
+      [0.000138, 0.00265],
+      [0.000104, 0.00295],
+      [0.000060, 0.00325],
+      [0.000018, 0.00350],
     ];
     const body = new THREE.LatheGeometry(
       profile.map(([r, y]) => new THREE.Vector2(r, y)),
-      56,
+      64,
     );
     body.rotateZ(-Math.PI / 2); // +Y -> +X
     body.computeVertexNormals();
 
+    // Slender, tapered tail fin: ~0.48 m chord, ~0.30 m semi-span.
     const shape = new THREE.Shape();
     shape.moveTo(0, 0);
-    shape.lineTo(-0.00095, 0.00010);
-    shape.lineTo(-0.00086, 0.00044);
-    shape.lineTo(-0.00005, 0.00050);
+    shape.lineTo(-0.00048, 0.000045);
+    shape.lineTo(-0.00043, 0.00027);
+    shape.lineTo(-0.00003, 0.00030);
     shape.closePath();
     const fin = new THREE.ExtrudeGeometry(shape, {
-      depth: 0.000034,
+      depth: 0.000022,
       bevelEnabled: true,
-      bevelThickness: 0.000006,
-      bevelSize: 0.000006,
+      bevelThickness: 0.000004,
+      bevelSize: 0.000004,
       bevelSegments: 2,
       curveSegments: 2,
     });
-    fin.translate(0, 0, -0.000017);
+    fin.translate(0, 0, -0.000011);
     fin.computeVertexNormals();
     return { bodyGeo: body, finGeo: fin };
   }, []);
@@ -151,8 +151,8 @@ function MissileBody() {
       </mesh>
 
       {/* Seeker radome window. */}
-      <mesh position={[0.00398, 0, 0]} rotation={[0, 0, -Math.PI / 2]}>
-        <coneGeometry args={[0.00013, 0.00030, 24, 1, true]} />
+      <mesh position={[0.00334, 0, 0]} rotation={[0, 0, -Math.PI / 2]}>
+        <coneGeometry args={[0.000055, 0.00020, 24, 1, true]} />
         <meshPhysicalMaterial
           color="#10283d"
           metalness={0.25}
@@ -165,27 +165,27 @@ function MissileBody() {
       </mesh>
 
       {/* Panel rings / interfaces. */}
-      {[0.00115, 0.00162, -0.00035].map((x) => (
+      {[0.00125, 0.00174, -0.00055].map((x) => (
         <mesh key={x} position={[x, 0, 0]} rotation={[0, Math.PI / 2, 0]}>
-          <torusGeometry args={[0.000552, 0.000008, 8, 40]} />
+          <torusGeometry args={[0.000171, 0.000004, 8, 48]} />
           <meshStandardMaterial color="#8b99a8" metalness={0.75} roughness={0.35} />
         </mesh>
       ))}
-      {/* Service bands and accent stripe. */}
-      <mesh position={[-0.00105, 0, 0]} rotation={[0, 0, -Math.PI / 2]}>
-        <cylinderGeometry args={[0.000558, 0.000558, 0.00006, 40]} />
+      {/* Service band and accent stripe. */}
+      <mesh position={[-0.00115, 0, 0]} rotation={[0, 0, -Math.PI / 2]}>
+        <cylinderGeometry args={[0.000173, 0.000173, 0.000035, 48]} />
         <meshStandardMaterial color="#26313d" metalness={0.6} roughness={0.45} />
       </mesh>
-      <mesh position={[0.00192, 0, 0]} rotation={[0, 0, -Math.PI / 2]}>
-        <cylinderGeometry args={[0.000548, 0.000548, 0.00005, 40]} />
+      <mesh position={[0.00195, 0, 0]} rotation={[0, 0, -Math.PI / 2]}>
+        <cylinderGeometry args={[0.000171, 0.000171, 0.000028, 48]} />
         <meshStandardMaterial color={COLORS.accent} emissive={COLORS.accent} emissiveIntensity={0.35} metalness={0.5} roughness={0.3} />
       </mesh>
 
       {/* Mid-body strakes. */}
       {[0, Math.PI / 2, Math.PI, (3 * Math.PI) / 2].map((a) => (
         <group key={a} rotation={[a, 0, 0]}>
-          <mesh position={[0.00055, 0.00056, 0]}>
-            <boxGeometry args={[0.00145, 0.000016, 0.000028]} />
+          <mesh position={[0.00062, 0.000176, 0]}>
+            <boxGeometry args={[0.00155, 0.000007, 0.000014]} />
             <meshStandardMaterial color="#77828e" metalness={0.7} roughness={0.4} />
           </mesh>
         </group>
@@ -193,8 +193,8 @@ function MissileBody() {
 
       {/* Forward canards. */}
       {[0, Math.PI / 2, Math.PI, (3 * Math.PI) / 2].map((a) => (
-        <group key={`c${a}`} position={[0.00152, 0, 0]} rotation={[a, 0, 0]}>
-          <mesh geometry={finGeo} position={[0, 0.00043, 0]} scale={[0.42, 0.42, 0.42]}>
+        <group key={`c${a}`} position={[0.00164, 0, 0]} rotation={[a, 0, 0]}>
+          <mesh geometry={finGeo} position={[0, 0.000165, 0]} scale={[0.36, 0.36, 0.36]}>
             <meshStandardMaterial color="#5d6874" metalness={0.65} roughness={0.42} />
           </mesh>
         </group>
@@ -202,9 +202,9 @@ function MissileBody() {
 
       {/* Cruciform tail fins. Inner group rotation is driven by recorded fin data. */}
       {finAngles.map(({ key, angle, ref }) => (
-        <group key={key} position={[-0.00136, 0, 0]} rotation={[angle, 0, 0]}>
+        <group key={key} position={[-0.00242, 0, 0]} rotation={[angle, 0, 0]}>
           <group ref={ref}>
-            <mesh geometry={finGeo} position={[0, 0.00047, 0]}>
+            <mesh geometry={finGeo} position={[0, 0.000166, 0]}>
               <meshStandardMaterial color="#9aa6b2" metalness={0.7} roughness={0.38} side={THREE.DoubleSide} />
             </mesh>
           </group>
@@ -212,21 +212,21 @@ function MissileBody() {
       ))}
 
       {/* Nozzle bell and throat glow. */}
-      <mesh position={[-0.00262, 0, 0]} rotation={[0, 0, -Math.PI / 2]}>
-        <cylinderGeometry args={[0.00040, 0.00052, 0.00030, 32, 1, true]} />
+      <mesh position={[-0.00302, 0, 0]} rotation={[0, 0, -Math.PI / 2]}>
+        <cylinderGeometry args={[0.00012, 0.00016, 0.00022, 32, 1, true]} />
         <meshStandardMaterial color="#3a3f47" metalness={0.92} roughness={0.28} side={THREE.DoubleSide} />
       </mesh>
-      <mesh ref={nozzleGlow} position={[-0.00277, 0, 0]} rotation={[0, -Math.PI / 2, 0]}>
-        <circleGeometry args={[0.00035, 28]} />
+      <mesh ref={nozzleGlow} position={[-0.00313, 0, 0]} rotation={[0, -Math.PI / 2, 0]}>
+        <circleGeometry args={[0.000105, 28]} />
         <meshBasicMaterial color="#ffc078" transparent opacity={0.9} blending={THREE.AdditiveBlending} depthWrite={false} side={THREE.DoubleSide} />
       </mesh>
 
       {/* Layered exhaust plume. */}
-      <group ref={plume} position={[-0.00282, 0, 0]}>
+      <group ref={plume} position={[-0.00318, 0, 0]}>
         {[
-          { len: 0.0013, r: 0.00032, color: "#fff6dc", opacity: 1 },
-          { len: 0.0022, r: 0.00040, color: "#ffb35c", opacity: 0.6 },
-          { len: 0.0034, r: 0.00052, color: "#6fd4ff", opacity: 0.26 },
+          { len: 0.00055, r: 0.000085, color: "#fff6dc", opacity: 1 },
+          { len: 0.00095, r: 0.000110, color: "#ffb35c", opacity: 0.6 },
+          { len: 0.00145, r: 0.000150, color: "#6fd4ff", opacity: 0.26 },
         ].map((p) => (
           <mesh key={p.len} position={[0, 0, 0]} rotation={[0, 0, Math.PI / 2]}>
             <coneGeometry args={[p.r, p.len, 20, 1, true]} />

@@ -13,7 +13,7 @@ import type { CameraMode } from "./cameraModes";
 export type { CameraMode };
 export type PresentationMode = "scientific" | "cinematic" | "charts";
 export type QualityLevel = "high" | "medium" | "low";
-export type SidePanel = "mission" | "telemetry" | "charts";
+export type SidePanel = "mission" | "telemetry";
 
 export interface ScenarioRuntime {
   manifest: ScenarioManifest;
@@ -78,7 +78,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
   cameraMode: "earth",
   presentation: "scientific",
   quality: "high",
-  panels: { mission: true, telemetry: true, charts: true },
+  panels: { mission: true, telemetry: true },
   mobilePanel: "telemetry",
   loadingProgress: 0,
   hudVisible: true,

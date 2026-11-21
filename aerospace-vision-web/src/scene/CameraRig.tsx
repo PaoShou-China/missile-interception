@@ -143,24 +143,24 @@ export function CameraRig() {
       let fov = 45;
       switch (mode) {
         case "fin":
-          off = new THREE.Vector3(-0.0064, 0.0030, -0.0032);
-          lookOff = new THREE.Vector3(-0.0022, 0, 0);
+          off = new THREE.Vector3(-0.0026, 0.0011, -0.0013);
+          lookOff = new THREE.Vector3(-0.0020, 0, 0);
           fov = 42;
           break;
         case "engine":
           // Side-rear view so the nozzle bell and the exhaust plume are both
           // in frame instead of looking straight down the plume axis.
-          off = new THREE.Vector3(-0.0064, 0.0042, -0.0038);
-          lookOff = new THREE.Vector3(-0.0032, 0, 0);
-          fov = 44;
-          break;
-        case "attitude":
-          off = new THREE.Vector3(0.0008, 0.0074, -0.0062);
-          lookOff = new THREE.Vector3(0, 0, 0);
+          off = new THREE.Vector3(-0.0034, 0.0016, -0.0018);
+          lookOff = new THREE.Vector3(-0.0026, 0, 0);
           fov = 46;
           break;
+        case "attitude":
+          off = new THREE.Vector3(0.0010, 0.0052, -0.0046);
+          lookOff = new THREE.Vector3(0, 0, 0);
+          fov = 50;
+          break;
         default: { // seeker
-          off = new THREE.Vector3(0.0048, 0.0008, -0.0006);
+          off = new THREE.Vector3(0.0041, 0.0005, -0.0004);
           lookOff = null;
           fov = 38;
         }

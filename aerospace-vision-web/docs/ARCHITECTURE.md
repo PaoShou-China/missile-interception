@@ -185,9 +185,11 @@ seek, pause, ±15 s skip, fullscreen and exit.
 
 `Scientific` shows the 3D scene with panels, the centered mode dock and the
 timeline. `Cinematic` runs the three-minute film with its own transport.
-`Charts` is a dedicated data view: four large ECharts time series in a 2×2
-grid, each with inside/slider zoom, while the shared timeline stays available
-for scrubbing. Esc returns to Scientific.
+`Charts` is a dedicated data view: eight large ECharts time series in a 2×4
+grid (altitude/speed, q/load, load command/response, attitude, body rates,
+four fin channels, Mach/range, mass/propellant), each with inside/slider zoom,
+while the shared timeline stays available for scrubbing. Esc returns to
+Scientific. The right rail itself is telemetry-only.
 
 ### 8.6 Route metadata and social preview
 
@@ -198,8 +200,8 @@ valid metadata.
 
 ### 8.7 Responsive explorer
 
-Below 760 px the two desktop rails become a single sheet with a three-tab
-switcher (mission / telemetry / charts); the camera dock becomes a horizontal
+Below 760 px the two desktop rails become a single sheet with a two-tab
+switcher (mission / telemetry); the camera dock becomes a horizontal
 scroller. The sheet is rendered only in scientific mode, and the active tab is
 stored in Zustand so panel content keeps its state.
 

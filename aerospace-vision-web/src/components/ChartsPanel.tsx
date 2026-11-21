@@ -1,11 +1,10 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-import { createPortal } from "react-dom";
+import { useEffect, useMemo, useRef } from "react";
 import * as echarts from "echarts/core";
 import { LineChart } from "echarts/charts";
 import { GridComponent, TooltipComponent, MarkLineComponent, DataZoomComponent } from "echarts/components";
 import { CanvasRenderer } from "echarts/renderers";
-import { useAppStore } from "../state/store";
 import type { TrajectorySample } from "../scientific/types";
+import { bodyToNedEuler } from "../scientific/attitude";
 import { useI18n } from "../i18n";
 
 echarts.use([LineChart, GridComponent, TooltipComponent, MarkLineComponent, DataZoomComponent, CanvasRenderer]);
@@ -22,39 +21,31 @@ function pairs(samples: TrajectorySample[], fn: (s: TrajectorySample) => number)
   return out;
 }
 
+export interface ChartSeries {
+  name: string;
+  unit: string;
+  color: string;
+  data: [number, number][];
+  axis?: 0 | 1;
+  dashed?: boolean;
+}
+
 export interface ChartSpec {
   id: string;
   title: string;
   unitA: string;
   unitB: string;
-  seriesA: [number, number][];
-  seriesB: [number, number][];
-  colorA: string;
-  colorB: string;
-  digitsA: number;
-  digitsB: number;
+  series: ChartSeries[];
 }
 
-export function Chart({
-  spec,
-  time,
-  large = false,
-  onExpand,
-  onClose,
-}: {
-  spec: ChartSpec;
-  time: number;
-  large?: boolean;
-  onExpand?: () => void;
-  onClose?: () => void;
-}) {
+export function Chart({ spec, time }: { spec: ChartSpec; time: number }) {
   const ref = useRef<HTMLDivElement>(null);
   const chart = useRef<echarts.ECharts | null>(null);
   const { t } = useI18n();
 
   const option = useMemo<echarts.EChartsCoreOption>(() => ({
     animation: false,
-    grid: { left: 54, right: 54, top: 24, bottom: 42 },
+    grid: { left: 56, right: 56, top: 24, bottom: 42 },
     tooltip: {
       trigger: "axis",
       backgroundColor: "rgba(8,14,24,0.94)",
@@ -88,41 +79,50 @@ export function Chart({
     yAxis: [
       {
         type: "value",
+        name: spec.unitA,
+        nameTextStyle: { color: LABEL_COLOR, fontSize: 10 },
         axisLabel: { color: LABEL_COLOR, fontSize: 10 },
         splitLine: { lineStyle: { color: "rgba(120,150,180,0.1)" } },
       },
       {
         type: "value",
+        name: spec.unitB,
+        nameTextStyle: { color: LABEL_COLOR, fontSize: 10 },
         axisLabel: { color: LABEL_COLOR, fontSize: 10 },
         splitLine: { show: false },
       },
     ],
     series: [
-      {
-        name: spec.unitA,
-        type: "line",
-        data: spec.seriesA,
+      ...spec.series.map((s) => ({
+        name: s.name,
+        type: "line" as const,
+        data: s.data,
+        yAxisIndex: s.axis ?? 0,
         showSymbol: false,
-        lineStyle: { width: 1.8, color: spec.colorA },
-        areaStyle: { color: spec.colorA, opacity: 0.12 },
+        lineStyle: {
+          width: s.dashed ? 1.2 : 1.8,
+          color: s.color,
+          type: s.dashed ? "dashed" : "solid",
+        },
+        areaStyle: (s.axis ?? 0) === 0 && !s.dashed
+          ? { color: s.color, opacity: 0.08 }
+          : undefined,
+      })),
+      {
+        name: t("chart.current"),
+        type: "line" as const,
+        data: [],
+        showSymbol: false,
         markLine: {
           silent: true,
           symbol: "none",
           data: [{ xAxis: time }],
-          lineStyle: { color: "rgba(255,255,255,0.58)", width: 1, type: "dashed" },
+          lineStyle: { color: "rgba(255,255,255,0.55)", width: 1, type: "dashed" },
           label: { show: false },
         },
       },
-      {
-        name: spec.unitB,
-        type: "line",
-        yAxisIndex: 1,
-        data: spec.seriesB,
-        showSymbol: false,
-        lineStyle: { width: 1.4, color: spec.colorB },
-      },
     ],
-  }), [spec, time]);
+  }), [spec, time, t]);
 
   useEffect(() => {
     if (!ref.current) return;
@@ -138,42 +138,30 @@ export function Chart({
   }, []);
 
   useEffect(() => {
-    if (!chart.current) return;
-    chart.current.setOption({
-      series: [{ markLine: { data: [{ xAxis: time }] } }, {}],
-    }, { lazyUpdate: true });
-  }, [time]);
-
-  useEffect(() => {
     chart.current?.setOption(option);
   }, [option]);
 
   return (
-    <div className={`chart-card ${large ? "chart-card--large" : ""}`}>
+    <div className="chart-card chart-card--large">
       <div className="chart-card__head">
         <span>{spec.title}</span>
         <div className="chart-card__legend">
-          <i style={{ background: spec.colorA }} /> {spec.unitA}
-          <i style={{ background: spec.colorB }} /> {spec.unitB}
+          {spec.series.map((s) => (
+            <span key={s.name} className="chart-card__legend-item">
+              <i style={{ background: s.color }} /> {s.name}
+            </span>
+          ))}
         </div>
-        {large ? (
-          <div className="chart-card__actions">
-            <button
-              type="button"
-              onClick={() => chart.current?.dispatchAction({ type: "dataZoom", start: 0, end: 100 })}
-            >
-              {t("chart.resetZoom")}
-            </button>
-            {onClose && <button type="button" onClick={onClose}>{t("chart.close")}</button>}
-          </div>
-        ) : (
-          <button type="button" className="chart-card__expand" onClick={onExpand} aria-label={t("chart.expand")}>
-            ⤢
+        <div className="chart-card__actions">
+          <button
+            type="button"
+            onClick={() => chart.current?.dispatchAction({ type: "dataZoom", start: 0, end: 100 })}
+          >
+            {t("chart.resetZoom")}
           </button>
-        )}
+        </div>
       </div>
       <div className="chart-card__canvas" ref={ref} />
-      {large && <p className="chart-card__hint">{t("chart.zoomHint")}</p>}
     </div>
   );
 }
@@ -184,106 +172,91 @@ export function buildChartSpecs(
 ): ChartSpec[] {
   const s = runtime.missile;
   const DEG = 180 / Math.PI;
+  const euler = (x: TrajectorySample) => bodyToNedEuler(x.attitude, x.latDeg, x.lonDeg);
   return [
     {
       id: "alt-speed",
       title: t("science.altSpeed"),
       unitA: "km",
       unitB: "m/s",
-      colorA: "#ffb257",
-      colorB: "#63e6ff",
-      digitsA: 1,
-      digitsB: 0,
-      seriesA: pairs(s, (x) => +(x.altM / 1000).toFixed(2)),
-      seriesB: pairs(s, (x) => +x.speedMS.toFixed(1)),
+      series: [
+        { name: t("series.alt"), unit: "km", color: "#ffb257", data: pairs(s, (x) => +(x.altM / 1000).toFixed(2)) },
+        { name: t("series.speed"), unit: "m/s", color: "#63e6ff", axis: 1, data: pairs(s, (x) => +x.speedMS.toFixed(1)) },
+      ],
     },
     {
       id: "q-load",
       title: t("science.qLoad"),
       unitA: "kPa",
       unitB: "g",
-      colorA: "#ff8a6b",
-      colorB: "#b6f4ff",
-      digitsA: 1,
-      digitsB: 1,
-      seriesA: pairs(s, (x) => +(x.qPa / 1000).toFixed(2)),
-      seriesB: pairs(s, (x) => +x.loadG.toFixed(2)),
+      series: [
+        { name: t("series.q"), unit: "kPa", color: "#ff8a6b", data: pairs(s, (x) => +(x.qPa / 1000).toFixed(2)) },
+        { name: t("series.load"), unit: "g", color: "#b6f4ff", axis: 1, data: pairs(s, (x) => +x.loadG.toFixed(2)) },
+      ],
     },
     {
-      id: "fin-rates",
-      title: t("science.finRates"),
-      unitA: "°",
-      unitB: "°/s",
-      colorA: "#ffcf7a",
-      colorB: "#7fe0a8",
-      digitsA: 1,
-      digitsB: 1,
-      seriesA: pairs(s, (x) => +((x.finDeflectionsRad?.up ?? 0) * DEG).toFixed(2)),
-      seriesB: pairs(s, (x) => +((x.bodyRatesRadS?.q ?? 0) * DEG).toFixed(2)),
+      id: "load-cmd",
+      title: t("science.loadCmd"),
+      unitA: "g",
+      unitB: "",
+      series: [
+        { name: t("series.load"), unit: "g", color: "#ffb257", data: pairs(s, (x) => +x.loadG.toFixed(2)) },
+        { name: t("series.loadCmd"), unit: "g", color: "#7fe0a8", dashed: true, data: pairs(s, (x) => +x.loadCmdG.toFixed(2)) },
+      ],
     },
     {
-      id: "mach",
+      id: "attitude",
+      title: t("science.attitude"),
+      unitA: "deg",
+      unitB: "",
+      series: [
+        { name: t("series.roll"), unit: "deg", color: "#ff8a6b", data: pairs(s, (x) => +euler(x).rollDeg.toFixed(1)) },
+        { name: t("series.pitch"), unit: "deg", color: "#63e6ff", data: pairs(s, (x) => +euler(x).pitchDeg.toFixed(1)) },
+        { name: t("series.yaw"), unit: "deg", color: "#b6f4ff", data: pairs(s, (x) => +euler(x).yawDeg.toFixed(1)) },
+      ],
+    },
+    {
+      id: "rates",
+      title: t("science.rates"),
+      unitA: "deg/s",
+      unitB: "",
+      series: [
+        { name: t("series.p"), unit: "deg/s", color: "#ffb257", data: pairs(s, (x) => +((x.bodyRatesRadS?.p ?? 0) * DEG).toFixed(2)) },
+        { name: t("series.qRate"), unit: "deg/s", color: "#63e6ff", data: pairs(s, (x) => +((x.bodyRatesRadS?.q ?? 0) * DEG).toFixed(2)) },
+        { name: t("series.rRate"), unit: "deg/s", color: "#7fe0a8", data: pairs(s, (x) => +((x.bodyRatesRadS?.r ?? 0) * DEG).toFixed(2)) },
+      ],
+    },
+    {
+      id: "fins",
+      title: t("science.fins"),
+      unitA: "deg",
+      unitB: "",
+      series: [
+        { name: t("series.finUp"), unit: "deg", color: "#ffb257", data: pairs(s, (x) => +((x.finDeflectionsRad?.up ?? 0) * DEG).toFixed(2)) },
+        { name: t("series.finDown"), unit: "deg", color: "#63e6ff", data: pairs(s, (x) => +((x.finDeflectionsRad?.down ?? 0) * DEG).toFixed(2)) },
+        { name: t("series.finLeft"), unit: "deg", color: "#7fe0a8", data: pairs(s, (x) => +((x.finDeflectionsRad?.left ?? 0) * DEG).toFixed(2)) },
+        { name: t("series.finRight"), unit: "deg", color: "#ff8a6b", data: pairs(s, (x) => +((x.finDeflectionsRad?.right ?? 0) * DEG).toFixed(2)) },
+      ],
+    },
+    {
+      id: "mach-range",
       title: t("science.mach"),
       unitA: "Ma",
       unitB: "km",
-      colorA: "#8ab4ff",
-      colorB: "#b7f0c2",
-      digitsA: 2,
-      digitsB: 1,
-      seriesA: pairs(s, (x) => +x.mach.toFixed(2)),
-      seriesB: pairs(s, (x) => +(x.rangeM / 1000).toFixed(1)),
+      series: [
+        { name: t("series.mach"), unit: "Ma", color: "#8ab4ff", data: pairs(s, (x) => +x.mach.toFixed(2)) },
+        { name: t("series.range"), unit: "km", color: "#b7f0c2", axis: 1, data: pairs(s, (x) => +(x.rangeM / 1000).toFixed(1)) },
+      ],
+    },
+    {
+      id: "mass",
+      title: t("science.mass"),
+      unitA: "kg",
+      unitB: "kg",
+      series: [
+        { name: t("series.mass"), unit: "kg", color: "#ffcf7a", data: pairs(s, (x) => +x.massKg.toFixed(1)) },
+        { name: t("series.propellant"), unit: "kg", color: "#7fe0a8", axis: 1, data: pairs(s, (x) => +(s[0].massKg - x.massKg).toFixed(1)) },
+      ],
     },
   ];
-}
-
-export function ChartsPanel() {
-  const runtime = useAppStore((s) => s.runtime);
-  const time = useAppStore((s) => s.time);
-  const panels = useAppStore((s) => s.panels);
-  const togglePanel = useAppStore((s) => s.togglePanel);
-  const [expanded, setExpanded] = useState<ChartSpec | null>(null);
-  const { t } = useI18n();
-
-  useEffect(() => {
-    if (!expanded) return;
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setExpanded(null); };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [expanded]);
-
-  const charts = useMemo<ChartSpec[]>(
-    () => (runtime ? buildChartSpecs(runtime, t) : []),
-    [runtime, t],
-  );
-
-  if (!runtime) return null;
-  const open = panels.charts;
-
-  return (
-    <section className={`panel charts-panel ${open ? "" : "is-collapsed"}`}>
-      <button type="button" className="panel__header" onClick={() => togglePanel("charts")}>
-        <div>
-          <span className="panel__eyebrow">{t("science.eyebrow")}</span>
-          <h2>{t("science.title")}</h2>
-        </div>
-        <span className="panel__chevron">{open ? "−" : "+"}</span>
-      </button>
-      {open && (
-        <div className="panel__body charts-panel__body">
-          {charts.map((c) => (
-            <Chart key={c.id} spec={c} time={time} onExpand={() => setExpanded(c)} />
-          ))}
-          <p className="charts-note">{t("science.note")}</p>
-        </div>
-      )}
-      {expanded && createPortal(
-        <div className="chart-modal" role="dialog" aria-modal="true" aria-label={expanded.title}>
-          <div className="chart-modal__inner">
-            <Chart spec={expanded} time={time} large onClose={() => setExpanded(null)} />
-          </div>
-        </div>,
-        document.body,
-      )}
-    </section>
-  );
 }

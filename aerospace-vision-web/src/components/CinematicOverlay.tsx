@@ -23,15 +23,13 @@ export function CinematicOverlay() {
 
   if (!runtime) return null;
 
-  const start = runtime.manifest.time.startS;
-  const end = runtime.manifest.time.endS;
-  const wall = simToWall(time, start, end);
+  const phases = runtime.manifest.phases;
+  const wall = simToWall(time, phases);
   const shot = shotAtWall(wall);
   const progress = Math.min(100, Math.max(0, (wall / CINEMATIC_WALL_S) * 100));
 
   const skip = (deltaWall: number) => {
-    const target = wallToSim(wall + deltaWall, start, end);
-    seek(target);
+    seek(wallToSim(wall + deltaWall, phases));
   };
 
   const toggleFullscreen = async () => {
@@ -94,7 +92,7 @@ export function CinematicOverlay() {
         onPointerDown={(e) => {
           const r = e.currentTarget.getBoundingClientRect();
           const f = Math.min(1, Math.max(0, (e.clientX - r.left) / r.width));
-          seek(wallToSim(f * CINEMATIC_WALL_S, start, end));
+          seek(wallToSim(f * CINEMATIC_WALL_S, phases));
         }}
         onKeyDown={(e) => {
           if (e.key === "ArrowLeft") skip(-5);

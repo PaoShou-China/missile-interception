@@ -22,7 +22,7 @@ function pairs(samples: TrajectorySample[], fn: (s: TrajectorySample) => number)
   return out;
 }
 
-interface ChartSpec {
+export interface ChartSpec {
   id: string;
   title: string;
   unitA: string;
@@ -35,7 +35,7 @@ interface ChartSpec {
   digitsB: number;
 }
 
-function Chart({
+export function Chart({
   spec,
   time,
   large = false,
@@ -164,7 +164,7 @@ function Chart({
             >
               {t("chart.resetZoom")}
             </button>
-            <button type="button" onClick={onClose}>{t("chart.close")}</button>
+            {onClose && <button type="button" onClick={onClose}>{t("chart.close")}</button>}
           </div>
         ) : (
           <button type="button" className="chart-card__expand" onClick={onExpand} aria-label={t("chart.expand")}>
@@ -176,6 +176,64 @@ function Chart({
       {large && <p className="chart-card__hint">{t("chart.zoomHint")}</p>}
     </div>
   );
+}
+
+export function buildChartSpecs(
+  runtime: { missile: TrajectorySample[] },
+  t: (key: string) => string,
+): ChartSpec[] {
+  const s = runtime.missile;
+  const DEG = 180 / Math.PI;
+  return [
+    {
+      id: "alt-speed",
+      title: t("science.altSpeed"),
+      unitA: "km",
+      unitB: "m/s",
+      colorA: "#ffb257",
+      colorB: "#63e6ff",
+      digitsA: 1,
+      digitsB: 0,
+      seriesA: pairs(s, (x) => +(x.altM / 1000).toFixed(2)),
+      seriesB: pairs(s, (x) => +x.speedMS.toFixed(1)),
+    },
+    {
+      id: "q-load",
+      title: t("science.qLoad"),
+      unitA: "kPa",
+      unitB: "g",
+      colorA: "#ff8a6b",
+      colorB: "#b6f4ff",
+      digitsA: 1,
+      digitsB: 1,
+      seriesA: pairs(s, (x) => +(x.qPa / 1000).toFixed(2)),
+      seriesB: pairs(s, (x) => +x.loadG.toFixed(2)),
+    },
+    {
+      id: "fin-rates",
+      title: t("science.finRates"),
+      unitA: "°",
+      unitB: "°/s",
+      colorA: "#ffcf7a",
+      colorB: "#7fe0a8",
+      digitsA: 1,
+      digitsB: 1,
+      seriesA: pairs(s, (x) => +((x.finDeflectionsRad?.up ?? 0) * DEG).toFixed(2)),
+      seriesB: pairs(s, (x) => +((x.bodyRatesRadS?.q ?? 0) * DEG).toFixed(2)),
+    },
+    {
+      id: "mach",
+      title: t("science.mach"),
+      unitA: "Ma",
+      unitB: "km",
+      colorA: "#8ab4ff",
+      colorB: "#b7f0c2",
+      digitsA: 2,
+      digitsB: 1,
+      seriesA: pairs(s, (x) => +x.mach.toFixed(2)),
+      seriesB: pairs(s, (x) => +(x.rangeM / 1000).toFixed(1)),
+    },
+  ];
 }
 
 export function ChartsPanel() {
@@ -193,49 +251,10 @@ export function ChartsPanel() {
     return () => window.removeEventListener("keydown", onKey);
   }, [expanded]);
 
-  const charts = useMemo<ChartSpec[]>(() => {
-    if (!runtime) return [];
-    const s = runtime.missile;
-    const DEG = 180 / Math.PI;
-    return [
-      {
-        id: "alt-speed",
-        title: t("science.altSpeed"),
-        unitA: "km",
-        unitB: "m/s",
-        colorA: "#ffb257",
-        colorB: "#63e6ff",
-        digitsA: 1,
-        digitsB: 0,
-        seriesA: pairs(s, (x) => +(x.altM / 1000).toFixed(2)),
-        seriesB: pairs(s, (x) => +x.speedMS.toFixed(1)),
-      },
-      {
-        id: "q-load",
-        title: t("science.qLoad"),
-        unitA: "kPa",
-        unitB: "g",
-        colorA: "#ff8a6b",
-        colorB: "#b6f4ff",
-        digitsA: 1,
-        digitsB: 1,
-        seriesA: pairs(s, (x) => +(x.qPa / 1000).toFixed(2)),
-        seriesB: pairs(s, (x) => +x.loadG.toFixed(2)),
-      },
-      {
-        id: "fin-rates",
-        title: t("science.finRates"),
-        unitA: "°",
-        unitB: "°/s",
-        colorA: "#ffcf7a",
-        colorB: "#7fe0a8",
-        digitsA: 1,
-        digitsB: 1,
-        seriesA: pairs(s, (x) => +((x.finDeflectionsRad?.up ?? 0) * DEG).toFixed(2)),
-        seriesB: pairs(s, (x) => +((x.bodyRatesRadS?.q ?? 0) * DEG).toFixed(2)),
-      },
-    ];
-  }, [runtime, t]);
+  const charts = useMemo<ChartSpec[]>(
+    () => (runtime ? buildChartSpecs(runtime, t) : []),
+    [runtime, t],
+  );
 
   if (!runtime) return null;
   const open = panels.charts;

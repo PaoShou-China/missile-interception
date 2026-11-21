@@ -149,6 +149,7 @@ verified hit rate.
 
 ### 7.5 Cinematic time is not simulation time
 
-The 180 s film maps linearly onto the mission for presentation. Every displayed
-observable still comes from the single simulation clock; the film clock never
-feeds the data pipeline.
+The 180 s film uses a per-phase wall budget (boost 0–60 s, midcourse
+60–142 s, terminal 142–180 s) so the three mission phases play at visibly
+different speeds. Every displayed observable still comes from the single
+simulation clock; the film clock never feeds the data pipeline.

@@ -11,7 +11,7 @@ import { TrajectorySampler } from "../scientific/interpolate";
 import type { CameraMode } from "./cameraModes";
 
 export type { CameraMode };
-export type PresentationMode = "scientific" | "cinematic";
+export type PresentationMode = "scientific" | "cinematic" | "charts";
 export type QualityLevel = "high" | "medium" | "low";
 export type SidePanel = "mission" | "telemetry" | "charts";
 
@@ -137,6 +137,11 @@ export const useAppStore = create<AppStore>((set, get) => ({
       simClock.seek(simClock.start);
       simClock.play();
       set({ presentation, time: simClock.time, playing: true });
+    } else if (presentation === "charts") {
+      const wasPlaying = simClock.playing;
+      if (wasPlaying) scientificRate = get().rate;
+      simClock.pause();
+      set({ presentation, playing: false });
     } else {
       simClock.setRate(scientificRate);
       set({ presentation, playing: simClock.playing, rate: scientificRate });

@@ -142,15 +142,19 @@ test("seeking to the intercept event updates the scene state", async ({ page }) 
   await page.screenshot({ path: path.join(SHOTS, "02-intercept-terminal.png") });
 });
 
-test("all ten camera modes switch, including body close-ups", async ({ page }) => {
+test("all eight camera modes switch, including body close-ups", async ({ page }) => {
   await gotoExplore(page);
   await expect(page.locator(".camera-dock")).toBeVisible({ timeout: 45_000 });
 
-  const modes = ["Earth", "Plan", "Chase", "Launch", "Intercept", "Free", "Fin", "Engine", "Attitude", "Seeker"];
+  const modes = ["Earth", "Chase", "Launch", "Intercept", "Fin", "Engine", "Attitude", "Seeker"];
   for (const mode of modes) {
     await page.getByRole("button", { name: mode, exact: true }).click();
     await expect(page.locator("button[data-camera].is-active")).toHaveText(mode);
   }
+
+  await page.getByRole("button", { name: "Engine", exact: true }).click();
+  await page.waitForTimeout(1200);
+  await page.screenshot({ path: path.join(SHOTS, "07-camera-engine.png") });
 
   await page.getByRole("button", { name: "Fin", exact: true }).click();
   await page.waitForTimeout(1200);
@@ -183,6 +187,18 @@ test("chart cards expand into a zoomable modal", async ({ page }) => {
   await page.screenshot({ path: path.join(SHOTS, "11-chart-modal.png") });
   await page.locator(".chart-card__actions button", { hasText: "Close" }).click();
   await expect(page.locator(".chart-modal")).toHaveCount(0);
+});
+
+test("dedicated charts presentation shows every series", async ({ page }) => {
+  await gotoExplore(page);
+  await expect(page.locator(".segmented"), "top bar").toBeVisible({ timeout: 45_000 });
+  await page.getByRole("button", { name: "Charts" }).click();
+  await expect(page.locator(".charts-view")).toBeVisible();
+  await expect(page.locator(".charts-view .chart-card")).toHaveCount(4);
+  await page.screenshot({ path: path.join(SHOTS, "12-charts-view.png") });
+  await page.keyboard.press("Escape");
+  await expect(page.locator(".charts-view")).toHaveCount(0);
+  await expect(page.locator(".camera-dock")).toBeVisible();
 });
 
 test("cinematic mode runs the three-minute presentation and exits cleanly", async ({ page }) => {

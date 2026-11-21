@@ -22,7 +22,7 @@ as such. Bundled Firefox and WebKit were installed locally and run.
 | Academic home + navigation | PASS | `#/`, `#/methodology`, `#/results`, `#/verification`, `#/resources`; E2E asserts nav and explorer CTA |
 | Bilingual zh/en | PASS | Language switch persists in `localStorage`; `document.lang` becomes `zh-CN`; E2E reload check |
 | Frozen data contract | PASS | schema 1.1.0; `finDeflectionsRad`, `bodyRatesRadS`, `experiment`, `time.demoUtc`; unit test asserts recorded actuator channels |
-| Ten cameras incl. close-ups | PASS | Earth, Plan, Chase, Launch, Intercept, Free, Fin, Engine, Attitude, Seeker; browser agent visually confirmed the fin/attitude close-ups |
+| Eight cameras incl. close-ups | PASS | Earth, Chase, Launch, Intercept, Fin, Engine, Attitude, Seeker (Free and Plan removed by request); browser agent visually confirmed fin/attitude/engine views |
 | Sun / moon / day-night | PASS | `src/scientific/astronomy.ts`, 6 unit tests (equinox, solstice, day/night, launch-site elevation, elapsed-time drift); dynamic light and atmosphere uniform |
 | Three-minute cinematic | PASS | Independent 180 s wall clock mapped to the mission; E2E checks `03:00` total, pause/skip/exit controls |
 | Legacy paths preserved | PASS | CI stages original paths (`/missile-intercept-overview/...`, `/intercept-report/...`, `/test-report/...`) and `/legacy/`; E2E asserts HTTP 200 |
@@ -35,12 +35,32 @@ as such. Bundled Firefox and WebKit were installed locally and run.
 | Mobile explorer | PASS | mission/telemetry/chart tab sheet, horizontally scrolling camera dock; E2E at 390 × 844 |
 | Provenance copy | PASS | commit/SHA/Demo UTC are copyable with bilingual confirmation |
 
+### V4.2 second UX pass (2026-11-21)
+
+| Item | Result | Evidence |
+| --- | --- | --- |
+| Engine plume visibility | PASS | Engine camera moved to a side-rear framing; plume layers enlarged/brightened; browser agent confirmed a visible flame and glow |
+| Typography | PASS | New sans/mono stacks, no forced uppercase on eyebrows, brighter label colours, larger panel values and consistent weights |
+| Per-phase cinematic pacing | PASS | Wall budget boost 0–60 s, midcourse 60–142 s, terminal 142–180 s; the three phases now play at clearly different speeds |
+| Cinematic controls | PASS | Centered 44 px control bar (pause, ±15 s, fullscreen, exit) plus a full-width clickable/draggable progress bar; Exit no longer escaped the bar |
+| Camera mode set | PASS | Free/Plan removed; Earth, Chase, Launch, Intercept, Fin, Engine, Attitude, Seeker remain |
+| Dedicated charts mode | PASS | Third presentation mode “Charts” shows four large time series with zoom, Esc/return to 3D |
+| Centered mode dock | PASS | Mode buttons moved to a centered translucent dock above the timeline; rails end above it, so the left panel is never overlapped |
+
+### V4.2 test evidence
+
+```
+$ npm test                         46 passed
+$ playwright chromium              13 passed, 60.0 FPS (Intel UHD, D3D11)
+$ playwright webkit                12 passed, 1 skipped
+```
+
 ### V4.1 UX and model pass (2026-11-21)
 
 | Item | Result | Evidence |
 | --- | --- | --- |
 | Readable type scale | PASS | Explorer labels/values raised ~20–35 % (timeline 16 px, telemetry 19 px, panel titles 16 px, chart titles 12 px) |
-| Orbit/zoom in every mode | PASS | Canvas drag/yaw-pitch and wheel zoom applied on top of the automatic rig; double-click or “Reset view” clears it; free mode keeps OrbitControls |
+| Orbit/zoom in every mode | PASS | Canvas drag/yaw-pitch and wheel zoom applied on top of the automatic rig; double-click or “Reset view” clears it |
 | Chart expand + time zoom | PASS | Per-chart expand opens a portal modal with ECharts dataZoom (inside + slider), reset and close; E2E covers it |
 | Full Chinese coverage | PASS | Scenario title/description, phases, event labels, validation descriptions, PASS/FAIL, table headers and canvas beacons are translated |
 | Controllable cinematic | PASS | Clickable/draggable progress bar, keyboard seek, pause, ±15 s, fullscreen and exit; slow camera drift removes static shots; E2E scrubs to “Midcourse” |
@@ -62,12 +82,12 @@ Test Files  7 passed (7)
 Tests       46 passed (46)
 
 $ npx playwright test --project=chromium   (Edge channel)
-12 passed — includes academic home, language persistence, route metadata,
-mobile panel tabs, legacy paths, 10 cameras, chart modal, cinematic scrub,
-58.8 FPS hardware
+13 passed — includes academic home, language persistence, route metadata,
+mobile panel tabs, legacy paths, 8 cameras, chart modal, charts presentation,
+cinematic scrub, 60.0 FPS hardware
 
 $ npx playwright test --project=webkit
-11 passed, 1 skipped (FPS gate is Chromium-only)
+12 passed, 1 skipped (FPS gate is Chromium-only)
 
 $ npx playwright test --project=firefox
 10 passed, 1 skipped (FPS gate is Chromium-only)

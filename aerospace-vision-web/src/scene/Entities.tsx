@@ -224,9 +224,9 @@ function MissileBody() {
       {/* Layered exhaust plume. */}
       <group ref={plume} position={[-0.00282, 0, 0]}>
         {[
-          { len: 0.0011, r: 0.00030, color: "#fff3d0", opacity: 0.95 },
-          { len: 0.0019, r: 0.00036, color: "#ffb35c", opacity: 0.42 },
-          { len: 0.0029, r: 0.00046, color: "#5cc8ff", opacity: 0.16 },
+          { len: 0.0013, r: 0.00032, color: "#fff6dc", opacity: 1 },
+          { len: 0.0022, r: 0.00040, color: "#ffb35c", opacity: 0.6 },
+          { len: 0.0034, r: 0.00052, color: "#6fd4ff", opacity: 0.26 },
         ].map((p) => (
           <mesh key={p.len} position={[0, 0, 0]} rotation={[0, 0, Math.PI / 2]}>
             <coneGeometry args={[p.r, p.len, 20, 1, true]} />

@@ -8,7 +8,7 @@ import { TrajectoryRibbon } from "./Trajectory";
 import { EntityVisual, SurfaceBeacon } from "./Entities";
 import { simClock, useAppStore } from "../state/store";
 import { COLORS } from "./constants";
-import { CINEMATIC_WALL_S } from "../cinematic/shots";
+import { CINEMATIC_WALL_S, simToWall, wallToSim } from "../cinematic/shots";
 
 /** Advances the single simulation clock and mirrors it to React state. */
 function ClockDriver() {
@@ -16,13 +16,15 @@ function ClockDriver() {
   useFrame((_, dt) => {
     const state = useAppStore.getState();
     if (state.presentation === "cinematic" && state.runtime) {
-      // Independent three-minute presentation clock: map wall time to the
-      // mission span. Simulation time is still the only time source for data.
+      // Independent three-minute presentation clock with per-phase pacing:
+      // boost/terminal are slow, midcourse is compressed. Simulation time is
+      // still the only time source for the data.
       if (simClock.playing) {
-        const span = state.runtime.manifest.time.endS - state.runtime.manifest.time.startS;
-        const next = Math.min(simClock.end, simClock.time + (dt / CINEMATIC_WALL_S) * span);
-        simClock.seek(next);
-        if (next >= simClock.end) simClock.pause();
+        const phases = state.runtime.manifest.phases;
+        const wall = simToWall(simClock.time, phases);
+        const nextWall = Math.min(CINEMATIC_WALL_S, wall + dt);
+        simClock.seek(wallToSim(nextWall, phases));
+        if (nextWall >= CINEMATIC_WALL_S) simClock.pause();
       }
     } else if (simClock.playing) {
       simClock.tick(dt);

@@ -47,8 +47,8 @@ same action. Consequences:
 5. `TrajectoryRibbon` builds static geometries and reveals the flown part with
    `drawRange`; no geometry rebuild per frame.
 6. `CameraRig` computes a desired pose per mode, damping position/look-at with
-   a frame-rate-independent exponential filter. Free mode hands control to
-   `OrbitControls`.
+   a frame-rate-independent exponential filter. User drag/wheel offsets are
+   applied on top of every framing, so any mode can be orbited and zoomed.
 
 ## 4. Coordinate strategy
 
@@ -149,13 +149,15 @@ The explorer is mounted only on `#/explore`, so the academic pages never stream
 the 8K Earth texture. Vite `base: "./"` plus hash routing keeps deep links valid
 on GitHub Pages project sites.
 
-### 8.1 Ten cameras
+### 8.1 Eight cameras
 
-`earth`, `top`, `chase`, `launch`, `target`, `free`, `fin`, `engine`,
-`attitude`, `seeker`. The four close-ups resolve offsets in the vehicle body
-frame and rotate them by the recorded attitude quaternion, so they remain
-locked to the true orientation at any playback rate. `fin` is driven by the
-recorded four-channel deflection data; `attitude` shows the body-axis triad.
+`earth`, `chase`, `launch`, `target`, `fin`, `engine`, `attitude`, `seeker`.
+Free and Plan were removed on request. The four close-ups resolve offsets in
+the vehicle body frame and rotate them by the recorded attitude quaternion, so
+they remain locked to the true orientation at any playback rate. `fin` is
+driven by the recorded four-channel deflection data; `engine` uses a side-rear
+framing so nozzle and plume are both visible; `attitude` shows the body-axis
+triad. Pointer drag and wheel zoom are applied on top of the automatic pose.
 
 ### 8.2 Astronomy
 
@@ -166,11 +168,12 @@ declared in the payload (`time.demoUtc`); it never changes trajectory data.
 
 ### 8.3 Cinematic presentation clock
 
-`CINEMATIC_WALL_S = 180`. `ClockDriver` advances simulation time by
-`dt / 180 × (end − start)` while cinematic playback is active, so the film
-duration is independent of mission duration. Shots are selected by wall time;
-the overlay derives the presentation clock from the linear mapping and offers
-pause, ±15 s skip and exit.
+`CINEMATIC_WALL_S = 180`. The wall clock is split by mission phase: boost
+0–60 s, midcourse 60–142 s, terminal 142–180 s, each mapped linearly to its
+own telemetry interval. Boost and terminal therefore play much slower than the
+compressed midcourse inside the same three-minute film. Shots are selected by
+wall time; the overlay offers a clickable/draggable progress bar, keyboard
+seek, pause, ±15 s skip, fullscreen and exit.
 
 ### 8.4 Loading strategy
 
@@ -178,21 +181,29 @@ pause, ±15 s skip and exit.
 `three` and `echarts` chunks, so academic pages ship only the entry bundle
 (~274 kB, 87 kB gzip) and never stream 8K textures or WebGL code.
 
-### 8.5 Route metadata and social preview
+### 8.5 Presentation modes
+
+`Scientific` shows the 3D scene with panels, the centered mode dock and the
+timeline. `Cinematic` runs the three-minute film with its own transport.
+`Charts` is a dedicated data view: four large ECharts time series in a 2×2
+grid, each with inside/slider zoom, while the shared timeline stays available
+for scrubbing. Esc returns to Scientific.
+
+### 8.6 Route metadata and social preview
 
 A single `RouteMeta` effect owns document title, description, canonical URL,
 Open Graph/Twitter tags and locale. `index.html` carries static defaults plus
 JSON-LD `WebSite` so crawlers that do not execute the hash route still get
 valid metadata.
 
-### 8.6 Responsive explorer
+### 8.7 Responsive explorer
 
 Below 760 px the two desktop rails become a single sheet with a three-tab
 switcher (mission / telemetry / charts); the camera dock becomes a horizontal
 scroller. The sheet is rendered only in scientific mode, and the active tab is
 stored in Zustand so panel content keeps its state.
 
-### 8.7 Accessibility and print
+### 8.8 Accessibility and print
 
 - Skip link focuses the `main` landmark without touching the hash route.
 - Camera, presentation and track toggles expose `aria-pressed`.

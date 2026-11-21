@@ -58,6 +58,14 @@ export function TopBar() {
           >
             {t("topbar.cinematic")}
           </button>
+          <button
+            type="button"
+            className={presentation === "charts" ? "is-active" : ""}
+            aria-pressed={presentation === "charts"}
+            onClick={() => setPresentation("charts")}
+          >
+            {t("topbar.charts")}
+          </button>
         </div>
 
         <label className="quality-select" title={t("topbar.quality")}>

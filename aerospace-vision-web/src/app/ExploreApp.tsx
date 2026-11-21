@@ -4,6 +4,7 @@ import { TopBar } from "../components/TopBar";
 import { MissionPanel } from "../components/MissionPanel";
 import { TelemetryPanel } from "../components/TelemetryPanel";
 import { ChartsPanel } from "../components/ChartsPanel";
+import { ChartsView } from "../components/ChartsView";
 import { Timeline } from "../components/Timeline";
 import { CameraDock } from "../components/CameraDock";
 import { CinematicOverlay } from "../components/CinematicOverlay";
@@ -88,7 +89,8 @@ export function ExploreApp() {
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
-  const showUI = status === "ready" && hudVisible && presentation === "scientific";
+  const showScientificUI = status === "ready" && hudVisible && presentation === "scientific";
+  const showTimeline = status === "ready" && hudVisible && presentation !== "cinematic";
 
   return (
     <div className={`app-shell ${presentation === "cinematic" ? "is-cinematic" : ""} mobile-${mobilePanel}`}>
@@ -105,7 +107,7 @@ export function ExploreApp() {
 
       {runtime && <TopBar />}
 
-      {showUI && (
+      {showScientificUI && (
         <>
           <div className="mobile-tabs" role="tablist" aria-label={t("telemetry.eyebrow")}>
             {(["mission", "telemetry", "charts"] as const).map((p) => (
@@ -133,9 +135,11 @@ export function ExploreApp() {
             <span>{t("camera.hint")}</span>
             <button type="button" onClick={resetCameraInput}>{t("camera.reset")}</button>
           </div>
-          <Timeline />
         </>
       )}
+
+      {status === "ready" && presentation === "charts" && <ChartsView />}
+      {showTimeline && <Timeline />}
 
       {runtime && presentation === "cinematic" && <CinematicOverlay />}
       <LoadingScreen />

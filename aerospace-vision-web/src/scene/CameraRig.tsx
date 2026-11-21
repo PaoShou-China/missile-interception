@@ -1,8 +1,6 @@
 ﻿import { useEffect, useMemo, useRef } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
-import { OrbitControls } from "@react-three/drei";
 import * as THREE from "three";
-import type { OrbitControls as OrbitControlsImpl } from "three-stdlib";
 import { simClock, useAppStore, type CameraMode } from "../state/store";
 import { BODY_CAMERAS } from "../state/cameraModes";
 import { KM } from "./constants";
@@ -25,7 +23,6 @@ export function CameraRig() {
   const cameraMode = useAppStore((s) => s.cameraMode);
   const presentation = useAppStore((s) => s.presentation);
   const { camera, gl } = useThree();
-  const controls = useRef<OrbitControlsImpl>(null);
   const look = useRef(regionAnchor());
   const lastMode = useRef<CameraMode | null>(null);
   const lastPresentation = useRef(presentation);
@@ -55,10 +52,7 @@ export function CameraRig() {
     let lastX = 0;
     let lastY = 0;
 
-    const freeMode = () => {
-      const s = useAppStore.getState();
-      return s.cameraMode === "free" && s.presentation === "scientific";
-    };
+    const freeMode = () => false;
 
     const onDown = (e: PointerEvent) => {
       if (freeMode()) return;
@@ -117,24 +111,13 @@ export function CameraRig() {
 
     let mode: CameraMode = cameraMode;
     if (presentation === "cinematic") {
-      const { startS, endS } = rt.manifest.time;
-      mode = shotAtWall(simToWall(simClock.time, startS, endS)).mode;
-    }
-
-    if (mode === "free") {
-      if (!controls.current) return;
-      if (lastMode.current !== "free") {
-        controls.current.target.copy(look.current);
-        controls.current.update();
-      }
-      lastMode.current = mode;
-      return;
+      mode = shotAtWall(simToWall(simClock.time, rt.manifest.phases)).mode;
     }
 
     const t = simClock.time;
     const cam = camera as THREE.PerspectiveCamera;
     const wall = presentation === "cinematic"
-      ? simToWall(t, rt.manifest.time.startS, rt.manifest.time.endS)
+      ? simToWall(t, rt.manifest.phases)
       : 0;
     // A slow, shot-independent drift keeps the film from looking static.
     const driftYaw = presentation === "cinematic" ? Math.sin(wall * 0.22) * 0.55 : 0;
@@ -165,9 +148,11 @@ export function CameraRig() {
           fov = 42;
           break;
         case "engine":
-          off = new THREE.Vector3(-0.0082, 0.0016, -0.0026);
-          lookOff = new THREE.Vector3(-0.0028, 0, 0.0002);
-          fov = 40;
+          // Side-rear view so the nozzle bell and the exhaust plume are both
+          // in frame instead of looking straight down the plume axis.
+          off = new THREE.Vector3(-0.0064, 0.0042, -0.0038);
+          lookOff = new THREE.Vector3(-0.0032, 0, 0);
+          fov = 44;
           break;
         case "attitude":
           off = new THREE.Vector3(0.0008, 0.0074, -0.0062);
@@ -201,7 +186,7 @@ export function CameraRig() {
     const desiredLook = new THREE.Vector3();
     const elapsed = simClock.time - rt.manifest.time.startS;
     const shot = presentation === "cinematic"
-      ? shotAtWall(simToWall(simClock.time, rt.manifest.time.startS, rt.manifest.time.endS))
+      ? shotAtWall(simToWall(simClock.time, rt.manifest.phases))
       : null;
     // Anchor for smoothing: near-field modes follow a moving vehicle, so the
     // camera offset is smoothed in the anchor's frame. Otherwise a 20x playback
@@ -243,13 +228,6 @@ export function CameraRig() {
       anchorPoint = mid;
       lookAnchor = mid;
       cam.fov = 38;
-    } else if (mode === "top") {
-      const dist = 8400;
-      const theta = 0.55 + elapsed * 0.0006;
-      desiredPos.copy(regionDir.clone().multiplyScalar(Math.cos(0.32))).multiplyScalar(dist);
-      desiredPos.applyAxisAngle(new THREE.Vector3(0, 0, 1), -theta);
-      desiredLook.copy(anchor);
-      cam.fov = 42;
     } else {
       const dist = 7800;
       const theta = 0.85 + elapsed * 0.00035;
@@ -307,20 +285,6 @@ export function CameraRig() {
     lastPresentation.current = presentation;
   });
 
-  return (
-    <OrbitControls
-      ref={controls}
-      enabled={cameraMode === "free" && presentation === "scientific"}
-      enablePan
-      enableZoom
-      enableRotate
-      dampingFactor={0.08}
-      minDistance={0.01}
-      maxDistance={60000}
-      zoomSpeed={0.9}
-      rotateSpeed={0.6}
-      makeDefault={false}
-    />
-  );
+  return null;
 }
 

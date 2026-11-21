@@ -179,6 +179,12 @@ def _aggregate(results, lethal_radius):
             [r.get("boost_end_mach", np.nan) for r in ok])),
         "boost_end_alt_km": float(np.nanmean(
             [r.get("boost_end_alt_km", np.nan) for r in ok])),
+        "boost_end_gamma_deg": float(np.nanmean(
+            [r.get("boost_end_gamma_deg", np.nan) for r in ok])),
+        "boost_peak_alpha_deg": float(np.nanmean(
+            [r.get("boost_peak_alpha_deg", np.nan) for r in ok])),
+        "boost_fin_sat_pct": float(np.nanmean(
+            [r.get("boost_fin_sat_pct", np.nan) for r in ok])),
         "midcourse_peak_mach": float(np.nanmean(
             [r.get("midcourse_peak_mach", np.nan) for r in ok])),
         "midcourse_peak_alt_km": float(np.nanmean(
@@ -233,7 +239,7 @@ def _paired_test(res_a, res_b, key="miss_distance", n_boot=2000, seed=7):
 # Experiment execution
 # ============================================================
 def _run_block(cfg, level, sweep, cases, workers, base_seed, out_dir,
-               lethal_radius):
+               lethal_radius, exp_name=""):
     if sweep == "target_alt_km":
         dispersion = Dispersion(
             launch_cep_m=500.0, target_cep_m=2000.0,
@@ -251,7 +257,11 @@ def _run_block(cfg, level, sweep, cases, workers, base_seed, out_dir,
     # checkpoints remain valid; add a stage prefix only when that stage is
     # switched away from its default.
     parts = []
-    if cfg.boost_law != "feasible":
+    if exp_name.startswith("boost"):
+        # The boost sweep varies target altitude, whose numeric level can
+        # collide with an evasion-g level; namespace by experiment and law.
+        parts.append(exp_name)
+    elif cfg.boost_law != "feasible":
         parts.append("boost_" + cfg.boost_law)
     parts.extend([cfg.midcourse_law, cfg.terminal_law])
     if cfg.control_law != "scheduled":
@@ -280,9 +290,10 @@ def _run_experiment(name, cases, levels, workers, base_seed, out_dir,
             setattr(cfg, name + "_law", law)
             if verbose:
                 print("[%s] law=%s level=%g" % (name, law, level))
+            exp_tag = ("%s_%s" % (name, law)) if name == "boost" else name
             blocks[(law, level)] = _run_block(
                 cfg, level, spec["sweep"], cases, workers, base_seed,
-                out_dir, lethal_radius)
+                out_dir, lethal_radius, exp_name=exp_tag)
     return blocks
 
 
@@ -370,8 +381,9 @@ def _plot(experiments, levels_by_exp, lethal_radius, out_dir):
     # Stage figure: boost exit for the boost experiment, handover for midcourse,
     # control effort for the autopilot experiment.
     stage_panels = [
-        ("boost", "boost_end_mach", "boost_end_alt_km",
-         "Boost exit Mach", "Boost exit altitude (km)", "fig_boost_stages.png"),
+        ("boost", "boost_end_gamma_deg", "boost_peak_alpha_deg",
+         "Boost exit flight-path angle (deg)", "Boost peak |alpha| (deg)",
+         "fig_boost_stages.png"),
         ("midcourse", "handover_lead_deg", "handover_specific_energy_mjkg",
          "Handover lead angle (deg)", "Energy at handover (MJ/kg)",
          "fig_midcourse_stages.png"),
@@ -640,16 +652,16 @@ def _conclusions(experiments, levels_by_exp, stats):
                    LAW_LABEL.get(b, b), 100.0 * hb, _fmt(ma, 1), _fmt(mb, 1),
                    diff_txt, sig, len(levels)))
         if name == "boost":
-            ea = np.nanmean([stats[name][(a, lv)]["boost_end_alt_km"]
+            ga = np.nanmean([stats[name][(a, lv)]["boost_end_gamma_deg"]
                              for lv in levels])
-            eb = np.nanmean([stats[name][(b, lv)]["boost_end_alt_km"]
+            gb = np.nanmean([stats[name][(b, lv)]["boost_end_gamma_deg"]
                              for lv in levels])
-            va = np.nanmean([stats[name][(a, lv)]["boost_end_mach"]
+            aa = np.nanmean([stats[name][(a, lv)]["boost_peak_alpha_deg"]
                              for lv in levels])
-            vb = np.nanmean([stats[name][(b, lv)]["boost_end_mach"]
+            ab = np.nanmean([stats[name][(b, lv)]["boost_peak_alpha_deg"]
                              for lv in levels])
-            text += ("助推退出平均高度 %s / %s km，马赫 %s / %s。"
-                     % (_fmt(ea, 1), _fmt(eb, 1), _fmt(va, 2), _fmt(vb, 2)))
+            text += ("助推退出航迹角 %s / %s°，助推段峰值攻角 %s / %s°。"
+                     % (_fmt(ga, 2), _fmt(gb, 2), _fmt(aa, 2), _fmt(ab, 2)))
         elif name == "midcourse":
             ea = np.nanmean([stats[name][(a, lv)]["handover_energy_mjkg"]
                              for lv in levels])

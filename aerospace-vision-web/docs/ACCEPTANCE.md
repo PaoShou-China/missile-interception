@@ -75,6 +75,7 @@ $ visual agent                     Run A real, synthetic warning, 2 canvases, 7 
 | Science charts | PASS | Altitude, speed, load, dynamic pressure; Δ(t) only when eligible; eligibility false for the synthetic B |
 | Summary table | PASS | Metric, unit, A, B, difference (`N/A` when ineligible), source; condition table with hash/commit/validation |
 | Swap and save | PASS | One-click Swap A/B; selection reference saved to `localStorage` and clipboard |
+| Narrow-screen readability | PASS | At 390 px: dropdowns 14–15 px with trailing ellipsis, 44 px action buttons, stacked A/B panes 38–42 vh each, chart canvas text 11.5 px with overlap hiding, wide tables scroll inside their section with a swipe hint; no page-level horizontal overflow (E2E) |
 | Bilingual + mobile | PASS | zh/en preserved across swap/compare; single-column panels under 900 px |
 | Documentation | PASS | `docs/COMPARISON.md` updated with registry, unified page and NOT RUN list |
 
@@ -84,10 +85,11 @@ $ visual agent                     Run A real, synthetic warning, 2 canvases, 7 
 $ npx tsc --noEmit                  PASS
 $ npm test                          66 passed (9 files)
 $ npm run build                     PASS (ComparePage 32.4 kB, CSS 56.5 kB)
-$ playwright chromium               15 passed, 60.4 FPS (Intel UHD, D3D11)
+$ playwright chromium               16 passed, 60.4 FPS (Intel UHD, D3D11)
 $ playwright webkit                 14 passed, 1 skipped
 $ simulation matrix                6 deterministic runs + 6 campaign case-0 exports, adapter checks PASS
 $ campaign campaign                boost 10/15 km, terminal 0/2 g, midcourse 0/3 g, control 0/4 g, architecture 24 cases
+$ mobile studio                     390×844: readable fonts, 2×38 vh panes, table scroll contained
 $ screenshots                       config studio (en/zh) reviewed
 ```
 

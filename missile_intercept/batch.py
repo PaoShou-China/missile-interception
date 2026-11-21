@@ -212,11 +212,27 @@ def _stage_fields(sim):
         i_term = int(np.where(term)[0][0]) if np.any(term) else None
         sl = slice(i_mid, i_term if i_term is not None else None)
         speed = np.sqrt(d["m_vx"] ** 2 + d["m_vy"] ** 2 + d["m_vz"] ** 2)
+        # Boost-exit geometry: the direction the ascent actually hands over.
+        r_mid = np.array([d["m_rx"][i_mid], d["m_ry"][i_mid],
+                          d["m_rz"][i_mid]], dtype=float)
+        v_mid = np.array([d["m_vx"][i_mid], d["m_vy"][i_mid],
+                          d["m_vz"][i_mid]], dtype=float)
+        up_mid = MU.normalize(r_mid)
+        v_hat = MU.normalize(v_mid)
+        gamma_mid = float(np.degrees(np.arcsin(np.clip(
+            float(np.dot(v_hat, up_mid)), -1.0, 1.0))))
+        boost_sl = slice(0, i_mid)
         out = {
             "boost_end_time": float(t[i_mid]),
             "boost_end_alt_km": float(d["alt"][i_mid] / 1000.0),
             "boost_end_mach": float(d["mach"][i_mid]),
             "boost_end_speed": float(speed[i_mid]),
+            "boost_end_gamma_deg": gamma_mid,
+            "boost_peak_alpha_deg": float(
+                np.degrees(np.max(np.abs(d["alpha"][boost_sl])))),
+            "boost_fin_sat_pct": float(
+                100.0 * np.mean(np.asarray(d["fin_sat"][boost_sl],
+                                           dtype=float))),
             "midcourse_duration_s": (float(t[i_term] - t[i_mid])
                                      if i_term is not None else nan),
             "midcourse_peak_mach": float(np.max(d["mach"][sl])),
@@ -243,6 +259,9 @@ def _stage_fields(sim):
             "boost_end_alt_km": nan,
             "boost_end_mach": nan,
             "boost_end_speed": nan,
+            "boost_end_gamma_deg": nan,
+            "boost_peak_alpha_deg": nan,
+            "boost_fin_sat_pct": nan,
             "midcourse_duration_s": nan,
             "midcourse_peak_mach": nan,
             "midcourse_peak_alt_km": nan,
@@ -324,6 +343,9 @@ def run_case(payload):
             "boost_end_alt_km": float("nan"),
             "boost_end_mach": float("nan"),
             "boost_end_speed": float("nan"),
+            "boost_end_gamma_deg": float("nan"),
+            "boost_peak_alpha_deg": float("nan"),
+            "boost_fin_sat_pct": float("nan"),
             "midcourse_duration_s": float("nan"),
             "midcourse_peak_mach": float("nan"),
             "midcourse_peak_alt_km": float("nan"),

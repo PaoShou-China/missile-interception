@@ -59,7 +59,7 @@
       "id": "fixed-rate-bezier-zem-apn",
       "name": {
         "zh": "固定程序助推 + Bezier 中制导 + ZEM/APN",
-        "en": "Fixed-rate boost + Bezier midcourse + ZEM/APN"
+        "en": "Fixed-rate boost + Bezier + ZEM/APN"
       },
       "version": "fixed_rate+bezier+zem_apn",
       "source": "missile_intercept/guidance/fixed_rate_boost_guidance.py",
@@ -113,7 +113,7 @@
       "id": "classic-pid",
       "name": {
         "zh": "经典定增益三回路 PID（无调度 / 无延迟预测）",
-        "en": "Classical fixed-gain three-loop PID (no scheduling / no prediction)"
+        "en": "Classical three-loop PID (fixed gain)"
       },
       "version": "classic-pid",
       "source": "missile_intercept/control/classic_autopilot.py",
@@ -153,7 +153,7 @@
     },
     {
       "id": "campaign-paired-g0",
-      "name": { "zh": "配对蒙特卡洛 · 0 g 代表算例", "en": "Paired Monte Carlo · 0 g representative case" },
+      "name": { "zh": "配对蒙特卡洛 · 0 g 代表算例", "en": "Paired Monte Carlo · case 0 (0 g)" },
       "synthetic": false,
       "description": {
         "zh": "新配对实验集（24 例 × 多档机动）的第 0 号算例。所有对照律共用同一发射/目标散布与传感器种子，单条轨迹仅用于三维与时程回放；统计结论来自完整实验集。",
@@ -162,7 +162,7 @@
     },
     {
       "id": "campaign-paired-boost15",
-      "name": { "zh": "配对蒙特卡洛 · 目标高度 15 km 算例", "en": "Paired Monte Carlo · target 15 km case" },
+      "name": { "zh": "配对蒙特卡洛 · 目标高度 15 km 算例", "en": "Paired Monte Carlo · 15 km case" },
       "synthetic": false,
       "description": {
         "zh": "助推段对比使用的第 0 号配对算例：目标标称高度 15 km，其余散布与传感器种子与基准一致。",

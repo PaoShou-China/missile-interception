@@ -151,6 +151,41 @@ test("compare, swap, save reference, overlay and playback", async ({ page }) => 
   await page.screenshot({ path: path.join(SHOTS, "14-config-studio-zh.png"), fullPage: true });
 });
 
+test("config studio stays readable on a narrow screen", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.addInitScript(() => window.localStorage.setItem("av.lang", "en"));
+  await page.goto("/#/compare");
+  await expect(page.locator("h1")).toHaveText("Experiment Configuration Studio", { timeout: 45_000 });
+
+  // Panels stack, controls are full width and the dropdown text is legible.
+  await expect(page.locator(".cfg-card")).toHaveCount(2);
+  const selectFont = await page.locator(".cfg-card--A select").first().evaluate(
+    (el) => parseFloat(getComputedStyle(el).fontSize),
+  );
+  expect(selectFont).toBeGreaterThanOrEqual(14);
+  const compareHeight = await page.locator(".cfg-compare").evaluate(
+    (el) => el.getBoundingClientRect().height,
+  );
+  expect(compareHeight).toBeGreaterThanOrEqual(44);
+
+  // Both A/B panes keep a usable height instead of being squeezed.
+  await expect(page.locator(".cmp-split canvas")).toHaveCount(2, { timeout: 45_000 });
+  const paneBox = await page.locator(".cmp-pane").first().boundingBox();
+  expect(paneBox?.height ?? 0).toBeGreaterThanOrEqual(240);
+
+  // Wide tables scroll inside their section rather than widening the page.
+  const campaignScrolls = await page.locator(".cmp-campaign").evaluate(
+    (el) => el.scrollWidth > el.clientWidth,
+  );
+  expect(campaignScrolls).toBe(true);
+  const pageOverflow = await page.evaluate(
+    () => document.documentElement.scrollWidth > window.innerWidth + 1,
+  );
+  expect(pageOverflow).toBe(false);
+
+  await page.screenshot({ path: path.join(SHOTS, "16-mobile-studio.png"), fullPage: true });
+});
+
 test("synthetic scenario is labelled and withholds differences", async ({ page }) => {
   await page.addInitScript(() => window.localStorage.setItem("av.lang", "en"));
   await page.goto("/#/compare");

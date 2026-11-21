@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import * as echarts from "echarts/core";
 import { LineChart } from "echarts/charts";
 import { GridComponent, TooltipComponent, MarkLineComponent, DataZoomComponent } from "echarts/components";
@@ -38,32 +38,53 @@ export interface ChartSpec {
   series: ChartSeries[];
 }
 
+/** Narrow screens get larger canvas text and tighter plot margins. */
+function useNarrowChart() {
+  const query = "(max-width: 720px)";
+  const [narrow, setNarrow] = useState(
+    () => typeof window !== "undefined" && window.matchMedia(query).matches,
+  );
+  useEffect(() => {
+    const mq = window.matchMedia(query);
+    const update = () => setNarrow(mq.matches);
+    update();
+    mq.addEventListener("change", update);
+    return () => mq.removeEventListener("change", update);
+  }, []);
+  return narrow;
+}
+
 export function Chart({ spec, time }: { spec: ChartSpec; time: number }) {
   const ref = useRef<HTMLDivElement>(null);
   const chart = useRef<echarts.ECharts | null>(null);
   const { t } = useI18n();
+  const narrow = useNarrowChart();
+  const axisFont = narrow ? 11.5 : 10;
+  const tooltipFont = narrow ? 13 : 12;
 
   const option = useMemo<echarts.EChartsCoreOption>(() => ({
     animation: false,
-    grid: { left: 56, right: 56, top: 24, bottom: 42 },
+    grid: narrow
+      ? { left: 44, right: 40, top: 30, bottom: 52 }
+      : { left: 56, right: 56, top: 24, bottom: 42 },
     tooltip: {
       trigger: "axis",
       backgroundColor: "rgba(8,14,24,0.94)",
       borderColor: "rgba(120,160,200,0.28)",
-      textStyle: { color: "#dcecfa", fontSize: 12 },
+      textStyle: { color: "#dcecfa", fontSize: tooltipFont },
       axisPointer: { type: "line", lineStyle: { color: "rgba(255,178,87,0.55)" } },
     },
     dataZoom: [
       { type: "inside", throttle: 40 },
       {
         type: "slider",
-        height: 16,
-        bottom: 6,
+        height: narrow ? 22 : 16,
+        bottom: narrow ? 8 : 6,
         borderColor: "rgba(120,150,180,0.25)",
         backgroundColor: "rgba(255,255,255,0.03)",
         fillerColor: "rgba(55,185,216,0.14)",
         handleStyle: { color: "rgba(55,185,216,0.8)" },
-        textStyle: { color: LABEL_COLOR, fontSize: 10 },
+        textStyle: { color: LABEL_COLOR, fontSize: axisFont },
         labelFormatter: (v: number) => `${Math.round(v)}s`,
       },
     ],
@@ -74,21 +95,26 @@ export function Chart({ spec, time }: { spec: ChartSpec; time: number }) {
       axisLine: { lineStyle: { color: AXIS_COLOR } },
       axisTick: { show: false },
       splitLine: { show: false },
-      axisLabel: { color: LABEL_COLOR, fontSize: 10, formatter: (v: number) => `${Math.round(v)}s` },
+      axisLabel: {
+        color: LABEL_COLOR,
+        fontSize: axisFont,
+        hideOverlap: true,
+        formatter: (v: number) => `${Math.round(v)}s`,
+      },
     },
     yAxis: [
       {
         type: "value",
         name: spec.unitA,
-        nameTextStyle: { color: LABEL_COLOR, fontSize: 10 },
-        axisLabel: { color: LABEL_COLOR, fontSize: 10 },
+        nameTextStyle: { color: LABEL_COLOR, fontSize: axisFont },
+        axisLabel: { color: LABEL_COLOR, fontSize: axisFont },
         splitLine: { lineStyle: { color: "rgba(120,150,180,0.1)" } },
       },
       {
         type: "value",
         name: spec.unitB,
-        nameTextStyle: { color: LABEL_COLOR, fontSize: 10 },
-        axisLabel: { color: LABEL_COLOR, fontSize: 10 },
+        nameTextStyle: { color: LABEL_COLOR, fontSize: axisFont },
+        axisLabel: { color: LABEL_COLOR, fontSize: axisFont },
         splitLine: { show: false },
       },
     ],
@@ -122,7 +148,7 @@ export function Chart({ spec, time }: { spec: ChartSpec; time: number }) {
         },
       },
     ],
-  }), [spec, time, t]);
+  }), [spec, time, t, narrow, axisFont, tooltipFont]);
 
   useEffect(() => {
     if (!ref.current) return;

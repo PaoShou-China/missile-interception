@@ -1902,6 +1902,7 @@ button, select { font-family: inherit; color: inherit; }
 .cmp-chart-grid .chart-card { background: rgba(8, 16, 27, 0.85); border: 1px solid rgba(120, 160, 200, 0.18); padding: 8px; border-radius: 8px; }
 .cmp-chart-grid .chart-card__canvas { height: 210px; }
 .cmp-table { width: 100%; border-collapse: collapse; background: #fff; border: 1px solid var(--bh-line); border-radius: 8px; overflow: hidden; }
+.cmp-table-hint { display: none; margin: 0 0 6px; font-size: 11.5px; color: var(--bh-muted); }
 .cmp-table th, .cmp-table td { text-align: left; padding: 9px 12px; font-size: 11.5px; border-bottom: 1px solid var(--bh-line); color: #33506f; }
 .cmp-table th { background: rgba(0, 91, 172, 0.05); color: var(--bh-ink); font-weight: 600; font-size: 11px; }
 .cmp-table tr:last-child td { border-bottom: 0; }
@@ -2006,5 +2007,85 @@ button, select { font-family: inherit; color: inherit; }
   .cmp-pane + .cmp-pane { border-left: 0; border-top: 1px solid rgba(150, 190, 220, 0.28); }
   .cmp-mode-hint { margin-left: 0; }
   .cmp-empty { padding: 12px; }
+}
+
+/* ------------------------------------------------------------------ */
+/* Small screens: readable text, scrollable tables, taller 3D panes    */
+/* ------------------------------------------------------------------ */
+@media (max-width: 720px) {
+  .page-head h1 { font-size: 28px; }
+  .page-head .lede { font-size: 14px; line-height: 1.65; }
+  .cmp-badges { gap: 8px; margin: 14px 0 16px; }
+  .cmp-level { font-size: 11.5px; padding: 5px 10px; }
+  .cmp-eligibility, .cmp-protocol { font-size: 11px; }
+
+  .cfg-studio { padding: 12px; border-radius: 10px; }
+  .cfg-head h2 { font-size: 17px; }
+  .cfg-field > span { font-size: 11.5px; }
+  .cfg-field select { font-size: 14px; padding: 11px 32px 11px 12px; text-overflow: ellipsis; }
+  .cfg-card { padding: 13px; }
+  .cfg-card > header b { font-size: 15px; }
+  .cfg-profile dt, .cfg-profile p { font-size: 12px; }
+  .cfg-profile dd { font-size: 11.5px; }
+  .cfg-profile code { font-size: 11px; }
+  .cfg-compare, .cfg-secondary { min-height: 44px; font-size: 13.5px; }
+  .cfg-unavailable, .cfg-toast { font-size: 12.5px; }
+  .cfg-experiment { font-size: 12px; flex-wrap: wrap; word-break: break-all; }
+
+  .cmp-toolbar { gap: 10px; padding: 10px 12px; }
+  .cmp-seg { flex-wrap: wrap; }
+  .cmp-seg button { font-size: 13px; padding: 9px 12px; min-height: 40px; }
+  .cmp-seg > span { font-size: 11.5px; }
+  .cmp-check, .cmp-scale { font-size: 13px; }
+  .cmp-mode-hint { font-size: 12px; line-height: 1.5; }
+
+  /* Stacked A/B panes each keep a usable height instead of 1/2 of 560px. */
+  .cmp-stage { height: auto; margin: 12px 0; }
+  .cmp-split { grid-template-rows: 42vh 42vh; }
+  .cmp-pane { min-height: 240px; }
+  .cmp-overlay-stage { height: 52vh; min-height: 320px; }
+  .cmp-pane-label { font-size: 12px; padding: 4px 10px; }
+  .compare-entity-tag { font-size: 11px; }
+  .cmp-legend { left: 10px; bottom: 10px; gap: 10px; font-size: 12px; }
+
+  .cmp-timebar { gap: 10px; padding: 10px 12px; }
+  .cmp-play { min-height: 44px; padding: 10px 18px; font-size: 13px; }
+  .cmp-transport { min-height: 44px; min-width: 44px; font-size: 14px; }
+  .cmp-track { flex: 1 1 100%; min-width: 0; }
+  .cmp-track input { height: 28px; }
+  .cmp-track-labels { font-size: 11px; }
+  .cmp-rates { width: 100%; justify-content: space-between; gap: 6px; }
+  .cmp-rates button { flex: 1 1 0; min-height: 38px; font-size: 12.5px; }
+
+  .cmp-section { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .cmp-section h2 { font-size: 17px; }
+  .cmp-section h3 { font-size: 14.5px; }
+  .cmp-table-hint { display: block; }
+  .cmp-table--wide { min-width: 620px; }
+  .cmp-campaign .cmp-table--wide { min-width: 700px; }
+  .cmp-table--cond { min-width: 0; }
+  .cmp-table th, .cmp-table td { font-size: 12.5px; padding: 10px 12px; }
+  .cmp-hint, .cmp-warning, .cmp-ok { font-size: 12.5px; line-height: 1.65; }
+  .cmp-chart-grid { gap: 12px; }
+  .cmp-chart-grid .chart-card__canvas { height: 260px; }
+  .cmp-chart-grid .chart-card { padding: 6px; }
+  .cfg-saved pre { font-size: 11px; }
+}
+
+@media (max-width: 480px) {
+  .page-head h1 { font-size: 24px; }
+  .cfg-studio { padding: 10px; }
+  .cfg-head { flex-direction: column; align-items: stretch; }
+  .cfg-actions { gap: 8px; }
+  .cfg-actions .cfg-compare { flex: 1 1 100%; }
+  .cfg-actions .cfg-secondary { flex: 1 1 0; }
+  .cmp-split { grid-template-rows: 38vh 38vh; }
+  .cmp-overlay-stage { height: 46vh; min-height: 280px; }
+  .cmp-toolbar .cmp-seg { width: 100%; }
+  .cmp-toolbar .cmp-seg button { flex: 1 1 auto; }
+  .cmp-check, .cmp-scale { width: 100%; }
+  .cmp-scale input { flex: 1 1 auto; width: auto; }
+  .cmp-track-labels { font-size: 10.5px; }
+  .cfg-field select { font-size: 15px; }
 }
 

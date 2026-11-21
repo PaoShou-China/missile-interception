@@ -549,7 +549,8 @@ export function ComparePage() {
             {t("campaign.slice")}: {shared.b.stage} · {shared.b.law} · {shared.b.level_g} g ·{" "}
             {campaign.campaign_id} · seed {campaign.seed}
           </p>
-          <table className="cmp-table">
+          <p className="cmp-table-hint">{t("compare.tableHint")}</p>
+          <table className="cmp-table cmp-table--wide">
             <thead>
               <tr>
                 <th>{t("compare.metric")}</th><th>{t("compare.unit")}</th>
@@ -587,7 +588,8 @@ export function ComparePage() {
 
       <section className="cmp-section">
         <h2>{t("cfg.summary")}</h2>
-        <table className="cmp-table">
+        <p className="cmp-table-hint">{t("compare.tableHint")}</p>
+        <table className="cmp-table cmp-table--wide">
           <thead>
             <tr>
               <th>{t("compare.metric")}</th><th>{t("compare.unit")}</th>
@@ -621,7 +623,7 @@ export function ComparePage() {
             <p className={level === "C" ? "cmp-warning" : level === "B" ? "cmp-hint" : "cmp-ok"}>
               {level === "C" ? t("compare.matchBlocked") : level === "B" ? t("compare.matchWarning") : t("compare.noDiff")}
             </p>
-            <table className="cmp-table">
+            <table className="cmp-table cmp-table--cond">
               <thead><tr><th>{t("compare.metric")}</th><th>A</th><th>B</th></tr></thead>
               <tbody>
                 <tr><td>{t("cfg.guidance")}</td><td>{expA?.combo.guidance}</td><td>{expB?.combo.guidance}</td></tr>

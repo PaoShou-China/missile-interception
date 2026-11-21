@@ -1,0 +1,71 @@
+{
+  "meta": {
+    "experiment": "architecture",
+    "cases_per_arm": 24,
+    "seed": 2026,
+    "level_g": [
+      0.0
+    ],
+    "lethal_radius_m": 15.0,
+    "arms": {
+      "reference": {
+        "boost_law": "feasible",
+        "control_law": "scheduled"
+      },
+      "classic": {
+        "boost_law": "fixed_rate",
+        "control_law": "classic_pid"
+      }
+    }
+  },
+  "stats": {
+    "architecture|reference|0": {
+      "n_total": 24,
+      "n_valid": 24,
+      "n_failed": 0,
+      "hits": 24,
+      "hit_rate": 1.0,
+      "miss_mean": 7.319432722712679,
+      "miss_std": 3.3607305183519776,
+      "miss_median": 7.579162188263053,
+      "miss_p90": 10.51656692627706,
+      "miss_max": 13.882017365987348,
+      "handover_rate": 1.0,
+      "handover_range_km": 23.300979096259194,
+      "handover_lead_deg": 6.420122994495109,
+      "boost_end_mach": 2.153552892605045,
+      "boost_end_alt_km": 5.962214452177519,
+      "midcourse_peak_mach": 9.438500145259036,
+      "midcourse_peak_alt_km": 29.94126365654594,
+      "handover_energy_mjkg": 4.893089105360928,
+      "terminal_peak_cmd_g": 40.0,
+      "terminal_peak_act_g": 11.55230461578038,
+      "terminal_fin_sat_pct": 30.94724669020934,
+      "midcourse_fin_sat_pct": 40.71942931830605
+    },
+    "architecture|classic|0": {
+      "n_total": 24,
+      "n_valid": 24,
+      "n_failed": 0,
+      "hits": 24,
+      "hit_rate": 1.0,
+      "miss_mean": 5.942352556419169,
+      "miss_std": 3.0125007080374204,
+      "miss_median": 6.253969962647778,
+      "miss_p90": 9.24195113910107,
+      "miss_max": 13.18724604933387,
+      "handover_rate": 1.0,
+      "handover_range_km": 23.301588869721808,
+      "handover_lead_deg": 6.05612787513973,
+      "boost_end_mach": 2.1031036225826623,
+      "boost_end_alt_km": 6.139935072100061,
+      "midcourse_peak_mach": 9.436578657867914,
+      "midcourse_peak_alt_km": 29.469880189026473,
+      "handover_energy_mjkg": 4.888010089225818,
+      "terminal_peak_cmd_g": 40.0,
+      "terminal_peak_act_g": 12.015044819023371,
+      "terminal_fin_sat_pct": 64.78605306255061,
+      "midcourse_fin_sat_pct": 4.277113021294599
+    }
+  }
+}

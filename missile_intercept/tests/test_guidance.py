@@ -13,6 +13,7 @@ from guidance.midcourse_guidance import BezierPath, MidcourseGuidance
 from guidance.pip_midcourse_guidance import PipMidcourseGuidance
 from guidance.terminal_guidance import TerminalGuidance
 from guidance.pure_pn_guidance import PurePNGuidance
+from guidance.fixed_rate_boost_guidance import FixedRateBoostGuidance
 from guidance.handover_manager import HandoverManager
 
 
@@ -297,3 +298,11 @@ def test_pip_midcourse_commands_finite_acceleration_toward_intercept():
     lateral = MU.perpendicular(cmd.a_cmd_eci, MU.normalize(v_m))
     turn = MU.cross3(v_m, los)
     assert float(np.dot(lateral, MU.normalize(turn))) > 0.0
+
+
+def test_fixed_rate_boost_ignores_feasibility_hooks():
+    """The classical boost baseline must use a constant rate and no re-budgeting."""
+    g = FixedRateBoostGuidance()
+    assert g._rate_max(1.0, 5000.0) == C.BOOST_FIXED_PITCH_RATE
+    a_perp, a_head = g._budget(10.0, 5.0, 1.0)
+    assert a_perp == 10.0 and a_head == 5.0

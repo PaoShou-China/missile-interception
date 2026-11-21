@@ -31,10 +31,10 @@ four dropdown columns:
 
 | Column | Current entries | Source |
 | --- | --- | --- |
-| Guidance method | 4 laws: Bezier+ZEM/APN, PIP+ZEM/APN, Bezier+PN, PIP+PN | `missile_intercept/guidance/*.py` |
-| Attitude control | 3 profiles: predictive + n_z, uncompensated, no n_z | `missile_intercept/control/autopilot.py`; `config.py` switches |
+| Guidance method | 5 laws: Bezier+ZEM/APN, PIP+ZEM/APN, Bezier+PN, PIP+PN, fixed-rate boost+Bezier+ZEM/APN | `missile_intercept/guidance/*.py` |
+| Attitude control | 4 profiles: predictive + n_z, uncompensated, no n_z, classical fixed-gain PID | `missile_intercept/control/{autopilot,classic_autopilot}.py` |
 | Vehicle profile | `lifting-body-2000` (v4) | `missile_intercept/config.py` |
-| Scenario | `coastal-intercept` (real), `coastal-intercept-demo` (synthetic) | scenario payload |
+| Scenario | `coastal-intercept` (nominal), `campaign-paired-g0` (new paired campaign case 0), `coastal-intercept-demo` (synthetic) | scenario payload |
 
 The guidance laws are the two implemented midcourse laws (Bezier, PIP) crossed
 with the two implemented terminal laws (ZEM/APN, pure PN). The three attitude
@@ -51,6 +51,33 @@ The matrix intentionally does **not** claim a full factorial campaign. Guidance
 laws are compared at the baseline controller, and controllers are compared at
 the baseline guidance law. Any other combination (for example PIP + the
 uncompensated controller) has no record and shows `No Available Experiment`.
+
+### Paired campaign as Run B
+
+The newest experiment set is wired in as the default B:
+
+- **Architecture arm (default)**: A = feasible boost + scheduled three-loop;
+  B = the new `FixedRateBoostGuidance` + `ClassicAutopilot`. The paired
+  architecture campaign (`tools/architecture_comparison.py`, 24 cases at 0 g)
+  gives A/B hit rate, median/P90/max miss, handover metrics and fin
+  saturation. The representative case 0 trajectories are replayed in 3D.
+  Isolation records also exist for boost-only (`exp-campaign-fixedrate`) and
+  controller-only (`exp-campaign-classic-pid`).
+- **Guided arms**: `boost` (fixed-rate vs feasible, target 10/15 km),
+  `midcourse` (PIP vs Bezier, 0/3 g), `terminal` (PN vs ZEM/APN, 0/2 g) and
+  `control` (classic PID vs scheduled, 0/4 g). Each block uses the same paired
+  case ids; the shipped `summary.json` is the 4-case-per-law quick campaign.
+- `campaign.json` ships all aggregated slices.
+- `campaign-paired-g0` is the shared **case 0** scenario. A and B use the same
+  launch/target dispersion, sensor seeds and target phase, so the single-run
+  trajectory comparison is genuinely paired.
+- `tools/export_campaign_case.py` rebuilds that case from `batch.build_case`
+  (with the selected boost/control/guidance laws) and writes full telemetry;
+  the adapter turns it into the replay payload.
+- The page renders the aggregate table (hit rate, median/P90/max miss,
+  handover range/energy, peak Mach, fin saturation) with deltas, while the 3D
+  stage and time-history charts replay the representative case. The table
+  states that statistics come from the campaign, not the single run.
 
 Vehicle profiles are read-only: length, diameter, masses, fin semi-span, version
 and source are displayed from the archive. Only visual parameters (model scale,

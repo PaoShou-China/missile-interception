@@ -9,6 +9,7 @@ import pytest
 import config as C
 import fastcore as FC
 from control.autopilot import Autopilot, SecondOrderFilter
+from control.classic_autopilot import ClassicAutopilot
 from control.fin_mixer import FinMixer
 from control.thrust_controller import ThrustController
 
@@ -77,6 +78,23 @@ def test_gain_schedule_bounded():
     assert np.all(np.isfinite(lo)) and np.all(np.isfinite(hi))
     assert np.all(np.abs(lo) <= C.FIN_MAX)
     assert np.all(np.abs(hi) <= C.FIN_MAX)
+
+
+def test_classic_autopilot_is_fixed_gain_and_bounded():
+    """The comparison baseline must disable scheduling/n_z yet stay finite."""
+    ap = ClassicAutopilot()
+    assert ap.GAIN_SCHED is False and ap.NZ_LOOP is False
+    assert ap.USE_NUMBA is False
+    q = np.array([1.0, 0.0, 0.0, 0.0])
+    a_cmd = np.array([4.0, 0.0, -6.0])
+    outs = []
+    for k in range(60):
+        outs.append(ap.update(
+            0.005 * k, q, np.zeros(3), a_cmd, 2000.0, 20000.0, 1.5,
+            alpha_trim=0.05, dt=0.005))
+    outs = np.array(outs)
+    assert np.all(np.isfinite(outs))
+    assert np.max(np.abs(outs)) <= C.FIN_MAX + 1e-12
 
 
 def test_prefilter_and_accel_limit_follow_dynamic_pressure():

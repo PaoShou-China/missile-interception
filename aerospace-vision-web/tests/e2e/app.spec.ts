@@ -80,9 +80,10 @@ test("configuration studio loads registry options and real Run A", async ({ page
   await expect(page.locator(".cfg-card")).toHaveCount(2);
   await expect(page.locator(".cfg-card select")).toHaveCount(8);
   await expect(page.locator(".cfg-card--A select").nth(0)).toHaveValue("bezier-zem-apn");
-  await expect(page.locator(".cfg-card--B select").nth(0)).toHaveValue("bezier-pn");
-  await expect(page.locator(".cfg-card--A select").nth(3)).toHaveValue("coastal-intercept");
-  await expect(page.locator(".cfg-card--B select").nth(3)).toHaveValue("coastal-intercept");
+  await expect(page.locator(".cfg-card--B select").nth(0)).toHaveValue("fixed-rate-bezier-zem-apn");
+  await expect(page.locator(".cfg-card--B select").nth(1)).toHaveValue("classic-pid");
+  await expect(page.locator(".cfg-card--A select").nth(3)).toHaveValue("campaign-paired-g0");
+  await expect(page.locator(".cfg-card--B select").nth(3)).toHaveValue("campaign-paired-g0");
 
   // Three guidance laws and three attitude controllers are selectable.
   const guidanceOptions = await page.locator(".cfg-card--A select").nth(0).locator("option").allTextContents();
@@ -103,9 +104,11 @@ test("configuration studio loads registry options and real Run A", async ({ page
   await expect(page.locator(".cmp-split canvas")).toHaveCount(2, { timeout: 45_000 });
   await expect(page.locator(".cmp-chart-grid .chart-card")).toHaveCount(7);
 
-  // Summary table carries A, B, unit, source and computed differences.
-  await expect(page.locator(".cmp-table").first()).toContainText("Source");
-  await expect(page.locator(".cmp-table").first()).not.toContainText("N/A");
+  // Campaign aggregate table carries A, B, unit, source and computed differences.
+  await expect(page.locator(".cmp-campaign")).toContainText("Hit rate");
+  await expect(page.locator(".cmp-campaign")).toContainText("N = 24 / 24");
+  await expect(page.locator(".cmp-campaign .cmp-table")).toContainText("Source");
+  await expect(page.locator(".cmp-campaign .cmp-table")).not.toContainText("N/A");
 
   await page.screenshot({ path: path.join(SHOTS, "13-config-studio.png"), fullPage: true });
 });
@@ -117,7 +120,7 @@ test("compare, swap, save reference, overlay and playback", async ({ page }) => 
 
   // Swap A/B then compare: selections are exchanged.
   await page.getByRole("button", { name: "Swap A / B" }).click();
-  await expect(page.locator(".cfg-card--A select").nth(0)).toHaveValue("bezier-pn");
+  await expect(page.locator(".cfg-card--A select").nth(0)).toHaveValue("fixed-rate-bezier-zem-apn");
   await expect(page.locator(".cfg-card--B select").nth(0)).toHaveValue("bezier-zem-apn");
   await page.locator(".cfg-compare").click();
   await expect(page.locator(".cmp-split canvas")).toHaveCount(2);
@@ -143,7 +146,7 @@ test("compare, swap, save reference, overlay and playback", async ({ page }) => 
   // Language switch keeps selections and loaded runs intact.
   await page.locator(".lang-switch button", { hasText: "中" }).click();
   await expect(page.locator("h1")).toHaveText("实验配置对比工作台");
-  await expect(page.locator(".cfg-card--A select").nth(0)).toHaveValue("bezier-pn");
+  await expect(page.locator(".cfg-card--A select").nth(0)).toHaveValue("fixed-rate-bezier-zem-apn");
   await expect(page.locator(".cfg-card--B select").nth(0)).toHaveValue("bezier-zem-apn");
   await page.screenshot({ path: path.join(SHOTS, "14-config-studio-zh.png"), fullPage: true });
 });
@@ -158,8 +161,9 @@ test("synthetic scenario is labelled and withholds differences", async ({ page }
   await expect(page.locator(".cfg-card--B .cfg-unavailable")).toBeVisible();
   await expect(page.locator(".cfg-compare")).toBeDisabled();
 
-  // The demo record exists only with the baseline guidance law.
+  // The demo record exists only with the baseline guidance and controller.
   await page.locator(".cfg-card--B select").nth(0).selectOption("bezier-zem-apn");
+  await page.locator(".cfg-card--B select").nth(1).selectOption("three-loop");
   await expect(page.locator(".cfg-compare")).toBeEnabled();
   await page.locator(".cfg-compare").click();
 

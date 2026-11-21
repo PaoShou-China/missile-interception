@@ -129,6 +129,14 @@ class Autopilot:
     KP_NZ = C.AP_KP_NZ
     KI_NZ = C.AP_KI_NZ
     NZ_LEAD = C.AP_NZ_LEAD
+    # Architecture flags.  The reference autopilot uses the compiled path and
+    # all scheduling features; the classical baseline (see
+    # ``control/classic_autopilot.py``) fixes the gains and drops the n_z loop
+    # while keeping the shared reference shaping and delay prediction.
+    USE_NUMBA = True
+    GAIN_SCHED = True
+    REF_GOV = True
+    PREDICT = True
 
     def __init__(self, dt=C.DT_AUTOPILOT, alpha_max=25.0 * C.DEG):
         self.dt = float(dt)
@@ -494,10 +502,16 @@ class Autopilot:
         dt = self.dt if dt is None else float(min(max(dt, 1e-5), 0.05))
         # Dead-time prediction: what the airframe will be doing when this
         # command actually reaches the fins.
-        q_used, omega_used, alpha_used, beta_used = self._predict_state(
-            q, omega_body, alpha_trim, beta_trim, dt, predict_horizon, mass,
-            q_dyn, cn_alpha, mach=mach, speed=speed,
-            v_air_eci=v_air_eci, applied_fins=applied_fins)
+        if self.PREDICT:
+            q_used, omega_used, alpha_used, beta_used = self._predict_state(
+                q, omega_body, alpha_trim, beta_trim, dt, predict_horizon, mass,
+                q_dyn, cn_alpha, mach=mach, speed=speed,
+                v_air_eci=v_air_eci, applied_fins=applied_fins)
+        else:
+            q_used = q
+            omega_used = omega_body
+            alpha_used = alpha_trim
+            beta_used = beta_trim
         n_meas = -float(load_body[2]) if load_body is not None else 0.0
         if self.NZ_LOOP:
             kp_nz = float(self.KP_NZ)
@@ -508,7 +522,7 @@ class Autopilot:
             ki_nz = 0.0
             nz_lead = 0.0
 
-        if FC.NUMBA_AVAILABLE:
+        if FC.NUMBA_AVAILABLE and self.USE_NUMBA:
             out = FC.autopilot_update(
                 np.ascontiguousarray(np.asarray(q_used, dtype=float).reshape(4)),
                 np.ascontiguousarray(omega_used),
@@ -574,11 +588,18 @@ class Autopilot:
         # Feasible reference shaping: bandwidth and acceleration budget both
         # follow the dynamic pressure, so a low-q airframe is not asked for a
         # rate it cannot produce.
-        filter_hz = self._filter_hz(q_dyn, cn_alpha, axis="p")
-        filter_hz_y = self._filter_hz(q_dyn, cn_alpha, axis="y")
-        accel_limit = self._accel_limit(mass, q_dyn, cn_alpha, axis="p")
-        accel_limit_y = self._accel_limit(mass, q_dyn, cn_alpha, axis="y")
-        rate_limit = self._ref_rate_limit(q_dyn)
+        if self.REF_GOV:
+            filter_hz = self._filter_hz(q_dyn, cn_alpha, axis="p")
+            filter_hz_y = self._filter_hz(q_dyn, cn_alpha, axis="y")
+            accel_limit = self._accel_limit(mass, q_dyn, cn_alpha, axis="p")
+            accel_limit_y = self._accel_limit(mass, q_dyn, cn_alpha, axis="y")
+            rate_limit = self._ref_rate_limit(q_dyn)
+        else:
+            # Classical fixed-bandwidth pre-filter: no q scheduling, no
+            # feasibility governor.
+            filter_hz = filter_hz_y = C.AP_PREFILTER_HZ
+            accel_limit = accel_limit_y = None
+            rate_limit = None
         alpha_ref = self.alpha_f.update(alpha_cmd, dt, filter_hz, accel_limit,
                                         rate_limit)
         beta_ref = self.beta_f.update(beta_cmd, dt, filter_hz_y, accel_limit_y,
@@ -592,8 +613,9 @@ class Autopilot:
 
         # Low-q protection and gain scheduling.
         low_q = q_dyn < 100.0
-        gain_scale = self._gain_scale(q_dyn, cn_alpha, mass)
-        ki_scale = self._ki_scale(q_dyn)
+        gain_scale = (self._gain_scale(q_dyn, cn_alpha, mass)
+                      if self.GAIN_SCHED else 1.0)
+        ki_scale = self._ki_scale(q_dyn) if self.GAIN_SCHED else 1.0
         freeze = bool(is_saturated or low_q)
 
         # Outer loop: pseudo-angle error -> body-rate command, with the

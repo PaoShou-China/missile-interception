@@ -222,6 +222,10 @@ BOOST_GAMMA_GAIN = 1.2           # flight-path-angle error feedback 1/s
 BOOST_HEADING_GAIN = 0.8         # azimuth error feedback 1/s
 BOOST_ACCEL_LIMIT = 4.0 * G0     # total non-gravity command cap m/s^2
 BOOST_TURN_MARGIN = 0.85         # fraction of feasible normal acceleration used
+# Classical fixed-programme boost baseline used by the comparison experiments:
+# a constant pitch-rate gravity turn with no dynamic-pressure/feasibility
+# limiting and no command re-budgeting.
+BOOST_FIXED_PITCH_RATE = 3.5 * DEG   # constant pitch-programme rate rad/s
 
 RAMJET_ISP = 1500.0          # Ramjet reference specific impulse s
 RAMJET_COEFF = 6.0           # Thrust = coeff * q * A_inlet * eta(M, h, alpha)
@@ -824,8 +828,10 @@ class SimConfig:
     midcourse_max_step: float = DEFAULT_MIDCOURSE_MAX_STEP
     # Guidance-law selection for controlled comparisons.  Defaults reproduce
     # the reference design; the experiment driver flips one stage at a time.
+    boost_law: str = "feasible"       # "feasible" | "fixed_rate"
     midcourse_law: str = "bezier"     # "bezier" | "pip_pn"
     terminal_law: str = "zem_apn"     # "zem_apn" | "pn"
+    control_law: str = "scheduled"    # "scheduled" | "classic_pid"
     t_end: float = DEFAULT_T_END
     dt_seeker: float = DT_SEEKER
     dt_autopilot: float = DT_AUTOPILOT

@@ -9,9 +9,14 @@ import {
 } from "../compare/validation";
 import {
   loadRegistry,
+  loadCampaign,
   findExperiment,
   localized,
   optionById,
+  campaignStat,
+  sharedCampaignRef,
+  type CampaignManifest,
+  type CampaignStat,
   type ExperimentCombo,
   type ExperimentRecord,
   type ExperimentRegistry,
@@ -108,6 +113,7 @@ export function ComparePage() {
   const { t, lang } = useI18n();
   const [registry, setRegistry] = useState<ExperimentRegistry | null>(null);
   const [manifest, setManifest] = useState<ComparisonManifest | null>(null);
+  const [campaign, setCampaign] = useState<CampaignManifest | null>(null);
   const [selA, setSelA] = useState<ExperimentCombo | null>(null);
   const [selB, setSelB] = useState<ExperimentCombo | null>(null);
   const [runA, setRunA] = useState<RuntimeRun | null>(null);
@@ -176,13 +182,20 @@ export function ComparePage() {
     let cancelled = false;
     (async () => {
       try {
-        const [reg, man] = await Promise.all([loadRegistry(), loadComparisonManifest()]);
+        const [reg, man, camp] = await Promise.all([
+          loadRegistry(),
+          loadComparisonManifest(),
+          loadCampaign(),
+        ]);
         if (cancelled) return;
         setRegistry(reg);
         setManifest(man);
+        setCampaign(camp);
         const realRuns = reg.experiments.filter((e) => !e.synthetic);
-        const a = (realRuns.find((e) => e.id === "exp-bezier-zem") ?? realRuns[0]!).combo;
-        const b = (realRuns.find((e) => e.id === "exp-bezier-pn") ?? realRuns[1] ?? realRuns[0]!).combo;
+        const a = (realRuns.find((e) => e.id === "exp-campaign-bezier-zem") ?? realRuns[0]!).combo;
+        const b = (realRuns.find((e) => e.id === "exp-campaign-classic-full")
+          ?? realRuns.find((e) => e.id === "exp-campaign-bezier-pn")
+          ?? realRuns[1] ?? realRuns[0]!).combo;
         setSelA(a);
         setSelB(b);
         await buildRuns(reg, a, b);
@@ -336,6 +349,29 @@ export function ComparePage() {
   const start = runB ? Math.max(runA.meta.time_start, runB.meta.time_start) : runA.meta.time_start;
   const expA = findExperiment(registry, selA);
   const expB = findExperiment(registry, selB);
+  const shared = sharedCampaignRef(expA, expB);
+  const statA = campaignStat(campaign, shared?.a);
+  const statB = campaignStat(campaign, shared?.b);
+  const campaignRows: { key: keyof CampaignStat; label: string; unit: string; digits: number }[] = [
+    { key: "hit_rate", label: t("campaign.hitRate"), unit: "%", digits: 1 },
+    { key: "miss_median", label: t("campaign.missMedian"), unit: "m", digits: 2 },
+    { key: "miss_p90", label: t("campaign.missP90"), unit: "m", digits: 2 },
+    { key: "miss_mean", label: t("campaign.missMean"), unit: "m", digits: 2 },
+    { key: "miss_max", label: t("campaign.missMax"), unit: "m", digits: 2 },
+    { key: "handover_range_km", label: t("campaign.handoverRange"), unit: "km", digits: 2 },
+    { key: "handover_energy_mjkg", label: t("campaign.handoverEnergy"), unit: "MJ/kg", digits: 2 },
+    { key: "boost_end_alt_km", label: t("campaign.boostAlt"), unit: "km", digits: 2 },
+    { key: "boost_end_mach", label: t("campaign.boostMach"), unit: "—", digits: 2 },
+    { key: "midcourse_peak_mach", label: t("campaign.peakMach"), unit: "—", digits: 2 },
+    { key: "terminal_fin_sat_pct", label: t("campaign.finSat"), unit: "%", digits: 1 },
+  ];
+  const statValue = (stat: CampaignStat | null, key: keyof CampaignStat, digits: number) => {
+    if (!stat) return t("compare.notAvailable");
+    const v = stat[key];
+    if (typeof v !== "number" || !Number.isFinite(v)) return t("compare.notAvailable");
+    if (key === "hit_rate") return `${(v * 100).toFixed(digits)}%`;
+    return fmt(v, digits);
+  };
 
   return (
     <article className="page compare-page">
@@ -501,6 +537,53 @@ export function ComparePage() {
         )}
         {runB && !deltaEligible && <p className="cmp-warning">{t("cfg.notEligibleDelta")}</p>}
       </section>
+
+      {shared && statA && statB && campaign && (
+        <section className="cmp-section cmp-campaign">
+          <h2>{t("campaign.title")}</h2>
+          <p className="cmp-hint">
+            {t("campaign.note")} · N = {statA.n_valid} / {statB.n_valid} ·{" "}
+            {campaign.levels_g[shared.b.stage].map((v) => `${v}g`).join(" / ")}
+          </p>
+          <p className="cmp-hint">
+            {t("campaign.slice")}: {shared.b.stage} · {shared.b.law} · {shared.b.level_g} g ·{" "}
+            {campaign.campaign_id} · seed {campaign.seed}
+          </p>
+          <table className="cmp-table">
+            <thead>
+              <tr>
+                <th>{t("compare.metric")}</th><th>{t("compare.unit")}</th>
+                <th>{t("compare.valueA")}</th><th>{t("compare.valueB")}</th>
+                <th>{t("compare.delta")}</th><th>{t("cfg.source")}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {campaignRows.filter((row) => typeof statA[row.key] === "number" || typeof statB[row.key] === "number").map((row) => {
+                const va = statA[row.key];
+                const vb = statB[row.key];
+                const delta = typeof va === "number" && typeof vb === "number"
+                  && Number.isFinite(va) && Number.isFinite(vb) ? vb - va : null;
+                const deltaText = delta === null
+                  ? t("compare.notAvailable")
+                  : row.key === "hit_rate"
+                    ? `${delta >= 0 ? "+" : ""}${(delta * 100).toFixed(row.digits)} pp`
+                    : `${delta >= 0 ? "+" : ""}${fmt(delta, row.digits)}`;
+                return (
+                  <tr key={row.key}>
+                    <td>{row.label}</td>
+                    <td>{row.unit}</td>
+                    <td>{statValue(statA, row.key, row.digits)}</td>
+                    <td>{statValue(statB, row.key, row.digits)}</td>
+                    <td>{deltaText}</td>
+                    <td><code>campaign.json</code></td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+          <p className="cmp-hint">{t("campaign.footer")}</p>
+        </section>
+      )}
 
       <section className="cmp-section">
         <h2>{t("cfg.summary")}</h2>

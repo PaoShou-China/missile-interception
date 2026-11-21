@@ -46,6 +46,10 @@ class Dispersion:
     # the global scenario value; a number pins the level so a parameter sweep
     # can vary it while every other dispersion stays identical.
     evade_g_nominal: float = None
+    # Optional fixed nominal target altitude (m).  Used by the boost-law sweep,
+    # where the relevant parameter is the atmosphere the ascent flies through,
+    # not the terminal evasion level.
+    target_alt_nominal: float = None
 
 
 # ============================================================
@@ -82,7 +86,9 @@ def build_case(case_id, base_seed, cfg, dispersion):
     s_target = dispersion.target_cep_m * _CEP_TO_SIGMA
     e_t, n_t = rng.normal(0.0, s_target, 2) if s_target > 0 else (0.0, 0.0)
     target_lat, target_lon = _offset_llh(base.target_lat, base.target_lon, e_t, n_t)
-    target_alt = base.target_alt + (
+    target_alt = (dispersion.target_alt_nominal
+                  if dispersion.target_alt_nominal is not None
+                  else base.target_alt) + (
         rng.normal(0.0, dispersion.target_alt_sigma_m)
         if dispersion.target_alt_sigma_m > 0 else 0.0)
     target_mach = base.target_mach + (
@@ -272,6 +278,8 @@ def run_case(payload):
             "launch_lon": scenario.launch_lon,
             "midcourse_law": cfg.midcourse_law,
             "terminal_law": cfg.terminal_law,
+            "boost_law": cfg.boost_law,
+            "control_law": cfg.control_law,
             "error": "",
         }
         result.update(_handover_fields(sim))
@@ -296,6 +304,8 @@ def run_case(payload):
             "launch_lon": scenario.launch_lon,
             "midcourse_law": cfg.midcourse_law,
             "terminal_law": cfg.terminal_law,
+            "boost_law": cfg.boost_law,
+            "control_law": cfg.control_law,
             "error": repr(exc),
             "first_lock_time": float("nan"),
             "first_lock_range": float("nan"),
@@ -570,11 +580,19 @@ def main(argv=None):
     parser.add_argument("--terminal-law", type=str, default="zem_apn",
                         choices=["zem_apn", "pn"],
                         help="Terminal guidance law")
+    parser.add_argument("--boost-law", type=str, default="feasible",
+                        choices=["feasible", "fixed_rate"],
+                        help="Boost guidance law")
+    parser.add_argument("--control-law", type=str, default="scheduled",
+                        choices=["scheduled", "classic_pid"],
+                        help="Attitude-control law")
     args = parser.parse_args(argv)
 
     cfg = C.SimConfig()
     cfg.midcourse_law = args.midcourse_law
     cfg.terminal_law = args.terminal_law
+    cfg.boost_law = args.boost_law
+    cfg.control_law = args.control_law
     if args.max_step is not None:
         cfg.max_step = args.max_step
     if args.midcourse_step is not None:

@@ -54,6 +54,19 @@
         "zh": "预测拦截点中段与纯比例导引末段的组合。",
         "en": "Predicted-intercept-point midcourse combined with pure PN terminal guidance."
       }
+    },
+    {
+      "id": "fixed-rate-bezier-zem-apn",
+      "name": {
+        "zh": "固定程序助推 + Bezier 中制导 + ZEM/APN",
+        "en": "Fixed-rate boost + Bezier midcourse + ZEM/APN"
+      },
+      "version": "fixed_rate+bezier+zem_apn",
+      "source": "missile_intercept/guidance/fixed_rate_boost_guidance.py",
+      "description": {
+        "zh": "经典固定俯仰角速率重力转弯，不做动压/可用过载约束，也不重新分配横向指令。",
+        "en": "Classical constant pitch-rate gravity turn without dynamic-pressure feasibility limiting or lateral re-budgeting."
+      }
     }
   ],
   "control": [
@@ -95,6 +108,19 @@
         "zh": "保留延迟预测与外环角回路，关闭直接 n_z PI 回路。",
         "en": "Dead-time prediction retained, outer angle loop retained, direct n_z PI loop disabled."
       }
+    },
+    {
+      "id": "classic-pid",
+      "name": {
+        "zh": "经典定增益三回路 PID（无调度 / 无延迟预测）",
+        "en": "Classical fixed-gain three-loop PID (no scheduling / no prediction)"
+      },
+      "version": "classic-pid",
+      "source": "missile_intercept/control/classic_autopilot.py",
+      "description": {
+        "zh": "固定增益与固定 5 Hz 预滤波，关闭动压增益调度、参考指令整形、死区时间预测和 n_z 回路；内回路增益与限幅不变。",
+        "en": "Fixed gains and fixed 5 Hz pre-filter with q-scheduling, reference shaping, dead-time prediction and n_z loop disabled; inner-loop gains and limits unchanged."
+      }
     }
   ],
   "vehicles": [
@@ -126,6 +152,24 @@
       }
     },
     {
+      "id": "campaign-paired-g0",
+      "name": { "zh": "配对蒙特卡洛 · 0 g 代表算例", "en": "Paired Monte Carlo · 0 g representative case" },
+      "synthetic": false,
+      "description": {
+        "zh": "新配对实验集（24 例 × 多档机动）的第 0 号算例。所有对照律共用同一发射/目标散布与传感器种子，单条轨迹仅用于三维与时程回放；统计结论来自完整实验集。",
+        "en": "Case 0 of the new paired campaign (24 cases × several manoeuvre levels). Every compared law shares the same dispersion and sensor seeds; this single trajectory is for 3D/time-history replay only, while conclusions come from the full campaign."
+      }
+    },
+    {
+      "id": "campaign-paired-boost15",
+      "name": { "zh": "配对蒙特卡洛 · 目标高度 15 km 算例", "en": "Paired Monte Carlo · target 15 km case" },
+      "synthetic": false,
+      "description": {
+        "zh": "助推段对比使用的第 0 号配对算例：目标标称高度 15 km，其余散布与传感器种子与基准一致。",
+        "en": "Case 0 of the boost-law sweep: nominal target altitude 15 km with the same dispersion and sensor seeds as the reference."
+      }
+    },
+    {
       "id": "coastal-intercept-demo",
       "name": { "zh": "沿海拦截 · 合成 UI 演示（非科研结果）", "en": "Coastal intercept · synthetic UI demo (not a result)" },
       "synthetic": true,
@@ -136,6 +180,247 @@
     }
   ],
   "experiments": [
+    {
+      "id": "exp-campaign-bezier-zem",
+      "combo": { "guidance": "bezier-zem-apn", "control": "three-loop", "vehicle": "lifting-body-2000", "scenario": "campaign-paired-g0" },
+      "synthetic": false,
+      "validation_status": "PASS",
+      "campaigns": [
+        { "campaign_id": "guidance-comparison-2026-11-21", "stage": "terminal", "law": "zem_apn", "level_g": 0 },
+        { "campaign_id": "guidance-comparison-2026-11-21", "stage": "midcourse", "law": "bezier", "level_g": 0 },
+        { "campaign_id": "guidance-comparison-2026-11-21", "stage": "architecture", "law": "reference", "level_g": 0 },
+        { "campaign_id": "guidance-comparison-2026-11-21", "stage": "control", "law": "scheduled", "level_g": 0 }
+      ],
+      "run": {
+        "run_id": "run-campaign-bezier-zem",
+        "display_name": "Paired campaign case 0 · Bezier + ZEM/APN (0 g)",
+        "algorithm_id": "missile-interception-6dof",
+        "algorithm_version": "bezier+zem_apn/three-loop/case0",
+        "source_commit": "workspace",
+        "scenario_id": "missile-intercept-001",
+        "configuration_hash": "e98ed007db722e89",
+        "seed": 2026,
+        "trajectory_file": "data/experiments/campaign-bezier-zem/scenario.json",
+        "metrics_file": null,
+        "data_hash": "693bbb44dfbe036e5bbbf95459dad0159032e4ce2d39c8c9bf3f47e5ab650957",
+        "time_start": 0,
+        "time_end": 674.34,
+        "reference_frame": "WGS84 ECEF",
+        "units": "SI",
+        "validation_status": "PASS",
+        "availability": "available",
+        "is_synthetic": false,
+        "notes": ["Representative case 0 of the paired campaign; full statistics come from all 24 cases per level."]
+      },
+      "notes": {
+        "zh": "配对实验集基准律（Bezier + ZEM/APN）第 0 号算例；A 组聚合统计取 terminal|zem_apn|0 或 midcourse|bezier|0 中与 B 相同的一段。",
+        "en": "Baseline law (Bezier + ZEM/APN) case 0 of the paired campaign; A's aggregate slice follows B's stage (terminal or midcourse)."
+      }
+    },
+    {
+      "id": "exp-campaign-bezier-pn",
+      "combo": { "guidance": "bezier-pn", "control": "three-loop", "vehicle": "lifting-body-2000", "scenario": "campaign-paired-g0" },
+      "synthetic": false,
+      "validation_status": "PASS",
+      "campaigns": [
+        { "campaign_id": "guidance-comparison-2026-11-21", "stage": "terminal", "law": "pn", "level_g": 0 }
+      ],
+      "run": {
+        "run_id": "run-campaign-bezier-pn",
+        "display_name": "Paired campaign case 0 · Bezier + pure PN (0 g)",
+        "algorithm_id": "missile-interception-6dof",
+        "algorithm_version": "bezier+pn/three-loop/case0",
+        "source_commit": "workspace",
+        "scenario_id": "missile-intercept-001",
+        "configuration_hash": "c57aba2c9a94fc9d",
+        "seed": 2026,
+        "trajectory_file": "data/experiments/campaign-bezier-pn/scenario.json",
+        "metrics_file": null,
+        "data_hash": "504abb079d926fc55bbbcfb028eba69e68a3f49c92af985761e0d4c16141ee0a",
+        "time_start": 0,
+        "time_end": 674.34,
+        "reference_frame": "WGS84 ECEF",
+        "units": "SI",
+        "validation_status": "PASS",
+        "availability": "available",
+        "is_synthetic": false,
+        "notes": ["Representative case 0 of the terminal-law campaign (PN vs ZEM/APN)."]
+      },
+      "notes": {
+        "zh": "新实验集末制导对照：Bezier 中制导固定，PN 与 ZEM/APN 共用同一配对算例。",
+        "en": "Terminal-law experiment of the new campaign: Bezier midcourse fixed, PN and ZEM/APN share the same paired case."
+      }
+    },
+    {
+      "id": "exp-campaign-pip-zem",
+      "combo": { "guidance": "pip-zem-apn", "control": "three-loop", "vehicle": "lifting-body-2000", "scenario": "campaign-paired-g0" },
+      "synthetic": false,
+      "validation_status": "PASS",
+      "campaigns": [
+        { "campaign_id": "guidance-comparison-2026-11-21", "stage": "midcourse", "law": "pip_pn", "level_g": 0 }
+      ],
+      "run": {
+        "run_id": "run-campaign-pip-zem",
+        "display_name": "Paired campaign case 0 · PIP + ZEM/APN (0 g)",
+        "algorithm_id": "missile-interception-6dof",
+        "algorithm_version": "pip_pn+zem_apn/three-loop/case0",
+        "source_commit": "workspace",
+        "scenario_id": "missile-intercept-001",
+        "configuration_hash": "2edbd1140d4eb5f7",
+        "seed": 2026,
+        "trajectory_file": "data/experiments/campaign-pip-zem/scenario.json",
+        "metrics_file": null,
+        "data_hash": "f068bb9cb4380f6fa6966f8c6b601f7d861a9e2f9697a2af79c36ac61a5b7d6c",
+        "time_start": 0,
+        "time_end": 678.83,
+        "reference_frame": "WGS84 ECEF",
+        "units": "SI",
+        "validation_status": "PASS",
+        "availability": "available",
+        "is_synthetic": false,
+        "notes": ["Representative case 0 of the midcourse-law campaign (PIP vs Bezier)."]
+      },
+      "notes": {
+        "zh": "新实验集中制导对照：ZEM/APN 末制导固定，PIP 与 Bezier 共用同一配对算例。",
+        "en": "Midcourse-law experiment of the new campaign: ZEM/APN terminal fixed, PIP and Bezier share the same paired case."
+      }
+    },
+    {
+      "id": "exp-campaign-fixedrate",
+      "combo": { "guidance": "fixed-rate-bezier-zem-apn", "control": "three-loop", "vehicle": "lifting-body-2000", "scenario": "campaign-paired-boost15" },
+      "synthetic": false,
+      "validation_status": "PASS",
+      "campaigns": [
+        { "campaign_id": "guidance-comparison-2026-11-21", "stage": "boost", "law": "fixed_rate", "level_g": 15 }
+      ],
+      "run": {
+        "run_id": "run-campaign-fixedrate",
+        "display_name": "Paired campaign case 0 · fixed-rate boost · target 15 km",
+        "algorithm_id": "missile-interception-6dof",
+        "algorithm_version": "fixed_rate+bezier+zem_apn/three-loop/case0-alt15",
+        "source_commit": "workspace",
+        "scenario_id": "missile-intercept-001",
+        "configuration_hash": "903016e40a51919b",
+        "seed": 2026,
+        "trajectory_file": "data/experiments/campaign-boost-fixed15/scenario.json",
+        "metrics_file": null,
+        "data_hash": "e4c8e256a8aa0630a9fe190bb8b18fbd4d19faa5bf958b5197edacdf5b086fc4",
+        "time_start": 0,
+        "time_end": 674.55,
+        "reference_frame": "WGS84 ECEF",
+        "units": "SI",
+        "validation_status": "PASS",
+        "availability": "available",
+        "is_synthetic": false,
+        "notes": ["Boost-law-only comparison: fixed-rate programme with the reference scheduled autopilot."]
+      },
+      "notes": {
+        "zh": "只切换助推段为固定程序，姿态控制与制导保持基准。",
+        "en": "Only the boost programme is switched to fixed-rate; attitude control and guidance stay at the reference."
+      }
+    },
+    {
+      "id": "exp-campaign-boost-feasible",
+      "combo": { "guidance": "bezier-zem-apn", "control": "three-loop", "vehicle": "lifting-body-2000", "scenario": "campaign-paired-boost15" },
+      "synthetic": false,
+      "validation_status": "PASS",
+      "campaigns": [
+        { "campaign_id": "guidance-comparison-2026-11-21", "stage": "boost", "law": "feasible", "level_g": 15 }
+      ],
+      "run": {
+        "run_id": "run-campaign-boost-feasible",
+        "display_name": "Paired campaign case 0 · feasible boost · target 15 km",
+        "algorithm_id": "missile-interception-6dof",
+        "algorithm_version": "feasible+bezier+zem_apn/three-loop/case0-alt15",
+        "source_commit": "workspace",
+        "scenario_id": "missile-intercept-001",
+        "configuration_hash": "cb3a645a26da4c42",
+        "seed": 2026,
+        "trajectory_file": "data/experiments/campaign-boost-feasible15/scenario.json",
+        "metrics_file": null,
+        "data_hash": "6a95db703884937f90ffd16896b3c7b75d11b17a25599d33a5c87b82d941b2cf",
+        "time_start": 0,
+        "time_end": 676.23,
+        "reference_frame": "WGS84 ECEF",
+        "units": "SI",
+        "validation_status": "PASS",
+        "availability": "available",
+        "is_synthetic": false,
+        "notes": ["Reference feasible boost programme at the 15 km target-altitude sweep point."]
+      },
+      "notes": {
+        "zh": "助推对比的 A 组：可行域塑形助推，目标标称高度 15 km。",
+        "en": "Boost comparison A: feasibility-shaped boost at the 15 km target-altitude point."
+      }
+    },
+    {
+      "id": "exp-campaign-classic-pid",
+      "combo": { "guidance": "bezier-zem-apn", "control": "classic-pid", "vehicle": "lifting-body-2000", "scenario": "campaign-paired-g0" },
+      "synthetic": false,
+      "validation_status": "PASS",
+      "campaigns": [
+        { "campaign_id": "guidance-comparison-2026-11-21", "stage": "control", "law": "classic_pid", "level_g": 0 }
+      ],
+      "run": {
+        "run_id": "run-campaign-classic-pid",
+        "display_name": "Paired campaign case 0 · classical PID autopilot (0 g)",
+        "algorithm_id": "missile-interception-6dof",
+        "algorithm_version": "bezier+zem_apn/classic-pid/case0",
+        "source_commit": "workspace",
+        "scenario_id": "missile-intercept-001",
+        "configuration_hash": "60db00b885ab4053",
+        "seed": 2026,
+        "trajectory_file": "data/experiments/campaign-classic-zem/scenario.json",
+        "metrics_file": null,
+        "data_hash": "fb0b7789128c03f259520392834ddec6f42a59c4b1f4a8ff4efeca2b77a1fbfe",
+        "time_start": 0,
+        "time_end": 676.36,
+        "reference_frame": "WGS84 ECEF",
+        "units": "SI",
+        "validation_status": "PASS",
+        "availability": "available",
+        "is_synthetic": false,
+        "notes": ["Control-law-only comparison: classical fixed-gain PID with the reference feasible boost."]
+      },
+      "notes": {
+        "zh": "只切换姿态控制为经典定增益 PID，助推与制导保持基准。",
+        "en": "Only attitude control switches to the classical fixed-gain PID; boost and guidance stay at the reference."
+      }
+    },
+    {
+      "id": "exp-campaign-classic-full",
+      "combo": { "guidance": "fixed-rate-bezier-zem-apn", "control": "classic-pid", "vehicle": "lifting-body-2000", "scenario": "campaign-paired-g0" },
+      "synthetic": false,
+      "validation_status": "PASS",
+      "campaigns": [
+        { "campaign_id": "guidance-comparison-2026-11-21", "stage": "architecture", "law": "classic", "level_g": 0 }
+      ],
+      "run": {
+        "run_id": "run-campaign-classic-full",
+        "display_name": "Paired campaign case 0 · classical architecture (0 g)",
+        "algorithm_id": "missile-interception-6dof",
+        "algorithm_version": "fixed_rate+bezier+zem_apn/classic-pid/case0",
+        "source_commit": "workspace",
+        "scenario_id": "missile-intercept-001",
+        "configuration_hash": "8471bf486c8808a2",
+        "seed": 2026,
+        "trajectory_file": "data/experiments/campaign-classic-full/scenario.json",
+        "metrics_file": null,
+        "data_hash": "6e43eea4b19c553ee418f1dad17c8ed1b6e9077af054abc5efdac1f1cc2f0a09",
+        "time_start": 0,
+        "time_end": 676.62,
+        "reference_frame": "WGS84 ECEF",
+        "units": "SI",
+        "validation_status": "PASS",
+        "availability": "available",
+        "is_synthetic": false,
+        "notes": ["Classical architecture: fixed-rate boost + classical fixed-gain PID; paired with the reference in the architecture campaign."]
+      },
+      "notes": {
+        "zh": "整套经典架构（固定程序助推 + 经典 PID）作为 B；与 A 使用同一配对算例。",
+        "en": "The full classical architecture (fixed-rate boost + classical PID) as B, paired with A on the same case."
+      }
+    },
     {
       "id": "exp-bezier-zem",
       "combo": { "guidance": "bezier-zem-apn", "control": "three-loop", "vehicle": "lifting-body-2000", "scenario": "coastal-intercept" },

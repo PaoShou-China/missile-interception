@@ -2,10 +2,12 @@ import fs from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import {
+  campaignKey,
   comboKey,
   findExperiment,
   localized,
   optionById,
+  type CampaignManifest,
   type ExperimentRegistry,
 } from "../../src/compare/registry";
 
@@ -13,6 +15,9 @@ const root = path.resolve(__dirname, "../..");
 const registry = JSON.parse(
   fs.readFileSync(path.join(root, "public/data/experiments/registry.json"), "utf8"),
 ) as ExperimentRegistry;
+const campaign = JSON.parse(
+  fs.readFileSync(path.join(root, "public/data/experiments/campaign.json"), "utf8"),
+) as CampaignManifest;
 
 describe("experiment registry", () => {
   it("has unique option ids in every column", () => {
@@ -69,6 +74,35 @@ describe("experiment registry", () => {
       expect(exp.validation_status).toBe("PASS");
       expect(exp.run.is_synthetic).toBe(false);
     }
+  });
+
+  it("resolves every campaign reference to a real statistics slice", () => {
+    const refs = registry.experiments.flatMap((e) => e.campaigns ?? []);
+    expect(refs.length).toBeGreaterThanOrEqual(3);
+    for (const ref of refs) {
+      expect(ref.campaign_id).toBe(campaign.campaign_id);
+      const key = campaignKey(ref.stage, ref.law, ref.level_g);
+      expect(campaign.stats[key], key).toBeDefined();
+      expect(campaign.stats[key].n_total).toBeGreaterThanOrEqual(campaign.cases_per_law_per_level);
+      expect(campaign.levels_g[ref.stage]).toContain(ref.level_g);
+      expect(campaign.laws[ref.stage]).toContain(ref.law);
+    }
+  });
+
+  it("ships the full paired campaign, not only the representative level", () => {
+    expect(campaign.cases_per_law_per_level).toBeGreaterThanOrEqual(4);
+    expect(campaign.levels_g.terminal.length).toBeGreaterThanOrEqual(2);
+    expect(campaign.levels_g.midcourse.length).toBeGreaterThanOrEqual(2);
+    expect(campaign.levels_g.boost.length).toBeGreaterThanOrEqual(2);
+    expect(campaign.levels_g.control.length).toBeGreaterThanOrEqual(2);
+    expect(campaign.levels_g.architecture.length).toBeGreaterThanOrEqual(1);
+    expect(Object.keys(campaign.stats).length).toBe(
+      (campaign.laws.terminal.length * campaign.levels_g.terminal.length)
+      + (campaign.laws.midcourse.length * campaign.levels_g.midcourse.length)
+      + (campaign.laws.boost.length * campaign.levels_g.boost.length)
+      + (campaign.laws.control.length * campaign.levels_g.control.length)
+      + (campaign.laws.architecture.length * campaign.levels_g.architecture.length),
+    );
   });
 
   it("marks every synthetic record as a UI-only demo", () => {

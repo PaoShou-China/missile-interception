@@ -39,9 +39,11 @@ from vehicle.wind import WindModel
 from state_schema import (SYSTEM_SCHEMA, SL_M_POS, SL_M_VEL, SL_M_ATT,
                           SL_M_OMEGA, SL_M_MASS, SL_T_POS, SL_T_VEL)
 from control.autopilot import Autopilot
+from control.classic_autopilot import ClassicAutopilot
 from control.fin_mixer import FinMixer
 from control.thrust_controller import ThrustController
 from guidance.boost_guidance import BoostGuidance
+from guidance.fixed_rate_boost_guidance import FixedRateBoostGuidance
 from guidance.midcourse_guidance import MidcourseGuidance
 from guidance.pip_midcourse_guidance import PipMidcourseGuidance
 from guidance.terminal_guidance import TerminalGuidance
@@ -61,6 +63,30 @@ _TERMINAL_LAWS = {
     "zem_apn": TerminalGuidance,
     "pn": PurePNGuidance,
 }
+_BOOST_LAWS = {
+    "feasible": BoostGuidance,
+    "fixed_rate": FixedRateBoostGuidance,
+}
+_CONTROL_LAWS = {
+    "scheduled": Autopilot,
+    "classic_pid": ClassicAutopilot,
+}
+
+
+def make_boost_guidance(law):
+    try:
+        return _BOOST_LAWS[law]()
+    except KeyError:
+        raise ValueError("Unknown boost law %r (choose from %s)"
+                         % (law, ", ".join(sorted(_BOOST_LAWS))))
+
+
+def make_autopilot(law, dt):
+    try:
+        return _CONTROL_LAWS[law](dt)
+    except KeyError:
+        raise ValueError("Unknown control law %r (choose from %s)"
+                         % (law, ", ".join(sorted(_CONTROL_LAWS))))
 
 
 def make_midcourse_guidance(law):
@@ -169,11 +195,12 @@ class Simulation(object):
         # Offboard datalink noise stream (independent from nav/seeker/cue).
         self._datalink_rng = np.random.RandomState(
             C.DATALINK_SEED + int(self.scenario.nav_seed))
-        self.autopilot = Autopilot(self.cfg.dt_autopilot)
+        self.autopilot = make_autopilot(self.cfg.control_law,
+                                        self.cfg.dt_autopilot)
         self.fin_mixer = FinMixer(self.cfg.dt_autopilot)
         self.thrust_ctrl = ThrustController()
         self.throttle_cmd = 1.0
-        self.boost = BoostGuidance()
+        self.boost = make_boost_guidance(self.cfg.boost_law)
         self.midcourse = make_midcourse_guidance(self.cfg.midcourse_law)
         self.terminal = make_terminal_guidance(self.cfg.terminal_law)
         self.handover = HandoverManager()
@@ -882,12 +909,18 @@ def main(argv=None):
                         help="midcourse outer step s")
     parser.add_argument("--duration", type=float, default=None, help="simulation stop time s")
     parser.add_argument("--no-plot", action="store_true", help="skip plotting")
+    parser.add_argument("--boost-law", default="feasible",
+                        choices=sorted(_BOOST_LAWS),
+                        help="boost guidance law (comparison switch)")
     parser.add_argument("--midcourse-law", default="bezier",
                         choices=sorted(_MIDCOURSE_LAWS),
                         help="midcourse guidance law (comparison switch)")
     parser.add_argument("--terminal-law", default="zem_apn",
                         choices=sorted(_TERMINAL_LAWS),
                         help="terminal guidance law (comparison switch)")
+    parser.add_argument("--control-law", default="scheduled",
+                        choices=sorted(_CONTROL_LAWS),
+                        help="attitude-control law (comparison switch)")
     parser.add_argument("--batch", type=int, default=None, help="Monte-Carlo batch cases")
     parser.add_argument("--workers", type=int, default=None, help="batch worker processes")
     parser.add_argument("--seed", type=int, default=2026, help="batch base seed")
@@ -902,8 +935,10 @@ def main(argv=None):
     C.validate_data()
 
     cfg = C.SimConfig()
+    cfg.boost_law = args.boost_law
     cfg.midcourse_law = args.midcourse_law
     cfg.terminal_law = args.terminal_law
+    cfg.control_law = args.control_law
     if args.max_step is not None:
         cfg.max_step = args.max_step
     if args.midcourse_step is not None:

@@ -63,12 +63,14 @@ $ visual agent                     Run A real, synthetic warning, 2 canvases, 7 
 | Item | Result | Evidence |
 | --- | --- | --- |
 | Registry-driven dropdowns | PASS | `public/data/experiments/registry.json` + `src/compare/registry.ts`; two panels × four selects; unit test asserts unique ids and record coverage |
-| Guidance-law matrix | PASS | 4 real laws: Bezier+ZEM/APN, PIP+ZEM/APN, Bezier+PN, PIP+PN; each a deterministic run from `main.py` |
-| Attitude-control matrix | PASS | 3 real controllers: predictive + n_z baseline, `AP_PREDICT_ENABLE=0`, `AP_NZ_LOOP=0` |
+| Guidance-law matrix | PASS | 5 real laws: Bezier+ZEM/APN, PIP+ZEM/APN, Bezier+PN, PIP+PN, fixed-rate boost+Bezier+ZEM/APN; each a deterministic run from `main.py` |
+| Attitude-control matrix | PASS | 4 real controllers: predictive + n_z baseline, `AP_PREDICT_ENABLE=0`, `AP_NZ_LOOP=0`, classical fixed-gain PID |
 | Real records only | PASS | `findExperiment()` returns `null` for unsupported combinations (e.g. PIP + demo); panel shows `No Available Experiment`, Compare is disabled; E2E asserts refusal |
 | Read-only vehicle profile | PASS | Profile panel shows id, model, length, diameter, masses, fin semi-span, version and source; no physical edit path; vehicle geometry untouched |
 | Visual-only parameters | PASS | Model scale slider, four camera presets and playback rates; never written back to the profile or record |
-| Compare loads real data | PASS | Default A = `exp-bezier-zem`, B = `exp-bezier-pn`; both real, 1 504 samples, strict match with computed Δ |
+| Compare loads real data | PASS | Default A = reference architecture, B = `FixedRateBoostGuidance` + `ClassicAutopilot`; case 0 of the paired campaign, 1 504 samples, strict match with computed Δ |
+| Paired campaign as B | PASS | `campaign.json` carries the latest boost (10/15 km), midcourse (0/3 g), terminal (0/2 g) and control (0/4 g) arms plus the 24-case architecture arm; aggregate table shows hit rate, median/P90/max miss, handover, boost-end state and fin saturation with deltas |
+| Architecture arm | PASS | Paired 24-case architecture campaign: reference median 7.58 m / P90 10.52 m vs classical 6.25 m / 9.24 m; boost-only and controller-only isolation records also available |
 | 3D comparison | PASS | Side-by-side two canvases and overlay; shared camera reference; Sun/Moon/day-night preserved |
 | Science charts | PASS | Altitude, speed, load, dynamic pressure; Δ(t) only when eligible; eligibility false for the synthetic B |
 | Summary table | PASS | Metric, unit, A, B, difference (`N/A` when ineligible), source; condition table with hash/commit/validation |
@@ -80,11 +82,12 @@ $ visual agent                     Run A real, synthetic warning, 2 canvases, 7 
 
 ```
 $ npx tsc --noEmit                  PASS
-$ npm test                          64 passed (9 files)
-$ npm run build                     PASS (ComparePage 29.3 kB, CSS 56.5 kB)
+$ npm test                          66 passed (9 files)
+$ npm run build                     PASS (ComparePage 32.4 kB, CSS 56.5 kB)
 $ playwright chromium               15 passed, 60.4 FPS (Intel UHD, D3D11)
 $ playwright webkit                 14 passed, 1 skipped
-$ simulation matrix                6 deterministic runs, adapter checks PASS
+$ simulation matrix                6 deterministic runs + 6 campaign case-0 exports, adapter checks PASS
+$ campaign campaign                boost 10/15 km, terminal 0/2 g, midcourse 0/3 g, control 0/4 g, architecture 24 cases
 $ screenshots                       config studio (en/zh) reviewed
 ```
 

@@ -192,14 +192,21 @@ def test_datalink_pulls_back_cue_error():
 
 def test_guidance_law_selection_is_wired():
     """SimConfig law names must select the baseline algorithms without error."""
-    cfg = _short_cfg(t_end=2.0, max_steps=2000,
-                     midcourse_law="pip_pn", terminal_law="pn")
+    cfg = _short_cfg(t_end=2.0, max_steps=2000, boost_law="fixed_rate",
+                     midcourse_law="pip_pn", terminal_law="pn",
+                     control_law="classic_pid")
     sim = sim_main.Simulation(cfg)
     sim.run()
+    assert isinstance(sim.boost, sim_main.FixedRateBoostGuidance)
     assert isinstance(sim.midcourse, sim_main.PipMidcourseGuidance)
     assert isinstance(sim.terminal, sim_main.PurePNGuidance)
+    assert isinstance(sim.autopilot, sim_main.ClassicAutopilot)
 
+    with pytest.raises(ValueError):
+        sim_main.make_boost_guidance("does-not-exist")
     with pytest.raises(ValueError):
         sim_main.make_midcourse_guidance("does-not-exist")
     with pytest.raises(ValueError):
         sim_main.make_terminal_guidance("does-not-exist")
+    with pytest.raises(ValueError):
+        sim_main.make_autopilot("does-not-exist", 0.005)

@@ -80,6 +80,29 @@ class BoostGuidance(BaseGuidance):
         return 0.0
 
     # --------------------------------------------------------
+    # Shaping hooks: subclasses (the classical fixed-programme baseline)
+    # override only these, so the altitude/thrust model and command frame stay
+    # common to both boost laws.
+    # --------------------------------------------------------
+    @staticmethod
+    def _feasible_accel(a_alpha, a_thrust):
+        """Normal-force budget at the alpha allowance plus thrust vectoring."""
+        return max(C.BOOST_TURN_MARGIN * (a_alpha + a_thrust), 1.0)
+
+    def _rate_max(self, a_feasible, V):
+        """Pitch-programme rate the airframe can actually fly."""
+        return min(self.pitch_rate_max, a_feasible / max(V, 1.0))
+
+    @staticmethod
+    def _budget(a_perp, a_head, a_feasible):
+        """Scale both channels into the shared lateral-acceleration budget."""
+        a_mag = float(np.hypot(a_perp, a_head))
+        if a_mag > a_feasible:
+            scale = a_feasible / a_mag
+            return a_perp * scale, a_head * scale
+        return a_perp, a_head
+
+    # --------------------------------------------------------
     def compute(self, t, nav, target_state, q=None, seeker=None):
         if self.t0 is None:
             self.t0 = float(t)
@@ -123,9 +146,9 @@ class BoostGuidance(BaseGuidance):
         cna = max(cn_alpha(mach), 0.5)
         a_alpha = q_dyn * C.S_REF * cna * self.alpha_max / mass
         a_thrust = thrust * float(np.sin(self.alpha_max)) / mass
-        a_feasible = max(C.BOOST_TURN_MARGIN * (a_alpha + a_thrust), 1.0)
+        a_feasible = self._feasible_accel(a_alpha, a_thrust)
 
-        rate_max = min(self.pitch_rate_max, a_feasible / V)
+        rate_max = self._rate_max(a_feasible, V)
         gamma_prev = self.gamma_ref
         self.gamma_ref = max(self.gamma_hand, self.gamma_ref - rate_max * dt)
         self.gamma_dot_ref = (self.gamma_ref - gamma_prev) / dt
@@ -143,11 +166,7 @@ class BoostGuidance(BaseGuidance):
         a_head = V * self.heading_gain * e_head
 
         # One lateral budget for both channels.
-        a_mag = float(np.hypot(a_perp, a_head))
-        if a_mag > a_feasible:
-            scale = a_feasible / a_mag
-            a_perp *= scale
-            a_head *= scale
+        a_perp, a_head = self._budget(a_perp, a_head, a_feasible)
 
         # The autopilot produces the aero part only; the thrust has an equal
         # normal component T*sin(alpha) at the same alpha, so derate the aero

@@ -10,6 +10,7 @@ export type RoutePath =
   | "/results"
   | "/verification"
   | "/resources"
+  | "/compare"
   | "/explore";
 
 const ROUTES: RoutePath[] = [
@@ -18,6 +19,7 @@ const ROUTES: RoutePath[] = [
   "/results",
   "/verification",
   "/resources",
+  "/compare",
   "/explore",
 ];
 

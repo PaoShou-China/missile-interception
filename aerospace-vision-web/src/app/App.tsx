@@ -10,6 +10,7 @@ import { ResourcesPage } from "../pages/ResourcesPage";
 // The explorer pulls in three.js/postprocessing; ECharts is only needed by the
 // results page. Lazy-loading them keeps the academic reading pages light.
 const ResultsPage = lazy(() => import("../pages/ResultsPage").then((m) => ({ default: m.ResultsPage })));
+const ComparePage = lazy(() => import("../pages/ComparePage").then((m) => ({ default: m.ComparePage })));
 const ExploreApp = lazy(() => import("./ExploreApp").then((m) => ({ default: m.ExploreApp })));
 
 const META: Record<RoutePath, { nav: string; desc: string }> = {
@@ -18,6 +19,7 @@ const META: Record<RoutePath, { nav: string; desc: string }> = {
   "/results": { nav: "nav.results", desc: "meta.description.results" },
   "/verification": { nav: "nav.verification", desc: "meta.description.verification" },
   "/resources": { nav: "nav.resources", desc: "meta.description.resources" },
+  "/compare": { nav: "nav.compare", desc: "meta.description.compare" },
   "/explore": { nav: "explore.title", desc: "meta.description.explore" },
 };
 
@@ -110,6 +112,11 @@ export default function App() {
         )}
         {route === "/verification" && <VerificationPage />}
         {route === "/resources" && <ResourcesPage />}
+        {route === "/compare" && (
+          <Suspense fallback={<RouteFallback />}>
+            <ComparePage />
+          </Suspense>
+        )}
       </SiteLayout>
     </I18nProvider>
   );

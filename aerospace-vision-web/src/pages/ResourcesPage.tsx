@@ -62,6 +62,25 @@ export function ResourcesPage() {
       </section>
 
       <section className="section">
+        <h2 className="section__title">{t("nav.compare")}</h2>
+        <div className="link-cards">
+          <a className="link-card" href="#/compare">
+            <b>{t("compare.title")}</b>
+            <span className="link-card__meta">{t("compare.kicker")}</span>
+          </a>
+          <a
+            className="link-card"
+            href="https://github.com/PaoShou-China/missile-interception/blob/main/aerospace-vision-web/docs/COMPARISON.md"
+            target="_blank"
+            rel="noreferrer"
+          >
+            <b>COMPARISON.md</b>
+            <span className="link-card__meta">contract · matching · NOT RUN</span>
+          </a>
+        </div>
+      </section>
+
+      <section className="section">
         <h2 className="section__title">{t("resources.repo.title")}</h2>
         <div className="link-cards">
           <a className="link-card" href="https://github.com/PaoShou-China/missile-interception" target="_blank" rel="noreferrer">

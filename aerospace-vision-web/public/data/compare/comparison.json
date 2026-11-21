@@ -1,0 +1,86 @@
+{
+  "comparison_id": "cmp-nominal-pending-b",
+  "title": "Nominal intercept — algorithm comparison",
+  "description": "Read-only comparison of already-generated experiment records. Run A is the validated workspace telemetry; Run B is awaiting a comparable import because no second independent run exists.",
+  "schemaVersion": "1.0.0",
+  "comparison_protocol": {
+    "name": "Same-scenario, same-protocol absolute-time comparison",
+    "matching_criteria": [
+      "Same scenario id",
+      "Same launch and target datums",
+      "Same Earth model",
+      "Same simulation start time",
+      "Same units and reference frame"
+    ],
+    "statistical_scope": "Single completed run per algorithm; no paired campaign is present.",
+    "notes": [
+      "Differences in scenario or initial conditions must be treated as Level C.",
+      "Synthetic UI demo data must never be used for performance conclusions."
+    ]
+  },
+  "runs": [
+    {
+      "run_id": "run-a",
+      "display_name": "Baseline — validated 6-DoF telemetry",
+      "algorithm_id": "missile-interception-6dof",
+      "algorithm_version": "workspace",
+      "source_commit": "workspace",
+      "scenario_id": "missile-intercept-001",
+      "configuration_hash": "f1813403f099b348",
+      "seed": null,
+      "trajectory_file": "data/missile-intercept/scenario.json",
+      "metrics_file": null,
+      "data_hash": "f1813403f099b348bdd46c051b08a89580a0ac6662dec1a26931edb34a2704a2",
+      "time_start": 0.0,
+      "time_end": 672.75,
+      "reference_frame": "WGS84 ECEF",
+      "units": "SI",
+      "validation_status": "PASS",
+      "availability": "available",
+      "is_synthetic": false,
+      "notes": [
+        "Single deterministic shot from a dirty working tree (commit=workspace).",
+        "Provenance and audit: docs/scientific/RESULT_PROVENANCE.md."
+      ]
+    },
+    {
+      "run_id": "run-b",
+      "display_name": "Awaiting comparable experiment",
+      "algorithm_id": "unknown",
+      "algorithm_version": "—",
+      "source_commit": "—",
+      "scenario_id": "missile-intercept-001",
+      "configuration_hash": "—",
+      "seed": null,
+      "trajectory_file": "",
+      "metrics_file": null,
+      "data_hash": "",
+      "time_start": 0,
+      "time_end": 0,
+      "reference_frame": "WGS84 ECEF",
+      "units": "SI",
+      "validation_status": "NOT RUN",
+      "availability": "awaiting-import",
+      "is_synthetic": false,
+      "notes": [
+        "No second independent run exists in the current repository.",
+        "Import a scenario payload produced under the same scenario/protocol.",
+        "Synthetic demo data is excluded from scientific claims."
+      ]
+    }
+  ],
+  "alignment_mode": "absolute",
+  "common_scenario_id": "missile-intercept-001",
+  "matching_status": "C",
+  "validation_status": "NOT RUN",
+  "source_links": [
+    {
+      "label": "Data audit",
+      "href": "https://github.com/PaoShou-China/missile-interception/blob/main/aerospace-vision-web/docs/scientific/DATA_AUDIT.md"
+    },
+    {
+      "label": "Result provenance",
+      "href": "https://github.com/PaoShou-China/missile-interception/blob/main/aerospace-vision-web/docs/scientific/RESULT_PROVENANCE.md"
+    }
+  ]
+}

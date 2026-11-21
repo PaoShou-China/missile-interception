@@ -8,6 +8,7 @@ const LINKS: { path: RoutePath; key: string }[] = [
   { path: "/results", key: "nav.results" },
   { path: "/verification", key: "nav.verification" },
   { path: "/resources", key: "nav.resources" },
+  { path: "/compare", key: "nav.compare" },
 ];
 
 function Brand() {

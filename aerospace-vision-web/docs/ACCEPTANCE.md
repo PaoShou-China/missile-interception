@@ -35,6 +35,29 @@ as such. Bundled Firefox and WebKit were installed locally and run.
 | Mobile explorer | PASS | mission/telemetry tab sheet, horizontally scrolling camera dock; E2E at 390 × 844 |
 | Provenance copy | PASS | commit/SHA/Demo UTC are copyable with bilingual confirmation |
 
+### V4.5 Algorithm Comparison Studio (2026-11-21)
+
+| Item | Result | Evidence |
+| --- | --- | --- |
+| Real-data audit | PASS | Only one validated telemetry record exists; batch is a 2-row remnant, envelope sweep uses a different protocol |
+| Frozen comparison contract | PASS | `src/compare/types.ts`, `schemas/comparison-manifest.schema.json`, generated `public/data/compare/comparison.json` |
+| Matching levels | PASS | A/B/C matcher with field-level differences; unit tests cover strict, partial, blocked and synthetic |
+| Run A real replay | PASS | Real scenario payload, 1 504 samples, validated metadata shown on the page |
+| Run B policy | PASS | Awaiting-import state; explicit JSON import; synthetic UI demo labelled and excluded from claims |
+| Four comparison modes | PASS | Side-by-side (two canvases), overlay with fixed colours, before/after clip slider, statistics with A/B and Δ(t) |
+| Shared time and cameras | PASS | Independent comparison clock; intersection range; ENDED runs hidden; global/flight/attitude/control-surface presets |
+| Bilingual + preservation | PASS | zh/en page; switching language keeps the imported Run B and time axis |
+| Documentation | PASS | `docs/COMPARISON.md` includes policy, contract, import and NOT RUN list |
+
+### V4.5 test evidence
+
+```
+$ npm test                         54 passed (8 files)
+$ playwright chromium              14 passed, 60.1 FPS (Intel UHD, D3D11)
+$ playwright webkit                13 passed, 1 skipped
+$ visual agent                     Run A real, synthetic warning, 2 canvases, 7 charts, clock playback
+```
+
 ### V4.4 model and camera consolidation (2026-11-21)
 
 | Item | Result | Evidence |

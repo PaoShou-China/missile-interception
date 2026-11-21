@@ -71,6 +71,60 @@ test("mobile explorer exposes mission and telemetry tabs", async ({ page }) => {
   await page.screenshot({ path: path.join(SHOTS, "10-mobile-telemetry.png") });
 });
 
+test("comparison studio loads real Run A and states the missing Run B", async ({ page }) => {
+  await page.addInitScript(() => window.localStorage.setItem("av.lang", "en"));
+  await page.goto("/#/compare");
+  await expect(page.locator("h1")).toHaveText("Algorithm Comparison Studio", { timeout: 45_000 });
+  await expect(page.locator(".cmp-level")).toContainText("Not directly comparable");
+  await expect(page.locator(".cmp-runs .cmp-run-card")).toHaveCount(2);
+  await expect(page.locator(".cmp-run-card").nth(1)).toContainText("Awaiting comparable experiment");
+  await expect(page.locator(".cmp-empty").first()).toBeVisible();
+  await expect(page.locator("canvas")).toHaveCount(1);
+  await page.screenshot({ path: path.join(SHOTS, "13-compare-awaiting-b.png"), fullPage: true });
+});
+
+test("comparison modes, synthetic demo, playback and language preservation", async ({ page }) => {
+  await page.addInitScript(() => window.localStorage.setItem("av.lang", "en"));
+  await page.goto("/#/compare");
+  await expect(page.locator(".cmp-toolbar").first()).toBeVisible({ timeout: 45_000 });
+
+  // No B: overlay shows A only, slider shows the import state, statistics show A curves.
+  await page.getByRole("tab", { name: "Overlay" }).click();
+  await expect(page.locator(".cmp-overlay-stage canvas")).toHaveCount(1);
+  await expect(page.locator(".cmp-legend")).toContainText("Run A only");
+  await page.getByRole("tab", { name: "Before / After" }).click();
+  await expect(page.locator(".cmp-empty--wide")).toBeVisible();
+  await page.getByRole("tab", { name: "Statistics" }).click();
+  await expect(page.locator(".cmp-chart-grid .chart-card")).toHaveCount(4);
+
+  // Load the explicitly labelled synthetic demo so every mode can be exercised.
+  await page.getByRole("button", { name: /synthetic demo/i }).first().click();
+  await expect(page.locator(".callout--warn")).toContainText("synthetic data");
+  await expect(page.locator(".cmp-run-card").nth(1)).toContainText("Synthetic UI demo");
+  await page.getByRole("tab", { name: "Side-by-side" }).click();
+  await expect(page.locator(".cmp-split canvas")).toHaveCount(2);
+  await page.getByRole("tab", { name: "Overlay" }).click();
+  await expect(page.locator(".cmp-legend")).toContainText("B · Proposed");
+  await page.getByRole("tab", { name: "Before / After" }).click();
+  await expect(page.locator(".cmp-slider-input")).toBeVisible();
+  await page.getByRole("tab", { name: "Statistics" }).click();
+  await expect(page.locator(".cmp-chart-grid .chart-card")).toHaveCount(7);
+
+  // Comparison clock advances and pauses.
+  const now = page.locator(".cmp-track-labels b");
+  const before = await now.textContent();
+  await page.locator(".cmp-play").click();
+  await page.waitForTimeout(900);
+  expect(await now.textContent()).not.toBe(before);
+  await page.locator(".cmp-play").click();
+
+  // Language switch must not reset the loaded B run or the time axis.
+  await page.locator(".lang-switch button", { hasText: "中" }).click();
+  await expect(page.locator("h1")).toHaveText("算法对比实验室");
+  await expect(page.locator(".cmp-run-card").nth(1)).toContainText("合成 UI 演示");
+  await page.screenshot({ path: path.join(SHOTS, "14-compare-synthetic-zh.png"), fullPage: true });
+});
+
 test("legacy reports stay reachable at their original paths", async ({ page }) => {
   const paths = [
     "/missile-intercept-overview/missile-intercept-overview.html",

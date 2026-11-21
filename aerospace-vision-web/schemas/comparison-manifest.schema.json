@@ -1,0 +1,76 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ComparisonManifest",
+  "description": "Read-only algorithm comparison contract (schema 1.0.0). Comparisons never re-simulate and never rewrite source data.",
+  "type": "object",
+  "required": [
+    "comparison_id", "title", "description", "schemaVersion", "comparison_protocol",
+    "runs", "alignment_mode", "common_scenario_id", "matching_status",
+    "validation_status", "source_links"
+  ],
+  "properties": {
+    "comparison_id": { "type": "string" },
+    "title": { "type": "string" },
+    "description": { "type": "string" },
+    "schemaVersion": { "const": "1.0.0" },
+    "comparison_protocol": {
+      "type": "object",
+      "required": ["name", "matching_criteria", "statistical_scope", "notes"],
+      "properties": {
+        "name": { "type": "string" },
+        "matching_criteria": { "type": "array", "items": { "type": "string" } },
+        "statistical_scope": { "type": "string" },
+        "notes": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "runs": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": [
+          "run_id", "display_name", "algorithm_id", "algorithm_version", "source_commit",
+          "scenario_id", "configuration_hash", "seed", "trajectory_file", "metrics_file",
+          "data_hash", "time_start", "time_end", "reference_frame", "units",
+          "validation_status", "availability", "is_synthetic", "notes"
+        ],
+        "properties": {
+          "run_id": { "type": "string" },
+          "display_name": { "type": "string" },
+          "algorithm_id": { "type": "string" },
+          "algorithm_version": { "type": "string" },
+          "source_commit": { "type": "string" },
+          "scenario_id": { "type": "string" },
+          "configuration_hash": { "type": "string" },
+          "seed": { "type": ["integer", "null"] },
+          "trajectory_file": { "type": "string" },
+          "metrics_file": { "type": ["string", "null"] },
+          "data_hash": { "type": "string" },
+          "time_start": { "type": "number" },
+          "time_end": { "type": "number" },
+          "reference_frame": { "type": "string" },
+          "units": { "type": "string" },
+          "validation_status": { "enum": ["PASS", "FAIL", "NOT RUN"] },
+          "availability": { "enum": ["available", "awaiting-import", "missing"] },
+          "is_synthetic": { "type": "boolean" },
+          "notes": { "type": "array", "items": { "type": "string" } }
+        }
+      }
+    },
+    "alignment_mode": { "enum": ["absolute", "event-aligned", "independent"] },
+    "common_scenario_id": { "type": "string" },
+    "matching_status": { "enum": ["A", "B", "C"] },
+    "validation_status": { "enum": ["PASS", "FAIL", "NOT RUN"] },
+    "source_links": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["label", "href"],
+        "properties": {
+          "label": { "type": "string" },
+          "href": { "type": "string" }
+        }
+      }
+    }
+  }
+}

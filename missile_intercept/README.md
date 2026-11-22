@@ -4,7 +4,7 @@
 
 > [中文](README.md) | [English](README.en.md)
 
-一个纯 Python/NumPy 实现、模块化、可测试、可并行的高超声速拦截仿真工程。覆盖垂直冷发射、固体助推 + 超燃冲压组合动力、GNSS/INS 组合导航、雷达/红外双模导引头、三回路姿态控制、Bezier 抬升-俯冲中制导、ZEM/APN 末制导、交班管理、多速率采样与蒙特卡洛打靶。
+一个纯 Python/NumPy 实现、模块化、可测试、可并行的高超声速拦截仿真工程。覆盖垂直冷发射、固体助推 + 超燃冲压组合动力、GNSS/INS 组合导航、雷达/红外双模导引头、三回路姿态控制、Bezier / PIP 中制导、ZEM/APN / 纯 PN 末制导、可行性塑形 / 固定程序助推、调度 / 经典 PID 姿控、交班管理、多速率采样、蒙特卡洛打靶与配对对比实验。
 
 > **免责声明**：2000 公里级拦截器的完整公开数据非常有限。`config.py` 中的几何、质量、惯量、气动与推进参数是在公开资料和通用高超声速飞行器特征基础上的**工程外推**，仅用于算法、软件与架构验证，不代表任何实装系统的实测数据或性能指标。
 
@@ -130,6 +130,34 @@ python analysis.py mc --checkpoint out.jsonl --resume
 | `output/validation/` | 分场景性能验证报告与汇总 |
 | `output/handover_diagnostics/` | 逐案交班诊断 |
 | `intercept-report/` | 单页 HTML 技术报告数据与页面 |
+| `output/experiments/` | 对比实验代表算例的全量遥测（供 Web 适配器导出） |
+
+### 2.6 对比实验开关
+
+`SimConfig` 把被测环节显式化，默认值仍复现参考设计：
+
+| 参数 | 取值 | 说明 |
+|---|---|---|
+| `--boost-law` | `feasible` / `fixed_rate` | 可行性塑形重力转弯 / 固定 3.5°/s 程序角速率 |
+| `--midcourse-law` | `bezier` / `pip_pn` | 三次 Bezier 塑形 / 预测拦截点直接导引 |
+| `--terminal-law` | `zem_apn` / `pn` | ZEM/APN / 经典纯比例导引 |
+| `--control-law` | `scheduled` / `classic_pid` | 调度三回路（延迟预测 + n_z）/ 经典定增益 PID |
+
+```bash
+python main.py --boost-law fixed_rate --control-law classic_pid --no-plot
+python main.py --midcourse-law pip_pn --terminal-law pn --no-plot
+
+# 配对蒙特卡洛：同一 case_id、散布与传感器种子
+python tools/guidance_comparison.py --cases 24 --seed 2026
+python tools/architecture_comparison.py --cases 24 --seed 2026
+
+# 导出某一条代表算例（Web 对比工作台使用）
+python tools/export_campaign_case.py --law bezier_zem_apn \
+  --boost-law feasible --control-law scheduled \
+  --out output/experiments/example
+```
+
+配对实验的结果写入 `docs/experiments/`。这些新算例通过载荷完整性检查，但**未**完成独立科学验证；结论只对当前模型与样本量成立。
 
 ---
 
@@ -158,15 +186,19 @@ missile_intercept/
 │   ├── seeker.py                # 5 ms 双模导引头
 │   └── target_tracker.py        # 目标状态估计
 ├── control/
-│   ├── autopilot.py             # 三回路 PID + 抗饱和 + 增益调度
+│   ├── autopilot.py             # 调度三回路 + 抗饱和 + 延迟预测 + n_z
+│   ├── classic_autopilot.py     # 固定增益经典 PID 基线
 │   ├── fin_mixer.py             # 十字舵混合与限幅
 │   └── thrust_controller.py     # 冲压 Mach 保持
 ├── guidance/
-│   ├── boost_guidance.py        # 垂直冷发射 + 重力转弯
+│   ├── boost_guidance.py        # 垂直冷发射 + 重力转弯（可行性塑形）
+│   ├── fixed_rate_boost_guidance.py  # 固定程序角速率基线
 │   ├── midcourse_guidance.py    # Bezier + 抬升-俯冲 + 角度约束 + 预测
+│   ├── pip_midcourse_guidance.py     # 预测拦截点中制导基线
 │   ├── terminal_guidance.py     # ZEM/APN + 自适应 N
+│   ├── pure_pn_guidance.py      # 经典纯比例导引基线
 │   └── handover_manager.py      # 门限 + 权重混合
-├── tools/                       # DATCOM、气动校核、UQ、调参、报告
+├── tools/                       # DATCOM、气动校核、UQ、调参、对比战役、报告
 └── tests/                       # pytest（支持 -n auto）
 ```
 

@@ -4,7 +4,7 @@
 
 > [中文](README.md) | [English](README.en.md)
 
-A modular, testable and parallel hypersonic-interceptor simulation in pure Python/NumPy. It covers vertical cold launch, solid boost plus supersonic ramjet combined-cycle propulsion, GNSS/INS navigation, a dual-mode radar/IR seeker, three-loop attitude control, Bezier loft-dive midcourse guidance, ZEM/APN terminal guidance, handover management, multi-rate sampling and Monte-Carlo campaigns.
+A modular, testable and parallel hypersonic-interceptor simulation in pure Python/NumPy. It covers vertical cold launch, solid boost plus supersonic ramjet combined-cycle propulsion, GNSS/INS navigation, a dual-mode radar/IR seeker, three-loop attitude control, Bezier/PIP midcourse guidance, ZEM/APN/pure-PN terminal guidance, feasibility-shaped or fixed-rate boost, scheduled or classical-PID attitude control, handover management, multi-rate sampling, Monte-Carlo campaigns and paired comparison experiments.
 
 > **Disclaimer**: complete public data for a 2000-km-class interceptor are scarce. The geometry, mass, inertia, aerodynamic and propulsion parameters in `config.py` are an **engineering extrapolation** from public sources plus generic hypersonic-vehicle characteristics. They are intended only for algorithm, software and architecture verification, and do not represent measured data or performance figures of any fielded system.
 
@@ -132,6 +132,33 @@ python analysis.py mc --checkpoint out.jsonl --resume
 | `intercept-report/` | Single-page HTML report data and page |
 
 ---
+
+### 2.6 Comparison switches
+
+Every compared stage is explicit in `SimConfig`; defaults reproduce the reference design.
+
+| Flag | Values | Meaning |
+| --- | --- | --- |
+| `--boost-law` | `feasible` / `fixed_rate` | feasibility-shaped gravity turn / fixed 3.5°/s programme |
+| `--midcourse-law` | `bezier` / `pip_pn` | cubic Bezier shaping / predicted-intercept-point guidance |
+| `--terminal-law` | `zem_apn` / `pn` | ZEM/APN / classical pure proportional navigation |
+| `--control-law` | `scheduled` / `classic_pid` | scheduled three-loop with prediction + n_z / fixed-gain PID |
+
+```bash
+python main.py --boost-law fixed_rate --control-law classic_pid --no-plot
+python main.py --midcourse-law pip_pn --terminal-law pn --no-plot
+
+python tools/guidance_comparison.py --cases 24 --seed 2026
+python tools/architecture_comparison.py --cases 24 --seed 2026
+python tools/export_campaign_case.py --law bezier_zem_apn \
+  --boost-law feasible --control-law scheduled \
+  --out output/experiments/example
+```
+
+Paired campaigns write to `docs/experiments/`. The new runs pass payload-integrity checks
+but have **not** completed independent scientific validation; conclusions hold only for
+this model and sample size. The Chinese [README.md](README.md) remains the authoritative,
+more detailed edition.
 
 ## 3. Repository layout
 

@@ -7,13 +7,24 @@ a transformation. This file defines the chain and the disclosure rules.
 
 ```
 missile_intercept/main.py
-   └─ output/telemetry.csv            99.2 MB · 67 164 rows · SHA-256 recorded
+   └─ output/telemetry.csv            ~99 MB · 67 276 rows · SHA-256 recorded
         └─ tools/data-adapter/build_scenario.py   (only interpreter of raw data)
              └─ public/data/missile-intercept/scenario.json  (schema 1.1.0)
              └─ public/data/missile-intercept/validation.json
                   └─ src/scientific/scenario.ts              (runtime re-validation)
                        └─ 3D scene + charts + panels
+
+Paired comparison records:
+missile_intercept/tools/export_campaign_case.py
+   └─ output/experiments/<case>/telemetry.csv
+        └─ build_scenario.py → public/data/experiments/<case>/scenario.json
+             └─ registry.json + campaign.json
+                  └─ src/compare/{registry,loader,validation}.ts
+                       └─ Studio: 3D, charts, summary, aggregate table
 ```
+
+The shipped web copy of the campaign aggregate (`campaign.json`) is frozen; rerunning
+the offline campaign updates `docs/experiments/` but does not silently rewrite the site.
 
 The adapter is the single point where units, frames and quaternion conventions
 are interpreted. Each conversion is asserted against the source schema before
@@ -71,6 +82,11 @@ The following are **symbols**, disclosed in the interface:
   wings, canted tails); it is not CAD data and implies no affiliation.
 - Seeker FOV cone, body-axis triad, and engine plume visuals.
 - The interceptor body colour and engine glow are illustrative, not measured.
+- Earth bump relief, ocean sun glint, cloud opacity and atmospheric limb are
+  visual shading layers driven by the declared sun direction; they never move
+  the camera anchor, trajectory or recorded attitude.
+- The merged close-up framing is a camera pose, not a structural inspection;
+  fin geometry remains schematic.
 
 The following are **measured / derived**, never adjusted for looks:
 

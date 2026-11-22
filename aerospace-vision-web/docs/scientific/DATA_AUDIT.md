@@ -15,12 +15,17 @@ are listed with the file and line that carries them.
 | Overview report | `missile-intercept-overview/missile-intercept-overview.html` | Bilingual program overview, Monte-Carlo summary |
 | Intercept report | `intercept-report/intercept-report.html` | Older single-shot narrative report |
 | Technical report | `TECHNICAL_REPORT.md` | Written methodology and validation matrix |
-| Current telemetry | `missile_intercept/output/telemetry.csv` | 99.2 MB, 67 164 rows, mtime 2026-11-20 20:55 |
+| Current telemetry | `missile_intercept/output/telemetry.csv` | 99.2 MB, 67 164 rows at audit time; the shipped explorer payload is now 67 276 rows |
 | Current batch | `missile_intercept/output/batch/batch_results.csv` | 2 858 B, mtime 2026-11-20 20:55 |
 
 The batch result file was overwritten by a short (2-row) verification run at
 the same minute the telemetry was regenerated. The 100-case campaign artifacts
 that the overview report cites are **not present** in the workspace now.
+
+Newer paired campaigns (`docs/experiments/guidance_comparison/` and
+`architecture_comparison/`) are separate artifacts with their own seeds and
+case ids. They do not resurrect or reinterpret the legacy 79 %/86 % numbers, and
+they are not evidence for the legacy reports' claims.
 
 ## 2. Internal contradiction: 86 % vs 79 %
 

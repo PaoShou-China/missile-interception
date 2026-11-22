@@ -1,145 +1,237 @@
 <div align="center">
-  <img src="assets/hero.jpg" alt="Cinematic render: hypersonic interceptor climbing above Earth's limb" width="100%">
+  <img src="assets/hero.jpg" alt="Cinematic render: hypersonic interceptor above Earth's limb" width="100%">
 </div>
 
 <p align="center"><img src="assets/icon.png" width="96" height="96" alt="Project icon"></p>
 
 <h1 align="center">2000 km-class Hypersonic Interceptor</h1>
-<h3 align="center">6DOF end-to-end simulation · launch → intercept</h3>
+<h3 align="center">6DOF simulation · experiment comparison · browser-native 3D replay</h3>
 
 <p align="center">
-  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-3fb950?style=flat-square" alt="License: MIT"></a>
-  <img src="https://img.shields.io/badge/python-3.9%2B-4da3ff?style=flat-square" alt="Python 3.9+">
-  <img src="https://img.shields.io/badge/solver-6DOF%20%C2%B7%205%20ms-37d0d6?style=flat-square" alt="6DOF, 5 ms step">
-  <a href="https://paoshou-china.github.io/missile-interception/"><img src="https://img.shields.io/badge/reports-online-0071e3?style=flat-square" alt="Online reports"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-4da3ff?style=flat-square&labelColor=0b1b2b" alt="License: MIT"></a>
+  <img src="https://img.shields.io/badge/python-3.9%2B-4da3ff?style=flat-square&labelColor=0b1b2b" alt="Python 3.9+">
+  <img src="https://img.shields.io/badge/node-20%2B-4da3ff?style=flat-square&labelColor=0b1b2b" alt="Node 20+">
+  <img src="https://img.shields.io/badge/solver-6DOF%20%C2%B7%205%20ms-30b0c7?style=flat-square&labelColor=0b1b2b" alt="6DOF, 5 ms step">
+  <a href="https://paoshou-china.github.io/missile-interception/"><img src="https://img.shields.io/badge/platform-online-30b0c7?style=flat-square&labelColor=0b1b2b" alt="Online platform"></a>
 </p>
 
 <p align="center">
-  A modular, testable and parallelizable flight-dynamics simulation of a 2000 km-class
-  lifting-body interceptor, written in pure Python / NumPy.<br>
-  Vertical cold launch · solid boost + supersonic ramjet · GNSS/INS + radar seeker ·
-  Bezier midcourse · ZEM/APN terminal · three-loop autopilot · Monte-Carlo campaigns.
+  A modular, testable flight-dynamics simulation of a 2000 km-class lifting-body interceptor,
+  plus <b>Aerospace Vision Web</b> — a static React/Three.js platform that replays the
+  telemetry, compares real experiment records, and never re-simulates in the browser.
 </p>
 
 ---
 
-> **Disclaimer** — Public data for a 2000 km-class interceptor are scarce. The geometry,
-> mass, inertia, aerodynamic and propulsion parameters in `config.py` are an **engineering
+> **Disclaimer** — Public data for a 2000 km-class interceptor are scarce. Geometry, mass,
+> inertia, aerodynamic and propulsion parameters in `config.py` are an **engineering
 > extrapolation** from public sources plus generic hypersonic-vehicle characteristics.
 > They serve algorithm, software and architecture verification only, and do not represent
-> measured data or performance of any fielded system.
+> measured data or the performance of any fielded system.
 
-## Overview
+## What is in this repository
 
-| Area | What is modelled |
+| Part | Purpose |
 | --- | --- |
-| **Flight dynamics** | 6DOF rigid body, quaternion attitude, variable mass/inertia, Earth rotation & curvature |
-| **Propulsion** | Vertical cold launch, solid booster, supersonic ramjet combined cycle, thrust scheduling |
-| **Aerodynamics** | USSA1976 atmosphere, Mach/altitude aerodynamic database, DATCOM cross-check tooling |
-| **Navigation** | Strapdown INS, GNSS updates, error-state filtering, wind and sensor noise |
-| **Seeker** | Radar seeker measurements, target tracking, measurement latency and dropout |
-| **Guidance** | Bezier midcourse, ZEM / APN terminal, multi-constraint handover management |
-| **Control** | Three-loop autopilot, fin mixer, actuator limits and rate constraints, gain scheduling |
-| **Analysis** | Multi-rate integration, step convergence, Monte-Carlo batch, sensitivity / Sobol |
+| **`missile_intercept/`** | Python/NumPy 6DOF simulator: boost → midcourse → handover → terminal, sensors, guidance, control, Monte-Carlo campaigns |
+| **`aerospace-vision-web/`** | React 19 + Vite + Three.js + ECharts platform: academic site, 3D explorer, cinematic mode, **Experiment Configuration Studio** |
+| **`docs/experiments/`** | Paired Monte-Carlo campaigns: guidance-law, boost-law, attitude-control and architecture comparisons |
+| **Legacy reports** | The original static HTML overview / intercept analysis / test report, preserved at their original URLs |
+
+### Aerospace Vision Web at a glance
+
+- **Four cameras**: Earth overview, chase, intercept framing, and one merged **close-up** that
+  shows tail fins, nozzle/plume and body axes together (the former fin/engine/attitude
+  cameras were merged).
+- **Real telemetry only**: 1,504 samples over 672.75 s from the source run; no procedural
+  pose and no altitude exaggeration.
+- **Experiment Configuration Studio** (`#/compare`): choose Guidance / Attitude control /
+  Vehicle / Scenario for A and B, press Compare, and load only real records. Unsupported
+  combinations show `No Available Experiment`; nothing is fabricated.
+- **Paired campaign statistics**: hit rate, median/P90/max miss, handover range/energy,
+  boost-end state and fin saturation, with deltas only when definitions and conditions match.
+- **Earth realism**: bump-mapped WGS84 surface, ocean sun-glint shader, layered clouds,
+  atmosphere limb, Sun/Moon/day-night all driven by the same astronomical epoch.
+- **Bilingual (zh/en), desktop-first and small-screen readable**: 390 px layout keeps
+  14–15 px dropdown text, 44 px controls, 38–42 vh stacked 3D panes and scroll-contained tables.
+- **Static deployment**: GitHub Pages, no backend.
+
+**Live platform:** https://paoshou-china.github.io/missile-interception/
+· **Legacy report index:** https://paoshou-china.github.io/missile-interception/legacy/
+
+## Guidance, control and comparison matrix
+
+The simulator exposes real switchable laws; the web Studio lists exactly the combinations
+that have records.
+
+| Stage | Implemented options | Source |
+| --- | --- | --- |
+| Boost | feasibility-shaped gravity turn; classical fixed-rate programme | `guidance/boost_guidance.py`, `guidance/fixed_rate_boost_guidance.py` |
+| Midcourse | cubic Bezier shaping; predicted-intercept-point (PIP) direct guidance | `guidance/midcourse_guidance.py`, `guidance/pip_midcourse_guidance.py` |
+| Terminal | ZEM/APN; classical pure PN | `guidance/terminal_guidance.py`, `guidance/pure_pn_guidance.py` |
+| Attitude control | scheduled three-loop (dead-time prediction + n_z loop); uncompensated; no n_z; classical fixed-gain PID | `control/autopilot.py`, `control/classic_autopilot.py`, `config.py` switches |
+| Vehicle | one audited `lifting-body-2000` profile (v4) | `config.py` |
+
+Web registry entries with shipped representative trajectories:
+
+| Guidance | Control | Scenario | Record |
+| --- | --- | --- | --- |
+| Bezier + ZEM/APN | scheduled | paired case 0 | `exp-campaign-bezier-zem` |
+| PIP + ZEM/APN | scheduled | paired case 0 | `exp-campaign-pip-zem` |
+| Bezier + pure PN | scheduled | paired case 0 | `exp-campaign-bezier-pn` |
+| fixed-rate boost | scheduled | target 15 km | `exp-campaign-fixedrate` |
+| Bezier + ZEM/APN | classical PID | paired case 0 | `exp-campaign-classic-pid` |
+| fixed-rate boost | classical PID | paired case 0 | `exp-campaign-classic-full` |
+| Bezier + ZEM/APN | uncompensated / no-n_z | nominal | `exp-*` isolation records |
+
+The shipped aggregate statistics live in
+[`aerospace-vision-web/public/data/experiments/campaign.json`](aerospace-vision-web/public/data/experiments/campaign.json):
+a 4-case-per-law quick campaign captured on 2026-11-21 plus a 24-case architecture arm.
+The offline driver `missile_intercept/tools/guidance_comparison.py` can rerun larger
+campaigns; its output changes when rerun, while the web copy is explicit and frozen.
 
 ## Online reports
 
-Interactive reports generated from simulation output, published with GitHub Pages:
-
 | Report | Contents | Link |
 | --- | --- | --- |
-| **Project overview** | Interactive walk-through: trajectory, energy, handover, key metrics | [Open →](https://paoshou-china.github.io/missile-interception/missile-intercept-overview/missile-intercept-overview.html) |
-| **Intercept analysis** | 2000 km-class 6DOF analysis: altitude/Mach profile, LOS rates, miss distance, Monte-Carlo statistics | [Open →](https://paoshou-china.github.io/missile-interception/intercept-report/intercept-report.html) |
-| **Full-flow test report** | Subsystem and end-to-end test summary: aero anchors, navigation, seeker, handover, control, numeric consistency | [Open →](https://paoshou-china.github.io/missile-interception/test-report/missile_interceptor_test_report.html) |
-
-## Flight phases
-
-| Phase | Model |
-| --- | --- |
-| **Cold launch** | Vertical ejection from a canister, ignition sequence, initial attitude hold |
-| **Boost** | Solid motor thrust profile, mass depletion, attitude pre-programming |
-| **Midcourse** | Bezier path shaping, altitude/Mach constraints, energy management |
-| **Handover** | Handover manager with field-of-view, range and geometry constraints |
-| **Terminal** | ZEM / APN guidance, seeker measurements, endgame autopilot limits |
-| **Assessment** | Miss distance, intercept geometry, Monte-Carlo dispersion statistics |
+| **Aerospace Vision platform** | Academic site, 3D explorer, cinematic mode, configuration studio | [Open →](https://paoshou-china.github.io/missile-interception/) |
+| **Project overview (legacy)** | Interactive walk-through: trajectory, energy, handover, key metrics | [Open →](https://paoshou-china.github.io/missile-interception/missile-intercept-overview/missile-intercept-overview.html) |
+| **Intercept analysis (legacy)** | Altitude/Mach, LOS rates, miss distance, Monte-Carlo statistics | [Open →](https://paoshou-china.github.io/missile-interception/intercept-report/intercept-report.html) |
+| **Full-flow test report (legacy)** | Subsystem and end-to-end verification summary | [Open →](https://paoshou-china.github.io/missile-interception/test-report/missile_interceptor_test_report.html) |
 
 ## Repository layout
 
 ```
 .
-├── missile_intercept/           # simulation package
-│   ├── main.py                  # single-run entry point
-│   ├── batch.py                 # Monte-Carlo batch campaigns
-│   ├── analysis.py              # sensitivity / Sobol / Monte-Carlo analysis
-│   ├── config.py                # all engineering parameters and switches
-│   ├── fastcore.py              # Numba-JIT hot paths (falls back to pure Python)
-│   ├── integrator.py            # multi-rate integration and event handling
-│   ├── state_schema.py          # state vector definition
-│   ├── telemetry.py             # telemetry writers
-│   ├── verification.py          # numerical verification
-│   ├── validate_performance.py  # performance checks
-│   ├── vehicle/                 # atmosphere, aerodynamics, target, wind
-│   ├── sensors/                 # IMU, GNSS/INS, seeker, target tracker
-│   ├── guidance/                # boost / midcourse / terminal guidance, handover
-│   ├── control/                 # autopilot, fin mixer, thrust controller
-│   ├── tools/                   # aero cross-check, tuning, diagnostics
-│   ├── tests/                   # pytest suite
-│   └── README.md                # full technical reference and telemetry dictionary
-├── intercept-report/            # intercept analysis report (HTML)
-├── missile-intercept-overview/  # project overview page (HTML)
-├── test-report/                 # full-flow test report (HTML)
-├── assets/                      # README figures
-└── index.html                   # GitHub Pages landing page
+├── missile_intercept/            # Python 6DOF simulator
+│   ├── main.py                   # single run; --boost/--midcourse/--terminal/--control-law
+│   ├── batch.py                  # Monte-Carlo campaigns (paired case ids, dispersion)
+│   ├── config.py                 # all parameters and comparison switches
+│   ├── guidance/                 # boost, Bezier/PIP midcourse, ZEM/APN, pure PN, handover
+│   ├── control/                  # scheduled autopilot, classic PID, fin mixer, thrust
+│   ├── sensors/                  # IMU, GNSS/INS, seeker, target tracker
+│   ├── vehicle/                  # atmosphere, aerodynamics, target, wind
+│   ├── tools/                    # tuning, diagnostics, guidance/architecture campaigns
+│   └── tests/                    # pytest suite
+├── aerospace-vision-web/         # React + Three.js + ECharts platform
+│   ├── src/                      # scientific, scene, state, components, compare, pages
+│   ├── public/data/              # explorer payload, experiment registry, campaign stats
+│   ├── schemas/                  # scenario and comparison manifest schemas
+│   ├── tests/                    # Vitest unit + Playwright E2E
+│   └── docs/                     # architecture, comparison, acceptance, science notes
+├── docs/experiments/             # generated campaigns and reports (CSV/JSON/MD/PNG)
+├── intercept-report/             # legacy intercept analysis (HTML)
+├── missile-intercept-overview/   # legacy project overview (HTML)
+├── test-report/                  # legacy full-flow test report (HTML)
+├── assets/                       # README figures
+├── TECHNICAL_REPORT.md           # Chinese technical report
+└── index.html                    # GitHub Pages landing page
 ```
 
 ## Quick start
 
+### Simulation
+
 ```bash
-git clone https://github.com/PaoShou-China/missile-interception.git
-cd missile-interception/missile_intercept
+cd missile_intercept
 python -m pip install -r requirements.txt
-```
 
-```bash
-# Single run — 5 ms in boost/terminal, 10 ms in midcourse
-python main.py
+python main.py                 # nominal: feasible boost + Bezier + ZEM/APN + scheduled
+python main.py --no-plot      # telemetry CSV only
 
-# Variants
-python main.py --no-plot          # telemetry CSV only
-python main.py --duration 900     # custom end time
-python main.py --converge         # step convergence + Richardson extrapolation
+# Comparison switches
+python main.py --boost-law fixed_rate --control-law classic_pid --no-plot
+python main.py --midcourse-law pip_pn --terminal-law pn --no-plot
 
 # Monte-Carlo campaign
-python batch.py --cases 50 --workers 8 --seed 2026
+python batch.py --cases 24 --workers 8 --seed 2026
 
-# Tests and verification
-python -m pytest -n auto
-python verification.py
+# Paired comparison campaigns
+python tools/guidance_comparison.py --cases 24 --seed 2026
+python tools/architecture_comparison.py --cases 24 --seed 2026
 ```
 
-Outputs are written to `missile_intercept/output/` (telemetry CSV, plots and the HTML
-dashboard) and are intentionally not tracked.
+Outputs go to `missile_intercept/output/` and are intentionally untracked.
 
-> **Requirements** — Python 3.9+ on Windows or Linux. `numba` accelerates the hot paths;
-> without it the solver falls back to pure Python with identical results but slower runs.
-> The DATCOM binary in `tools/datcom/` is third-party software and is not versioned.
+### Web platform
+
+```bash
+cd aerospace-vision-web
+npm ci
+npm run dev        # http://localhost:5173
+npm test           # Vitest: 66 unit/scientific tests
+npm run build      # production bundle in dist/
+npm run preview    # serve dist/ on :4173
+```
+
+Regenerate the explorer payload from simulator telemetry:
+
+```bash
+cd aerospace-vision-web
+python tools/data-adapter/build_scenario.py
+```
+
+Export one paired campaign case with full telemetry (for a new B record):
+
+```bash
+cd missile_intercept
+python tools/export_campaign_case.py --law bezier_zem_apn --out output/experiments/example
+```
+
+## Verification snapshot
+
+| Area | Result |
+| --- | --- |
+| Python guidance/control/integration | 45 passed |
+| Web unit/scientific (Vitest) | 66 passed (9 files) |
+| Chromium E2E | 16 passed, 60.2 FPS on Intel UHD |
+| WebKit E2E | camera/comparison suites pass; FPS gate runs on Chromium only |
+| Payload integrity | all shipped scenario payloads pass the adapter checks |
+| Narrow screen | 390×844 layout verified (font sizes, pane heights, table scrolling) |
+
+What is **not** claimed: independent scientific validation of every new law, a full-factorial
+campaign, statistical equivalence between campaigns, or mobile GPU performance parity.
+See [VALIDATION_STATUS](aerospace-vision-web/docs/scientific/VALIDATION_STATUS.md) and
+[COMPARISON](aerospace-vision-web/docs/COMPARISON.md) for the exact NOT RUN list.
+
+## Scientific conventions
+
+| Quantity | Convention |
+| --- | --- |
+| Render frame | WGS84 ECEF, right-handed, kilometres in the renderer |
+| Source frame | ECI; `ECI == ECEF` at t = 0; `r_ECEF = Rz(−ωt) r_ECI` |
+| Attitude | scalar-first `[w,x,y,z]`, Hamilton product, `BODY → ECEF` |
+| Body axes | +x nose, +y right, +z down |
+| Time | seconds since launch, monotonic; one shared clock |
+| Position interpolation | cubic Hermite with telemetry velocity tangents |
+| Attitude interpolation | shortest-arc SLERP, renormalised |
+| Speed shown | Earth-relative `|v_ECEF|`; Mach is wind-corrected |
+
+No altitude or trajectory exaggeration is applied. The vehicle mesh is built at its physical
+size; a distance-scaled glow marker keeps it findable at orbital zoom without moving it.
 
 ## Documentation
 
-- [技术总结报告 — 各子系统数据、算法与公式（中文，含参考文献）](TECHNICAL_REPORT.md)
-- [Technical reference — architecture, frames, models, telemetry dictionary](missile_intercept/README.md)
-- [English edition (legacy)](missile_intercept/README.en.md)
-- [Changelog](CHANGELOG.md) · [Contributing](CONTRIBUTING.md) · [Security policy](SECURITY.md)
-- [Code of Conduct](CODE_OF_CONDUCT.md)
+- [Technical report (Chinese, subsystems, equations, references)](TECHNICAL_REPORT.md)
+- [Simulation technical reference](missile_intercept/README.md) · [English edition](missile_intercept/README.en.md)
+- [Web architecture](aerospace-vision-web/docs/ARCHITECTURE.md)
+- [Experiment comparison policy and registry](aerospace-vision-web/docs/COMPARISON.md)
+- [Acceptance log](aerospace-vision-web/docs/ACCEPTANCE.md)
+- [Scientific audit](aerospace-vision-web/docs/scientific/DATA_AUDIT.md) ·
+  [provenance](aerospace-vision-web/docs/scientific/RESULT_PROVENANCE.md) ·
+  [validation status](aerospace-vision-web/docs/scientific/VALIDATION_STATUS.md)
+- [Changelog](CHANGELOG.md) · [Contributing](CONTRIBUTING.md) · [Security](SECURITY.md)
 
-## Contributing
+## Requirements
 
-Issues and pull requests are welcome. Please read [CONTRIBUTING.md](CONTRIBUTING.md) for
-branch, commit and testing conventions, and run `python -m pytest -n auto` before opening a PR.
+- **Python** 3.9+ (Windows/Linux). `numba` accelerates hot paths; without it the solver
+  falls back to pure Python with identical results but slower.
+- **Node** 20+ for the web platform.
+- The DATCOM binary under `missile_intercept/tools/datcom/` is third-party and not versioned.
 
 ## License
 
-Released under the [MIT License](LICENSE).
+MIT — see [LICENSE](LICENSE).
 
 ---
 

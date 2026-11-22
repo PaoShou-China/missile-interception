@@ -16,6 +16,44 @@
 - 导航与姿态控制模型重构，更新中制导交接逻辑
 - 移除 `tools/tune_gain_schedule.py`（由 `tune_autopilot.py` 取代）
 
+## [0.2.0] - 2026-11-22
+
+### Added
+
+- **Aerospace Vision Web**: bilingual academic site, 3D telemetry explorer, cinematic mode,
+  quality tiers and GitHub Pages deployment from `aerospace-vision-web/`
+- **Experiment Configuration Studio** (`#/compare`): registry-driven A/B dropdowns for
+  guidance, attitude control, vehicle profile and scenario; Compare / Swap / save reference
+- Registry + comparison contracts: `experiment registry`, `comparison manifest`, scenario
+  types, matcher levels A/B/C, condition and provenance tables
+- **New comparison baselines**: PIP midcourse guidance, pure-PN terminal guidance,
+  fixed-rate boost programme and classical fixed-gain PID autopilot
+- Paired Monte-Carlo campaigns: guidance, boost, attitude-control and full-architecture
+  comparisons, including the paired-campaign aggregate table in the Studio
+- Representative-case exporter (`tools/export_campaign_case.py`) and architecture campaign
+  driver (`tools/architecture_comparison.py`)
+- Earth realism pass: bump-mapped surface, ocean sun-glint shader, layered clouds and
+  atmosphere driven by the astronomical sun direction
+- Merged close-up camera: tail fins, nozzle/plume and body axes in one rear three-quarter view
+- 390 px small-screen layout: larger dropdowns/controls, taller stacked 3D panes,
+  scroll-contained wide tables, larger chart labels
+- Tests: registry/campaign unit coverage, mobile readability E2E, four-camera E2E
+
+### Changed
+
+- Camera set reduced from six to four: Earth, Chase, Intercept, Close-up
+- Explorer payload refreshed to the current deterministic baseline
+  (1,504 samples, 672.75 s, 26.73 m logged miss)
+- Comparison fingerprint ignores flight duration so different intercept times remain comparable
+- Documentation rewritten: root README, web README, architecture, comparison, acceptance,
+  scientific status and technical report
+
+### Fixed
+
+- Synthetic records cannot be marked validated or used for performance claims
+- Unsupported A/B combinations show `No Available Experiment` and disable Compare
+- Narrow screens no longer squeeze both 3D panes into one fixed-height stage or widen the page
+
 ## [0.1.0] - 2026-11-12
 
 ### Added

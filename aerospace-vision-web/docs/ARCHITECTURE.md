@@ -217,3 +217,30 @@ stored in Zustand so panel content keeps its state.
 - Global `:focus-visible` ring; `prefers-reduced-motion` removes transitions.
 - A print stylesheet hides chrome, expands the page and avoids breaking cards
   and charts, so the results/verification pages can be exported as a report.
+
+### 8.9 Experiment Configuration Studio (`#/compare`)
+
+The Studio is registry-driven and read-only:
+
+- `src/compare/registry.ts` loads `public/data/experiments/registry.json` and
+  `campaign.json`; `findExperiment()` matches the exact
+  guidance × control × vehicle × scenario tuple.
+- Each panel has four selects plus a read-only vehicle profile. Missing tuples
+  render `No Available Experiment` and disable Compare.
+- `loader.ts` fetches each experiment's own scenario payload; the synthetic demo
+  is generated from a real payload in the browser and is flagged non-scientific.
+- `validation.ts` fingerprints initial conditions (datums, Earth, start time) but
+  ignores flight duration, then returns level A/B/C plus field-level issues.
+- Charts come from `CompareCharts.tsx`; the 3D stage uses `CompareScene.tsx`
+  with a shared camera reference and a separate comparison clock.
+- Aggregate campaign statistics come from `campaign.json` and are displayed in a
+  dedicated table; they are never merged into the single-run metric table.
+
+### 8.10 Small-screen studio
+
+At ≤720 px the Studio reflows instead of shrinking: panels stack, selects use
+14–15 px text with trailing ellipsis, action buttons reach 44 px, the A/B 3D
+panes each keep 38–42 vh (the old fixed-height split squeezed both), chart
+canvas text grows to 11.5 px with overlap hiding, and wide tables scroll inside
+their own section with a visible swipe hint. `document.documentElement` never
+gains horizontal overflow (asserted in Playwright).

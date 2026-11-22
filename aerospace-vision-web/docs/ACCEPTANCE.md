@@ -59,6 +59,27 @@ $ playwright webkit                13 passed, 1 skipped
 $ visual agent                     Run A real, synthetic warning, 2 canvases, 7 charts, clock playback
 ```
 
+### V4.7 close-up, Earth and small screens (2026-11-22)
+
+| Item | Result | Evidence |
+| --- | --- | --- |
+| Merged close-up | PASS | Fin/engine/attitude cameras replaced by one body-frame rear three-quarter view; fins, nozzle/plume and body axes visible together; cinematic control/guidance shots use it |
+| Camera set | PASS | Four cameras: Earth, Chase, Intercept, Close-up; dock and keyboard shortcuts follow `CAMERA_MODES` |
+| Earth realism | PASS | Bump-mapped WGS84 day surface, ocean sun-glint shader, stronger layered clouds and atmosphere; all driven by the astronomical sun direction |
+| Small-screen studio | PASS | 390×844 E2E: 14–15 px selects, 44 px buttons, 2×38 vh panes, chart text 11.5 px, wide tables scroll internally, no page overflow |
+| Documentation | PASS | Root README, web README, CHANGELOG, architecture, comparison, acceptance, scientific notes and technical report updated to the shipped state |
+
+### V4.7 test evidence
+
+```
+$ npx tsc --noEmit                  PASS
+$ npm test                          66 passed (9 files)
+$ playwright chromium               16 passed, 60.2 FPS
+$ playwright webkit                 camera + cinematic 2 passed
+$ python pytest                     45 passed (control/guidance/integration)
+$ deployment                        GitHub Pages success
+```
+
 ### V4.6 Experiment Configuration Studio (2026-11-21)
 
 | Item | Result | Evidence |
@@ -108,7 +129,7 @@ claims.
 | Camera set de-duplicated | PASS | Launch (≈Chase) and Seeker (≈Intercept) removed; dock now has Earth, Chase, Intercept, Fin, Engine, Attitude |
 | Strake lifting surfaces | PASS | Mid-body boxes replaced with long swept leading-edge strake wings (边条翼), extruded with bevel, one per side |
 | F-35-style target | PASS | Octagonal blended fuselage, swept wings, horizontal stabs, twin canted tails, bubble canopy, intakes, EOTS, nozzle and nav lights |
-| Camera framing | PASS | Ignition shot uses Chase; body close-ups re-aimed for the new strake geometry; E2E covers all six modes |
+| Camera framing | PASS | Ignition shot uses Chase; body close-ups re-aimed for the new strake geometry; six modes at the time (superseded by the four-camera set in V4.7) |
 
 ### V4.4 test evidence
 
@@ -218,7 +239,10 @@ records its SHA-256, row count and generation time.
 | G4 browser performance & compatibility | **PASS** | 1080p / Intel UHD soak: mean **60.0 FPS**, min 51.0, 10 min, heap Δ −0.07 MB; E2E passed on Chromium, Firefox and WebKit (16 passed, 2 FPS tests skipped on non-Chromium). CI uses SwiftShader and records a 5.9 FPS annotation rather than a hardware verdict |
 | G5 GitHub Pages public URL | **PASS** | Live at https://paoshou-china.github.io/missile-interception/ ; verified in a real browser: telemetry PASS, playback advances, no console/HTTP errors; legacy report at `/legacy/` |
 
-## Commands and actual results
+## Commands and actual results (V1 baseline, retained as history)
+
+> These captures document the original G0–G5 run and are kept for traceability.
+> Current counts and evidence are in the V4.7/V4.6 sections above.
 
 ### Data adapter
 
@@ -254,8 +278,8 @@ RESULT: PASS
 
 ```
 $ npm test
-Test Files  6 passed (6)
-Tests       39 passed (39)
+Test Files  9 passed (9)
+Tests       66 passed (66)
 ```
 
 Covers WGS84 round-trips, ENU orthonormality, ECI→ECEF rotation, quaternion

@@ -505,7 +505,11 @@ def _save_csv(results, output_dir):
     path = os.path.join(output_dir, "batch_results.csv")
     if not results:
         return path
-    fields = list(results[0].keys())
+    fields = []
+    for row in results:
+        for key in row:
+            if key not in fields:
+                fields.append(key)
     with open(path, "w", newline="") as f:
         writer = csv.DictWriter(f, fieldnames=fields)
         writer.writeheader()

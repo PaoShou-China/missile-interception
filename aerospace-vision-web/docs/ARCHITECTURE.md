@@ -149,16 +149,20 @@ The explorer is mounted only on `#/explore`, so the academic pages never stream
 the 8K Earth texture. Vite `base: "./"` plus hash routing keeps deep links valid
 on GitHub Pages project sites.
 
-### 8.1 Six cameras
+### 8.1 Four cameras, one merged close-up
 
-`earth`, `chase`, `target`, `fin`, `engine`, `attitude`. Launch and Seeker were
-removed as near-duplicates of Chase and Intercept. The three close-ups resolve
-offsets in the vehicle body frame and rotate them by the recorded attitude
-quaternion, so they remain locked to the true orientation at any playback rate.
-`fin` is driven by the recorded four-channel deflection data; `engine` uses a
-side-rear framing so nozzle and plume are both visible; `attitude` shows the
-body-axis triad. Pointer drag and wheel zoom are applied on top of the
-automatic pose.
+`earth`, `chase`, `target`, `closeup`. The former `fin`, `engine` and `attitude`
+views were merged into a single three-quarter rear close-up so the tail fins,
+nozzle/plume and body-axis triad are visible in one frame. Launch and Seeker
+were removed earlier as near-duplicates of Chase and Intercept. The close-up
+resolves its offset in the vehicle body frame and rotates it by the recorded
+attitude quaternion, so it stays locked to the true orientation at any playback
+rate; the fins are still driven by the recorded four-channel deflection data.
+Pointer drag and wheel zoom are applied on top of the automatic pose.
+
+The Earth reference now uses a bump-mapped day surface plus a separate ocean
+sun-glint shell, layered clouds and the atmospheric limb, so terrain relief and
+specular water respond to the same astronomical sun direction as the vehicle.
 
 ### 8.2 Astronomy
 

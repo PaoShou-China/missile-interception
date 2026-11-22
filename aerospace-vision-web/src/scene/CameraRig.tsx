@@ -138,23 +138,11 @@ export function CameraRig() {
     if (BODY_CAMERAS.includes(mode)) {
       const q = new THREE.Quaternion(ms.attitude.x, ms.attitude.y, ms.attitude.z, ms.attitude.w);
       const bodyUp = new THREE.Vector3(0, 0, -1).applyQuaternion(q);
-      let off = new THREE.Vector3(0.0010, 0.0052, -0.0046);
-      let lookOff: THREE.Vector3 | null = new THREE.Vector3(0, 0, 0);
-      let fov = 50;
-      switch (mode) {
-        case "fin":
-          off = new THREE.Vector3(-0.0026, 0.0011, -0.0013);
-          lookOff = new THREE.Vector3(-0.0020, 0, 0);
-          fov = 42;
-          break;
-        case "engine":
-          // Side-rear view so the nozzle bell and the exhaust plume are both
-          // in frame instead of looking straight down the plume axis.
-          off = new THREE.Vector3(-0.0034, 0.0016, -0.0018);
-          lookOff = new THREE.Vector3(-0.0026, 0, 0);
-          fov = 46;
-          break;
-      }
+      // One near three-quarter rear view: the tail fins, nozzle/plume and the
+      // body axes are all visible at once instead of three separate cameras.
+      const off = new THREE.Vector3(-0.0090, 0.0040, -0.0060);
+      const lookOff: THREE.Vector3 = new THREE.Vector3(-0.0012, 0, 0);
+      const fov = 38;
       const userQ = new THREE.Quaternion().setFromEuler(
         new THREE.Euler(userPitch * 0.8, userYaw * 0.8, 0, "YXZ"),
       );

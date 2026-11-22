@@ -151,7 +151,7 @@ function MissileBody() {
     }
     if (axes.current) {
       const mode = useAppStore.getState().cameraMode;
-      axes.current.visible = mode === "attitude";
+      axes.current.visible = mode === "closeup";
     }
   });
 

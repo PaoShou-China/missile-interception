@@ -280,27 +280,19 @@ test("seeking to the intercept event updates the scene state", async ({ page }) 
   await page.screenshot({ path: path.join(SHOTS, "02-intercept-terminal.png") });
 });
 
-test("all six camera modes switch, including body close-ups", async ({ page }) => {
+test("four camera modes switch, including the merged close-up", async ({ page }) => {
   await gotoExplore(page);
   await expect(page.locator(".camera-dock")).toBeVisible({ timeout: 45_000 });
 
-  const modes = ["Earth", "Chase", "Intercept", "Fin", "Engine", "Attitude"];
+  const modes = ["Earth", "Chase", "Intercept", "Close-up"];
   for (const mode of modes) {
     await page.getByRole("button", { name: mode, exact: true }).click();
     await expect(page.locator("button[data-camera].is-active")).toHaveText(mode);
   }
 
-  await page.getByRole("button", { name: "Engine", exact: true }).click();
+  await page.getByRole("button", { name: "Close-up", exact: true }).click();
   await page.waitForTimeout(1200);
-  await page.screenshot({ path: path.join(SHOTS, "07-camera-engine.png") });
-
-  await page.getByRole("button", { name: "Fin", exact: true }).click();
-  await page.waitForTimeout(1200);
-  await page.screenshot({ path: path.join(SHOTS, "08-camera-fin.png") });
-
-  await page.getByRole("button", { name: "Attitude", exact: true }).click();
-  await page.waitForTimeout(1200);
-  await page.screenshot({ path: path.join(SHOTS, "09-camera-attitude.png") });
+  await page.screenshot({ path: path.join(SHOTS, "07-camera-closeup.png") });
 
   const track = page.locator(".camera-dock button", { hasText: "Track" });
   await expect(track).toHaveClass(/is-active/);

@@ -314,7 +314,11 @@ def _save_all_runs(experiments, out_dir):
     path = os.path.join(out_dir, "all_runs.csv")
     if not rows:
         return path
-    fields = list(rows[0].keys())
+    fields = []
+    for row in rows:
+        for key in row:
+            if key not in fields:
+                fields.append(key)
     with open(path, "w", newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(f, fieldnames=fields)
         writer.writeheader()
@@ -381,8 +385,8 @@ def _plot(experiments, levels_by_exp, lethal_radius, out_dir):
     # Stage figure: boost exit for the boost experiment, handover for midcourse,
     # control effort for the autopilot experiment.
     stage_panels = [
-        ("boost", "boost_end_gamma_deg", "boost_peak_alpha_deg",
-         "Boost exit flight-path angle (deg)", "Boost peak |alpha| (deg)",
+        ("boost", "boost_end_alt_km", "boost_fin_sat_pct",
+         "Boost exit altitude (km)", "Boost fin saturation (%)",
          "fig_boost_stages.png"),
         ("midcourse", "handover_lead_deg", "handover_specific_energy_mjkg",
          "Handover lead angle (deg)", "Energy at handover (MJ/kg)",
@@ -652,16 +656,16 @@ def _conclusions(experiments, levels_by_exp, stats):
                    LAW_LABEL.get(b, b), 100.0 * hb, _fmt(ma, 1), _fmt(mb, 1),
                    diff_txt, sig, len(levels)))
         if name == "boost":
-            ga = np.nanmean([stats[name][(a, lv)]["boost_end_gamma_deg"]
+            ea = np.nanmean([stats[name][(a, lv)]["boost_end_alt_km"]
                              for lv in levels])
-            gb = np.nanmean([stats[name][(b, lv)]["boost_end_gamma_deg"]
+            eb = np.nanmean([stats[name][(b, lv)]["boost_end_alt_km"]
                              for lv in levels])
-            aa = np.nanmean([stats[name][(a, lv)]["boost_peak_alpha_deg"]
+            sa = np.nanmean([stats[name][(a, lv)]["boost_fin_sat_pct"]
                              for lv in levels])
-            ab = np.nanmean([stats[name][(b, lv)]["boost_peak_alpha_deg"]
+            sb = np.nanmean([stats[name][(b, lv)]["boost_fin_sat_pct"]
                              for lv in levels])
-            text += ("助推退出航迹角 %s / %s°，助推段峰值攻角 %s / %s°。"
-                     % (_fmt(ga, 2), _fmt(gb, 2), _fmt(aa, 2), _fmt(ab, 2)))
+            text += ("助推退出高度 %s / %s km，助推段舵面饱和率 %s%% / %s%%。"
+                     % (_fmt(ea, 2), _fmt(eb, 2), _fmt(sa, 1), _fmt(sb, 1)))
         elif name == "midcourse":
             ea = np.nanmean([stats[name][(a, lv)]["handover_energy_mjkg"]
                              for lv in levels])

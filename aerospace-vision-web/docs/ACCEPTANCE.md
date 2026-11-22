@@ -22,7 +22,8 @@ as such. Bundled Firefox and WebKit were installed locally and run.
 | Academic home + navigation | PASS | `#/`, `#/methodology`, `#/results`, `#/verification`, `#/resources`; E2E asserts nav and explorer CTA |
 | Bilingual zh/en | PASS | Language switch persists in `localStorage`; `document.lang` becomes `zh-CN`; E2E reload check |
 | Frozen data contract | PASS | schema 1.1.0; `finDeflectionsRad`, `bodyRatesRadS`, `experiment`, `time.demoUtc`; unit test asserts recorded actuator channels |
-| Six cameras incl. close-ups | PASS | Earth, Chase, Intercept, Fin, Engine, Attitude (Launch/Seeker removed as near-duplicates); browser agent confirmed the strake-wing missile and F-35-style target |
+| Four cameras incl. merged close-up | PASS | Earth, Chase, Intercept, Close-up (fin/nozzle/body axes merged; Launch/Seeker removed earlier); browser agent confirmed the strake-wing missile and F-35-style target |
+| Earth reference realism | PASS | Bump-mapped WGS84 day surface, additive ocean sun-glint shader, layered clouds and atmosphere, all driven by the astronomical sun direction |
 | Sun / moon / day-night | PASS | `src/scientific/astronomy.ts`, 6 unit tests (equinox, solstice, day/night, launch-site elevation, elapsed-time drift); dynamic light and atmosphere uniform |
 | Three-minute cinematic | PASS | Independent 180 s wall clock mapped to the mission; E2E checks `03:00` total, pause/skip/exit controls |
 | Legacy paths preserved | PASS | CI stages original paths (`/missile-intercept-overview/...`, `/intercept-report/...`, `/test-report/...`) and `/legacy/`; E2E asserts HTTP 200 |

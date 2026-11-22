@@ -6,8 +6,81 @@ import { EARTH_A_KM, EARTH_B_KM, ASSET_BASE, COLORS } from "./constants";
 import { simClock, useAppStore } from "../state/store";
 import { skyStateAt } from "../scientific/astronomy";
 
+/**
+ * Ocean sun-glint layer. A thin additive shell isolates the blue, dark pixels
+ * of the day map (open water) and adds a specular highlight where the sun's
+ * reflection lines up with the camera. This is what makes the globe read as a
+ * lit planet rather than a flat texture.
+ */
+function OceanGlint({
+  texture,
+  geometry,
+  sunDir,
+}: {
+  texture: THREE.Texture;
+  geometry: THREE.BufferGeometry;
+  sunDir: RefObject<THREE.Vector3>;
+}) {
+  const material = useMemo(() => new THREE.ShaderMaterial({
+    uniforms: {
+      uMap: { value: texture },
+      uSun: { value: new THREE.Vector3(1, 0, 0) },
+      uStrength: { value: 0.75 },
+    },
+    vertexShader: /* glsl */ `
+      varying vec2 vUv;
+      varying vec3 vWorldNormal;
+      varying vec3 vWorldPos;
+      void main() {
+        vUv = uv;
+        vec4 wp = modelMatrix * vec4(position, 1.0);
+        vWorldPos = wp.xyz;
+        vWorldNormal = normalize(mat3(modelMatrix) * normal);
+        gl_Position = projectionMatrix * viewMatrix * wp;
+      }
+    `,
+    fragmentShader: /* glsl */ `
+      uniform sampler2D uMap;
+      uniform vec3 uSun;
+      uniform float uStrength;
+      varying vec2 vUv;
+      varying vec3 vWorldNormal;
+      varying vec3 vWorldPos;
+      void main() {
+        vec3 day = texture2D(uMap, vUv).rgb;
+        // Open water: blue dominates red and the pixel is dark.
+        float ocean = smoothstep(0.06, 0.24, day.b - day.r)
+                    * smoothstep(0.34, 0.10, dot(day, vec3(0.3333)));
+        vec3 N = normalize(vWorldNormal);
+        vec3 V = normalize(cameraPosition - vWorldPos);
+        vec3 L = normalize(uSun);
+        vec3 H = normalize(L + V);
+        float spec = pow(max(dot(N, H), 0.0), 110.0);
+        float lit = smoothstep(0.0, 0.22, dot(N, L));
+        gl_FragColor = vec4(vec3(1.0, 0.93, 0.80), spec * ocean * lit * uStrength);
+      }
+    `,
+    transparent: true,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+  }), [texture]);
+
+  useFrame(() => {
+    const dir = sunDir.current;
+    if (dir) material.uniforms.uSun.value.copy(dir);
+  });
+
+  return (
+    <mesh
+      geometry={geometry}
+      scale={[EARTH_A_KM * 1.0006, EARTH_A_KM * 1.0006, EARTH_B_KM * 1.0007]}
+      material={material}
+    />
+  );
+}
+
 /** WGS84 ellipsoid with the source day texture; poles aligned to ECEF +Z. */
-function EarthSurface() {
+function EarthSurface({ sunDir }: { sunDir: RefObject<THREE.Vector3> }) {
   const quality = useAppStore((s) => s.quality);
   const { gl } = useThree();
   // Fall back to the 2K map on GPUs whose maximum texture size cannot hold 8K.
@@ -37,19 +110,22 @@ function EarthSurface() {
       <mesh geometry={geometry} scale={[EARTH_A_KM, EARTH_A_KM, EARTH_B_KM]}>
         <meshStandardMaterial
           map={texture}
-          roughness={0.95}
-          metalness={0.01}
+          bumpMap={texture}
+          bumpScale={high ? 0.008 : 0.004}
+          roughness={0.86}
+          metalness={0.03}
           emissiveMap={texture}
           emissive={new THREE.Color("#0a1626")}
-          emissiveIntensity={0.1}
+          emissiveIntensity={0.06}
         />
       </mesh>
+      <OceanGlint texture={texture} geometry={geometry} sunDir={sunDir} />
       <mesh geometry={geometry} scale={[EARTH_A_KM * 1.0022, EARTH_A_KM * 1.0022, EARTH_B_KM * 1.0026]}>
         <meshStandardMaterial
           alphaMap={clouds}
           color="#dbe8f6"
           transparent
-          opacity={high ? 0.34 : 0.22}
+          opacity={high ? 0.42 : 0.3}
           roughness={1}
           metalness={0}
           depthWrite={false}
@@ -283,7 +359,7 @@ export function SpaceEnvironment() {
       <hemisphereLight args={["#7fb2ff", "#0a0f1c", 0.2]} />
       <Astronomy sunDir={sunDir} />
       <StarField />
-      <EarthSurface />
+      <EarthSurface sunDir={sunDir} />
       <Atmosphere sunDir={sunDir} />
     </>
   );

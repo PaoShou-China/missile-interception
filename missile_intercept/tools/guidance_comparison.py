@@ -143,6 +143,20 @@ def _ordered_laws(blocks):
                   if law in LAW_ORDER else len(LAW_ORDER))
 
 
+def _sample_counts(blocks):
+    """Actual per-block sample counts (checkpoints may hold more than requested)."""
+    return sorted({len(v) for v in blocks.values()})
+
+
+def _count_text(blocks):
+    counts = _sample_counts(blocks)
+    if not counts:
+        return "0"
+    if len(counts) == 1:
+        return "%d" % counts[0]
+    return "%d–%d" % (counts[0], counts[-1])
+
+
 # ============================================================
 # Statistics
 # ============================================================
@@ -241,10 +255,13 @@ def _paired_test(res_a, res_b, key="miss_distance", n_boot=2000, seed=7):
 def _run_block(cfg, level, sweep, cases, workers, base_seed, out_dir,
                lethal_radius, exp_name=""):
     if sweep == "target_alt_km":
+        # Target manoeuvre is held fixed at its nominal value so the boost
+        # comparison isolates the ascent programme rather than adding extra
+        # terminal-phase variance.
         dispersion = Dispersion(
             launch_cep_m=500.0, target_cep_m=2000.0,
             target_alt_sigma_m=500.0, target_mach_sigma=0.05,
-            evade_g_sigma=1.0, target_alt_nominal=float(level) * 1000.0)
+            evade_g_sigma=0.0, target_alt_nominal=float(level) * 1000.0)
     else:
         dispersion = Dispersion(
             launch_cep_m=500.0, target_cep_m=2000.0,
@@ -274,6 +291,15 @@ def _run_block(cfg, level, sweep, cases, workers, base_seed, out_dir,
         output_dir=os.path.join(raw, tag), plot=False,
         checkpoint=os.path.join(raw, tag, "cases.jsonl"), resume=True)
     print("  %-52s %5.1f s" % (tag, time.time() - t0))
+    if len(results) != cases:
+        print("      (checkpoint holds %d cases for this block)" % len(results))
+    # Checkpoints written before a new law field existed would leave the CSV
+    # column empty.  The block config is the source of truth, so backfill it.
+    for r in results:
+        for field in ("boost_law", "midcourse_law", "terminal_law",
+                      "control_law"):
+            if not r.get(field):
+                r[field] = getattr(cfg, field)
     return results
 
 
@@ -492,17 +518,19 @@ def _write_report(experiments, levels_by_exp, stats, out_dir, args,
             continue
         spec = EXP_SPEC[name]
         laws = spec["laws"]
-        add("| %s | %s | %s vs %s | %s | %s %s | %d |"
+        add("| %s | %s | %s vs %s | %s | %s %s | %s |"
             % (EXP_TITLE_CN[name], EXP_TITLE_CN[name],
                LAW_LABEL.get(laws[0], laws[0]), LAW_LABEL.get(laws[1], laws[1]),
                FIXED_DESC[name], SWEEP_LABEL_CN[spec["sweep"]],
                ", ".join("%g" % lv for lv in levels_by_exp[name]),
-               args.cases))
+               _count_text(experiments[name])))
     add("")
     add("公共设置：基础随机种子 %d，命中判据为脱靶量 ≤ %.1f m；发射点水平 CEP "
         "500 m、目标水平 CEP 2000 m、目标高度 σ 500 m、目标马赫 σ 0.05；"
         "弹体、导航/导引头、交接逻辑与未被测环节全部相同。"
         % (args.seed, lethal_radius))
+    add("换算说明：助推段实验扫描的是**目标高度**（km），目标机动档固定为额定值；"
+        "其余三个实验扫描**目标机动过载**（g），目标高度按额定值加散布。")
     add("")
     # The target manoeuvre is lift-limited, so high command levels saturate at
     # the wing's available load factor and become physically identical.
@@ -599,7 +627,8 @@ def _write_report(experiments, levels_by_exp, stats, out_dir, args,
     add("- 对比公平性：未被测环节完全固定；同一实验内两种算法共享同一时间对齐、"
         "导引头几何、重力补偿、FOV 保护、指令平滑与过载限幅管线。")
     add("- 控制对比说明：两种自动驾驶仪共用同一参考调节器、时延预测、内外环增益"
-        "基准值、抗积分饱和与舵面限幅；差异仅为增益调度与法向过载环。")
+        "基准值、抗积分饱和与舵面限幅；差异仅为增益调度与法向过载环。姿态控制"
+        "实验的参考组与末制导实验的参考组是同一配置，故两组参考数据逐 case 相同。")
     add(("- 统计：命中率为脱靶量 ≤ %.1f m 的比例；配对检验对同一 case 的脱靶量做 "
          "Wilcoxon 符号秩检验，Bootstrap（2000 次）给出中位数差 95%% 置信区间。"
          % lethal_radius))
@@ -720,6 +749,8 @@ def main(argv=None):
     parser.add_argument("--quick", action="store_true",
                         help="small smoke campaign")
     args = parser.parse_args(argv)
+    if args.cases < 1:
+        parser.error("--cases must be >= 1")
 
     levels_override = ([float(x) for x in args.levels.split(",")]
                        if args.levels else None)
@@ -740,6 +771,12 @@ def main(argv=None):
     workers = args.workers or max(1, min(24, os.cpu_count() or 1))
 
     selected = EXP_ORDER if args.exp == "all" else [args.exp]
+    for name in selected:
+        if EXP_SPEC[name]["sweep"] == "target_alt_km":
+            bad = [lv for lv in levels_by_exp[name] if not (1.0 <= lv <= 30.0)]
+            if bad:
+                print("WARNING: boost experiment levels are target altitudes in "
+                      "km; %s is outside [1, 30] km." % bad)
     print("=" * 72)
     print("Guidance/control comparison | cases=%d | workers=%d | seed=%d"
           % (args.cases, workers, args.seed))
@@ -760,6 +797,8 @@ def main(argv=None):
     summary = {
         "meta": {
             "cases_per_law_per_level": args.cases,
+            "cases_actual": {k: _sample_counts(blocks)
+                             for k, blocks in experiments.items()},
             "seed": args.seed,
             "levels": {k: v for k, v in levels_by_exp.items()
                        if k in experiments},

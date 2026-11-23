@@ -187,6 +187,9 @@ def _terminal_fields(sim):
             "terminal_fov_max_deg": nan,
             "terminal_lock_loss_pct": nan,
             "terminal_min_range_km": nan,
+            "terminal_peak_alpha_deg": nan,
+            "terminal_peak_beta_deg": nan,
+            "terminal_fin_sat_pct": nan,
         }
 
 
@@ -217,22 +220,29 @@ def _stage_fields(sim):
                           d["m_rz"][i_mid]], dtype=float)
         v_mid = np.array([d["m_vx"][i_mid], d["m_vy"][i_mid],
                           d["m_vz"][i_mid]], dtype=float)
-        up_mid = MU.normalize(r_mid)
-        v_hat = MU.normalize(v_mid)
-        gamma_mid = float(np.degrees(np.arcsin(np.clip(
-            float(np.dot(v_hat, up_mid)), -1.0, 1.0))))
         boost_sl = slice(0, i_mid)
+        if i_mid > 0:
+            up_mid = MU.normalize(r_mid)
+            v_hat = MU.normalize(v_mid)
+            gamma_mid = float(np.degrees(np.arcsin(np.clip(
+                float(np.dot(v_hat, up_mid)), -1.0, 1.0))))
+            peak_alpha = float(np.degrees(np.max(np.abs(d["alpha"][boost_sl]))))
+            boost_fin_sat = float(100.0 * np.mean(
+                np.asarray(d["fin_sat"][boost_sl], dtype=float)))
+        else:
+            # A run that enters midcourse on the first frame has no boost
+            # sample: report NaN instead of raising on an empty slice.
+            gamma_mid = nan
+            peak_alpha = nan
+            boost_fin_sat = nan
         out = {
             "boost_end_time": float(t[i_mid]),
             "boost_end_alt_km": float(d["alt"][i_mid] / 1000.0),
             "boost_end_mach": float(d["mach"][i_mid]),
             "boost_end_speed": float(speed[i_mid]),
             "boost_end_gamma_deg": gamma_mid,
-            "boost_peak_alpha_deg": float(
-                np.degrees(np.max(np.abs(d["alpha"][boost_sl])))),
-            "boost_fin_sat_pct": float(
-                100.0 * np.mean(np.asarray(d["fin_sat"][boost_sl],
-                                           dtype=float))),
+            "boost_peak_alpha_deg": peak_alpha,
+            "boost_fin_sat_pct": boost_fin_sat,
             "midcourse_duration_s": (float(t[i_term] - t[i_mid])
                                      if i_term is not None else nan),
             "midcourse_peak_mach": float(np.max(d["mach"][sl])),

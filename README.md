@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="assets/hero.jpg" alt="Cinematic render: hypersonic interceptor above Earth's limb" width="100%">
+  <img src="assets/hero.jpg" alt="Cinematic render: hypersonic interceptor with strake wings above Earth's limb" width="100%">
 </div>
 
 <p align="center"><img src="assets/icon.png" width="96" height="96" alt="Project icon"></p>

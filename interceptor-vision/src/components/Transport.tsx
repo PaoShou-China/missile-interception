@@ -7,6 +7,7 @@ import {
   seekDataTime,
   toggleDataPlay,
 } from "../data/telemetry";
+import { useAppStore as useOrbitalStore } from "../orbital/state/store";
 
 function fmt(t: number) {
   const s = Math.max(0, Math.min(CINEMATIC_SECONDS, t));
@@ -27,6 +28,10 @@ export function Transport() {
   const dataTime = useApp((s) => s.dataTime);
   const dataPlaying = useApp((s) => s.dataPlaying);
   const dataRate = useApp((s) => s.dataRate);
+  const sceneMode = useApp((s) => s.sceneMode);
+  const orbitalCinematic = useOrbitalStore((s) => s.presentation === "cinematic");
+
+  if (sceneMode === "orbital" && orbitalCinematic) return null;
 
   const dataMode = !!telemetry && mode !== "cinematic";
 

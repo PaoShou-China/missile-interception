@@ -2,6 +2,7 @@ import { useApp, type CameraMode, type Livery, type TimeOfDay } from "../state";
 import { useT } from "../i18n";
 import { LIVERY } from "../scene/assets";
 import { MissionPanel } from "./MissionPanel";
+import { OrbitalPanel } from "../orbital/OrbitalPanel";
 
 const TIMES: { key: TimeOfDay; label: "day" | "dusk" | "night" }[] = [
   { key: "day", label: "day" },
@@ -37,6 +38,7 @@ export function LeftPanel() {
   const setLivery = useApp((s) => s.setLivery);
   const cloudDensity = useApp((s) => s.cloudDensity);
   const setCloudDensity = useApp((s) => s.setCloudDensity);
+  const sceneMode = useApp((s) => s.sceneMode);
 
   return (
     <>
@@ -50,6 +52,10 @@ export function LeftPanel() {
 
         <MissionPanel />
 
+        {sceneMode === "orbital" ? (
+          <OrbitalPanel />
+        ) : (
+          <>
         <section className="group">
           <h3>{t("time")}</h3>
           <div className="chip-row">
@@ -123,6 +129,8 @@ export function LeftPanel() {
           <span className="panel-note__dot" />
           GLB · DRACO-ready · LOD × 3
         </div>
+          </>
+        )}
       </aside>
 
       {!open && (

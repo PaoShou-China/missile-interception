@@ -10,6 +10,8 @@
 
 ## 功能
 
+- **双场景**：`实景`（Blender 拦截弹巡航视景）与 `地球弹道`（WGS84 地球、真实轨迹、发射点/目标基准、拦截点），顶栏一键切换；地球弹道场景支持拖拽旋转、滚轮缩放、双击复位，以及地球/追逐/目标/特写四种相机。
+- **三分钟电影**：按原平台节奏把 669 s 任务映射到 180 s，六个分镜（点火/助推/控制面/中段/制导/末段）带字幕、进度拖拽、15 s 快进后退与全屏。
 - **双渲染模式**：Three.js 实时交互 + Blender Cycles/EEVEE 离线静帧与飞行动画（网页内画廊展示）。
 - **任务与遥测回放**：载入原平台的 1504 帧验证遥测，左侧任务事件（发射/最高点/锁定/交接/拦截，可点击跳转），右侧实时高度、速度、马赫、动压、过载、斜距、质量与舵偏；底部飞行时间轴支持播放/暂停、拖动与 1×/5×/20×/60× 倍速。
 - **遥测图表**：8 组曲线（高度、速度、马赫、动压、过载、斜距、四路舵偏、三轴角速率），点击图表可跳转时间，Esc 关闭。
@@ -90,6 +92,7 @@ interceptor-vision/
 │   └── renders/                       # 离线成品 + manifest.json
 ├── src/
 │   ├── scene/                         # 场景、环境、模型、相机、遥测时钟
+│   ├── orbital/                       # 地球弹道场景（WGS84 地球、轨迹、原相机与三分钟电影）
 │   ├── data/                          # 遥测加载、插值、时间轴辅助
 │   ├── components/                    # 顶栏、面板、任务、遥测、图表、时间线、画廊
 │   ├── state.ts / i18n.ts / styles.css
@@ -117,14 +120,15 @@ interceptor-vision/
 | 首屏关键资源 | LOD0 0.72 MB，HDRI 0.51 MB，地形/云 WebP 约 0.37 MB |
 | 延迟加载 | LOD1 0.38 MB、LOD2 0.18 MB 在首帧后预热 |
 | 遥测数据 | `scenario.json` 1.0 MB（gzip 后约 0.2 MB），首帧后 0.9 s 后台加载，不阻塞画面 |
-| 帧率（Intel UHD） | Performance 60.0 / Balanced 54.5 / Cinematic 41.4 FPS |
+| 地球弹道纹理 | 仅切换到弹道场景时加载：2048 地球 + 1024 云约 0.7 MB（高画质用 8K/4K 约 6.8 MB） |
+| 帧率（Intel UHD） | Performance 60.0 / Balanced 54.5 / Cinematic 41.7 FPS |
 | 控制台错误 | 0 |
 
 详见 [docs/PERFORMANCE.md](docs/PERFORMANCE.md)。
 
 ## 截图
 
-昼 / 昏 / 夜 × 宏 / 中 / 微共 9 张运行截图位于 `docs/screenshots/`，Blender 离线静帧位于 `public/renders/`。
+昼 / 昏 / 夜 × 宏 / 中 / 微共 9 张运行截图位于 `docs/screenshots/`，另有 `orbital-earth.png`、`orbital-manual.png`、`orbital-cinematic.png`；Blender 离线静帧位于 `public/renders/`。
 
 ## 部署
 

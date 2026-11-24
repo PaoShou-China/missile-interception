@@ -1,54 +1,54 @@
 {
-  "capturedAt": "2026-11-24T15:04:21.266Z",
-  "readyMs": 739,
+  "capturedAt": "2026-11-24T15:33:39.556Z",
+  "readyMs": 1152,
   "resources": [
     {
       "name": "interceptor-lod0.glb?v=3",
-      "ms": 7,
+      "ms": 6,
       "bytes": 754004
     },
     {
       "name": "env-day.hdr?v=3",
-      "ms": 21,
+      "ms": 12,
       "bytes": 250823
     },
     {
       "name": "terrain-day.webp?v=3",
-      "ms": 7,
+      "ms": 3,
       "bytes": 93020
     },
     {
       "name": "cloud-a.webp?v=3",
-      "ms": 8,
+      "ms": 3,
       "bytes": 150788
     },
     {
       "name": "cloud-b.webp?v=3",
-      "ms": 5,
+      "ms": 4,
       "bytes": 129734
     },
     {
       "name": "interceptor-lod1.glb?v=3",
-      "ms": 6,
+      "ms": 5,
       "bytes": 394116
     },
     {
       "name": "interceptor-lod2.glb?v=3",
-      "ms": 6,
+      "ms": 5,
       "bytes": 183504
     }
   ],
   "perf": {
     "performance": {
-      "fps": 60.1,
+      "fps": 60.3,
       "renderer": "ANGLE (Intel, Intel(R) UHD Graphics (0x0000A788) Direct3D11 vs_5_0 ps_5_0, D3D11)"
     },
     "balanced": {
-      "fps": 54.5,
+      "fps": 55.1,
       "renderer": "ANGLE (Intel, Intel(R) UHD Graphics (0x0000A788) Direct3D11 vs_5_0 ps_5_0, D3D11)"
     },
     "cinematic": {
-      "fps": 41.4,
+      "fps": 41.7,
       "renderer": "ANGLE (Intel, Intel(R) UHD Graphics (0x0000A788) Direct3D11 vs_5_0 ps_5_0, D3D11)"
     }
   },

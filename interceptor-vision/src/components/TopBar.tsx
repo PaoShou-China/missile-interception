@@ -16,6 +16,8 @@ export function TopBar() {
   const lang = useApp((s) => s.lang);
   const setLang = useApp((s) => s.setLang);
   const setChartsOpen = useApp((s) => s.setChartsOpen);
+  const sceneMode = useApp((s) => s.sceneMode);
+  const setSceneMode = useApp((s) => s.setSceneMode);
 
   const uiVisible = leftOpen || rightOpen;
   const fromSite = typeof window !== "undefined" && new URLSearchParams(window.location.search).get("from") === "site";
@@ -51,6 +53,22 @@ export function TopBar() {
             {t("backToSite")}
           </a>
         )}
+        <div className="segmented" role="group" aria-label="Scene">
+          <button
+            type="button"
+            className={sceneMode === "vision" ? "is-active" : ""}
+            onClick={() => setSceneMode("vision")}
+          >
+            {t("visionMode")}
+          </button>
+          <button
+            type="button"
+            className={sceneMode === "orbital" ? "is-active" : ""}
+            onClick={() => setSceneMode("orbital")}
+          >
+            {t("orbitalMode")}
+          </button>
+        </div>
         <div className="segmented" role="group" aria-label="Presentation">
           <button
             type="button"

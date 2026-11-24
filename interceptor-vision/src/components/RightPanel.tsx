@@ -18,12 +18,13 @@ export function RightPanel() {
   const timeOfDay = useApp((s) => s.timeOfDay);
   const preset = SKY_PRESETS[timeOfDay];
   const sunElev = Math.round((Math.asin(preset.sunDir.y) * 180) / Math.PI);
+  const sceneMode = useApp((s) => s.sceneMode);
 
   return (
     <>
       <aside className={`rail rail--right ${open ? "" : "is-collapsed"}`}>
         <div className="panel-head">
-          <span>{t("environment")}</span>
+          <span>{sceneMode === "orbital" ? t("telemetry") : t("environment")}</span>
           <button type="button" className="panel-collapse" onClick={toggle} aria-label={t("hideUi")}>
             ›
           </button>
@@ -31,6 +32,8 @@ export function RightPanel() {
 
         <TelemetryPanel />
 
+        {sceneMode === "vision" && (
+          <>
         <section className="group">
           <h3>{t("haze")}</h3>
           <input
@@ -90,6 +93,8 @@ export function RightPanel() {
         <button type="button" className="ghost-btn" onClick={requestReset}>
           {t("reset")}
         </button>
+          </>
+        )}
       </aside>
 
       {!open && (

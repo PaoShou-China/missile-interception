@@ -7,6 +7,7 @@ export type Quality = "performance" | "balanced" | "cinematic";
 export type CameraMode = "macro" | "meso" | "micro" | "chase" | "top" | "cinematic" | "free";
 export type Livery = "sky" | "sunrise" | "arctic";
 export type Lang = "zh" | "en";
+export type SceneMode = "vision" | "orbital";
 
 export interface CameraPose {
   position: [number, number, number];
@@ -29,6 +30,9 @@ interface AppState {
 
   cameraMode: CameraMode;
   setCameraMode: (m: CameraMode) => void;
+
+  sceneMode: SceneMode;
+  setSceneMode: (m: SceneMode) => void;
 
   livery: Livery;
   setLivery: (l: Livery) => void;
@@ -108,6 +112,9 @@ export const useApp = create<AppState>((set) => ({
 
   cameraMode: "meso",
   setCameraMode: (cameraMode) => set({ cameraMode }),
+
+  sceneMode: "vision",
+  setSceneMode: (sceneMode) => set({ sceneMode }),
 
   livery: "sky",
   setLivery: (livery) => set({ livery }),

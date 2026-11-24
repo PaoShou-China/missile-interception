@@ -82,6 +82,8 @@ export interface Telemetry {
   demoUtc: string;
   entityLabel: string;
   targetSamples: Sample[];
+  /** Full validated manifest, reused by the Earth-scale orbital scene. */
+  manifest: unknown;
 }
 
 let cache: Telemetry | null = null;
@@ -183,6 +185,7 @@ export async function loadTelemetry(): Promise<Telemetry> {
       phases: raw.phases,
       metrics: raw.metrics,
       entityLabel: missile.id,
+      manifest: raw,
     };
     cache = tel;
     dataClock.t = tel.start;

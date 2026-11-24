@@ -110,7 +110,7 @@ function Plume() {
   ];
 
   return (
-    <group ref={group} position={[-3.12, 0, 0]}>
+    <group ref={group} position={[-3.34, 0, 0]}>
       {layers.map((l) => (
         <group key={l.len} position={[-l.len / 2, 0, 0]}>
           {[0, Math.PI / 2].map((rot) => (

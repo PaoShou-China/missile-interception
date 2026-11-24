@@ -21,12 +21,12 @@
 
 | 资源 | 文件大小 | 传输 | 阻塞首帧 |
 | --- | --- | --- | --- |
-| `interceptor-lod0.glb` | 0.72 MB | 736 KB | 是 |
+| `interceptor-lod0.glb` | 0.84 MB | 858 KB | 是 |
 | `env-day.hdr`（512×256 RGBE） | 0.51 MB | 245 KB | 是 |
 | `terrain-day.webp` | 0.09 MB | 91 KB | 否（Suspense 流式） |
 | `cloud-a.webp` / `cloud-b.webp` | 0.14 / 0.12 MB | 147 / 127 KB | 否（Suspense 流式） |
-| `interceptor-lod1.glb` | 0.38 MB | 375 KB | 否（首帧后预热） |
-| `interceptor-lod2.glb` | 0.18 MB | 175 KB | 否（首帧后预热） |
+| `interceptor-lod1.glb` | 0.43 MB | 425 KB | 否（首帧后预热） |
+| `interceptor-lod2.glb` | 0.21 MB | 200 KB | 否（首帧后预热） |
 | `data/scenario.json`（已验证遥测） | 1.00 MB | 约 0.2 MB（gzip） | 否（首帧后 0.9 s 后台加载） |
 
 首屏阻塞约 **1.0 MB**（LOD0 + 当日 HDRI）；其余资产在首帧后流式加载。优化前同一条链路约 5.4 MB，且三级 LOD 全部预加载。

@@ -19,7 +19,7 @@
 - **真实环境**：HDRI 环境光照、分层云海、地表曲率与大气霞光、太阳/月亮/星空、昼/昏/夜三套预设。
 - **三档画质**：Performance / Balanced / Cinematic，控制 DPR、阴影、云层数量与后期（SMAA、暗角、轻微 Bloom）。
 - **专业界面**：左侧场景与任务、右侧遥测与环境参数、底部数据时间线；面板折叠、高清截图、全屏、中英文切换、图表与离线影像。
-- **资产流水线**：全部模型/纹理/HDRI 由 Blender Python 脚本自动生成，可重复构建；GLB 提供三级 LOD。
+- **资产流水线**：全部模型/纹理/HDRI 由 Blender Python 脚本自动生成，可重复构建；GLB 提供三级 LOD。弹体外形参考公开的 SM-3 Block IB/IIA 三视图（尖锥头罩、收线边条、四片尾舵、MK72 式助推级）。
 
 ## 快速开始
 
@@ -117,8 +117,8 @@ interceptor-vision/
 | 指标 | 结果 |
 | --- | --- |
 | 首帧就绪 | 0.7 s（本地 preview，1920×1080 无头 Edge） |
-| 首屏关键资源 | LOD0 0.72 MB，HDRI 0.51 MB，地形/云 WebP 约 0.37 MB |
-| 延迟加载 | LOD1 0.38 MB、LOD2 0.18 MB 在首帧后预热 |
+| 首屏关键资源 | LOD0 0.84 MB，HDRI 0.51 MB，地形/云 WebP 约 0.37 MB |
+| 延迟加载 | LOD1 0.43 MB、LOD2 0.21 MB 在首帧后预热 |
 | 遥测数据 | `scenario.json` 1.0 MB（gzip 后约 0.2 MB），首帧后 0.9 s 后台加载，不阻塞画面 |
 | 地球弹道纹理 | 仅切换到弹道场景时加载：2048 地球 + 1024 云约 0.7 MB（高画质用 8K/4K 约 6.8 MB） |
 | 帧率（Intel UHD） | Performance 60.0 / Balanced 54.5 / Cinematic 41.7 FPS |

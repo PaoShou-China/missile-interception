@@ -102,7 +102,7 @@ def add_plume() -> None:
     for i, (length, radius, color, power) in enumerate(layers):
         bpy.ops.mesh.primitive_cone_add(
             vertices=32, radius1=radius, radius2=0.0, depth=length,
-            location=(-3.16 - length / 2, 0, 0), rotation=(0, -math.pi / 2, 0),
+            location=(-3.34 - length / 2, 0, 0), rotation=(0, -math.pi / 2, 0),
         )
         cone = bpy.context.active_object
         cone.name = f"Plume-{i}"

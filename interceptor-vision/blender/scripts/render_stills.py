@@ -183,7 +183,7 @@ def add_cloud_sea() -> None:
 
 
 def add_plume() -> None:
-    nozzle_x = -3.16
+    nozzle_x = -3.34
     layers = [
         (0.7, 0.055, (1.0, 0.95, 0.85), 16.0),
         (1.15, 0.085, (1.0, 0.55, 0.22), 6.0),

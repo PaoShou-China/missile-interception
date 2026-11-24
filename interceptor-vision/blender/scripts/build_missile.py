@@ -1,6 +1,7 @@
 """
-Procedural hypersonic interceptor, matching the reference project's
-"slender body + strakes + cruciform tail" configuration.
+Procedural long-range interceptor modelled on the published SM-3 Block IB/IIA
+profile: pointed nosecone, long slender airframe with harness strakes, four
+tail control surfaces ahead of a wider MK72-style booster stage.
 
 Run:
     blender -b -P blender/scripts/build_missile.py
@@ -33,7 +34,7 @@ ASSETS.mkdir(parents=True, exist_ok=True)
 BLEND_OUT.parent.mkdir(parents=True, exist_ok=True)
 
 SEGMENTS = 72
-BODY_X_MIN, BODY_X_MAX = -3.0, 3.5
+BODY_X_MIN, BODY_X_MAX = -2.30, 3.52
 
 
 # ----------------------------------------------------------------------------
@@ -193,9 +194,9 @@ def textured_body_material(normal_img, rough_img) -> bpy.types.Material:
 # ----------------------------------------------------------------------------
 
 BODY_PROFILE = [
-    (3.50, 0.018), (3.40, 0.055), (3.25, 0.085), (3.00, 0.120),
-    (2.65, 0.150), (2.30, 0.164), (2.00, 0.168), (1.60, 0.170),
-    (-2.40, 0.170), (-2.86, 0.145), (-3.00, 0.120),
+    (3.52, 0.012), (3.38, 0.040), (3.18, 0.078), (2.98, 0.118),
+    (2.78, 0.146), (2.58, 0.162), (2.38, 0.170), (2.10, 0.170),
+    (-1.60, 0.170), (-2.10, 0.170), (-2.30, 0.166),
 ]
 
 
@@ -278,40 +279,44 @@ def extrude_shape(name: str, points: list[tuple[float, float]], depth: float, ma
 
 
 def build_strakes(mat: bpy.types.Material) -> list[bpy.types.Object]:
-    # Long, slender swept strakes, mirrored left and right.
-    points = [(2.35, 0.13), (-1.95, 0.13), (-1.35, 0.305), (0.45, 0.475)]
+    # Long, low-profile harness strakes, mirrored left and right.
+    points = [(1.55, 0.13), (-1.55, 0.13), (-1.15, 0.255), (0.55, 0.30)]
     out = []
     for side in (1, -1):
         pts = [(x, y * side) for x, y in points]
         if side < 0:  # keep the winding consistent so normals face outward
             pts = pts[::-1]
-        out.append(extrude_shape(f"Strake_{'L' if side > 0 else 'R'}", pts, 0.014, mat))
+        out.append(extrude_shape(f"Strake_{'L' if side > 0 else 'R'}", pts, 0.018, mat))
     return out
 
 
-TAIL_POINTS = [(0.0, 0.0), (-0.48, 0.045), (-0.43, 0.27), (-0.03, 0.30)]
+TAIL_POINTS = [(0.0, 0.0), (-0.55, 0.05), (-0.50, 0.30), (-0.02, 0.33)]
 
 
 def build_tail_fins(mat: bpy.types.Material) -> list[bpy.types.Object]:
     out = []
     for i, ang in enumerate((0.0, math.pi / 2, math.pi, 3 * math.pi / 2)):
         pts = [(x, y + 0.166) for x, y in TAIL_POINTS]
-        fin = extrude_shape(f"TailFin_{i}", pts, 0.022, mat)
-        fin.location = (-2.42, 0.0, 0.0)
+        fin = extrude_shape(f"TailFin_{i}", pts, 0.024, mat)
+        fin.location = (-1.95, 0.0, 0.0)
         fin.rotation_euler[0] = -ang
         out.append(fin)
     return out
 
 
-def build_canards(mat: bpy.types.Material) -> list[bpy.types.Object]:
-    out = []
-    pts = [(x * 0.36, y * 0.36 + 0.164) for x, y in TAIL_POINTS]
-    for i, ang in enumerate((0.0, math.pi / 2, math.pi, 3 * math.pi / 2)):
-        can = extrude_shape(f"Canard_{i}", pts, 0.010, mat)
-        can.location = (1.64, 0.0, 0.0)
-        can.rotation_euler[0] = -ang
-        out.append(can)
-    return out
+def build_booster(mat: bpy.types.Material) -> bpy.types.Object:
+    """MK72-style booster stage: slightly wider, olive-grey, tapered aft."""
+    booster = revolve(
+        "Booster",
+        [
+            (-2.26, 0.170), (-2.30, 0.196), (-2.38, 0.205),
+            (-2.95, 0.205), (-3.08, 0.205), (-3.16, 0.198),
+            (-3.22, 0.185), (-3.24, 0.170),
+        ],
+        mat,
+        56,
+    )
+    return booster
 
 
 def revolve(name: str, profile: list[tuple[float, float]], mat: bpy.types.Material, segments: int = 48):
@@ -374,25 +379,31 @@ def build_details(mats: dict) -> list[bpy.types.Object]:
     # Nozzle bell, throat glow and actuator housings.
     nozzle = revolve(
         "Nozzle",
-        [(-2.98, 0.155), (-3.05, 0.16), (-3.16, 0.145), (-3.22, 0.12)],
+        [(-3.22, 0.176), (-3.30, 0.170), (-3.36, 0.140), (-3.40, 0.110)],
         mats["nozzle"],
         48,
     )
     objs.append(nozzle)
     glow = revolve(
         "NozzleGlow",
-        [(-3.08, 0.118), (-3.13, 0.1), (-3.16, 0.07)],
+        [(-3.30, 0.108), (-3.35, 0.09), (-3.38, 0.06)],
         mats["glow"],
         32,
     )
     objs.append(glow)
 
+    # Booster separation ring, clamp bands and the steering-control section.
+    objs.append(torus("SeparationRing", -2.30, 0.198, 0.012, mats["metal"]))
+    for i, x in enumerate((-2.55, -2.92)):
+        objs.append(torus(f"BoosterBand_{i}", x, 0.207, 0.008, mats["band"]))
+    objs.append(torus("SCSRing", -1.95, 0.173, 0.007, mats["metal"]))
+
     for i, ang in enumerate((0.0, math.pi / 2, math.pi, 3 * math.pi / 2)):
         act = make_mesh(
             f"Actuator_{i}",
             [
-                (-2.25, 0.172, -0.018), (-1.95, 0.172, -0.018),
-                (-1.95, 0.172, 0.018), (-2.25, 0.172, 0.018),
+                (-1.86, 0.172, -0.018), (-1.56, 0.172, -0.018),
+                (-1.56, 0.172, 0.018), (-1.86, 0.172, 0.018),
             ],
             [(0, 1, 2, 3)],
             mats["band"],
@@ -507,7 +518,7 @@ def main() -> None:
     mats = {
         "body": textured_body_material(normal_img, rough_img),
         "fin": material("MAT_Fin", (0.72, 0.76, 0.8), 0.55, 0.32, coat=0.25),
-        "canard": material("MAT_Canard", (0.66, 0.7, 0.74), 0.5, 0.36, coat=0.2),
+        "booster": material("MAT_Booster", (0.26, 0.24, 0.13), 0.3, 0.55, coat=0.1),
         "metal": material("MAT_Metal", (0.62, 0.66, 0.7), 0.95, 0.24),
         "band": material("MAT_Band", (0.09, 0.11, 0.13), 0.6, 0.38),
         "accent": material("MAT_Accent", (0.12, 0.6, 0.78), 0.5, 0.3, emission=(0.1, 0.5, 0.7), emission_strength=0.25),
@@ -520,11 +531,11 @@ def main() -> None:
     parts: list[bpy.types.Object] = [build_body(mats["body"])]
     parts += build_strakes(mats["fin"])
     parts += build_tail_fins(mats["fin"])
-    parts += build_canards(mats["canard"])
+    parts.append(build_booster(mats["booster"]))
     parts += build_details(mats)
 
     for obj in parts:
-        if obj.type == "MESH" and obj.name.startswith(("Body", "TailFin", "Canard", "Strake")):
+        if obj.type == "MESH" and obj.name.startswith(("Body", "TailFin", "Strake", "Booster")):
             try:
                 bpy.context.view_layer.objects.active = obj
                 bpy.ops.object.select_all(action="DESELECT")

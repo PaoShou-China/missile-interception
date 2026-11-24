@@ -1,15 +1,15 @@
 {
-  "capturedAt": "2026-11-24T15:33:39.556Z",
-  "readyMs": 1152,
+  "capturedAt": "2026-11-24T16:18:01.877Z",
+  "readyMs": 786,
   "resources": [
     {
       "name": "interceptor-lod0.glb?v=3",
       "ms": 6,
-      "bytes": 754004
+      "bytes": 883264
     },
     {
       "name": "env-day.hdr?v=3",
-      "ms": 12,
+      "ms": 11,
       "bytes": 250823
     },
     {
@@ -29,26 +29,26 @@
     },
     {
       "name": "interceptor-lod1.glb?v=3",
-      "ms": 5,
-      "bytes": 394116
+      "ms": 4,
+      "bytes": 453568
     },
     {
       "name": "interceptor-lod2.glb?v=3",
-      "ms": 5,
-      "bytes": 183504
+      "ms": 3,
+      "bytes": 206316
     }
   ],
   "perf": {
     "performance": {
-      "fps": 60.3,
+      "fps": 56.2,
       "renderer": "ANGLE (Intel, Intel(R) UHD Graphics (0x0000A788) Direct3D11 vs_5_0 ps_5_0, D3D11)"
     },
     "balanced": {
-      "fps": 55.1,
+      "fps": 55.7,
       "renderer": "ANGLE (Intel, Intel(R) UHD Graphics (0x0000A788) Direct3D11 vs_5_0 ps_5_0, D3D11)"
     },
     "cinematic": {
-      "fps": 41.7,
+      "fps": 42.4,
       "renderer": "ANGLE (Intel, Intel(R) UHD Graphics (0x0000A788) Direct3D11 vs_5_0 ps_5_0, D3D11)"
     }
   },

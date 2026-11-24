@@ -5,14 +5,26 @@ import { LeftPanel } from "./components/LeftPanel";
 import { RightPanel } from "./components/RightPanel";
 import { Transport } from "./components/Transport";
 import { GalleryOverlay } from "./components/GalleryOverlay";
+import { ChartsOverlay } from "./components/ChartsOverlay";
 import { LoadingOverlay } from "./components/LoadingOverlay";
 import { useApp } from "./state";
+import { loadTelemetry } from "./data/telemetry";
 
 export function App() {
   const leftOpen = useApp((s) => s.leftOpen);
   const rightOpen = useApp((s) => s.rightOpen);
   const fullscreenRequest = useApp((s) => s.fullscreenRequest);
   const galleryOpen = useApp((s) => s.galleryOpen);
+  const chartsOpen = useApp((s) => s.chartsOpen);
+  const ready = useApp((s) => s.ready);
+
+  useEffect(() => {
+    if (!ready) return;
+    const id = window.setTimeout(() => {
+      void loadTelemetry().catch(() => undefined);
+    }, 900);
+    return () => window.clearTimeout(id);
+  }, [ready]);
 
   useEffect(() => {
     document.documentElement.lang = useApp.getState().lang === "zh" ? "zh-CN" : "en";
@@ -38,6 +50,8 @@ export function App() {
         s.setPlaying(!s.playing);
       } else if (e.key === "Escape" && s.galleryOpen) {
         s.setGalleryOpen(false);
+      } else if (e.key === "Escape" && s.chartsOpen) {
+        s.setChartsOpen(false);
       } else if (e.key.toLowerCase() === "s") {
         s.requestScreenshot();
       } else if (e.key.toLowerCase() === "f") {
@@ -60,6 +74,7 @@ export function App() {
       <RightPanel />
       <Transport />
       {galleryOpen && <GalleryOverlay />}
+      {chartsOpen && <ChartsOverlay />}
       <LoadingOverlay />
     </div>
   );

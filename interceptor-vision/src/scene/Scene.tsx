@@ -5,6 +5,7 @@ import * as THREE from "three";
 import { Missile } from "./Missile";
 import { RealtimeEnvironment } from "./Environment";
 import { CameraRig } from "./CameraRig";
+import { TelemetryClock } from "./TelemetryClock";
 import { useApp } from "../state";
 import { SKY_PRESETS } from "./assets";
 
@@ -101,6 +102,7 @@ export function SceneCanvas() {
       className="scene-canvas"
     >
       <RendererBridge />
+      <TelemetryClock />
       <RealtimeEnvironment />
       <Missile />
       <CameraRig />

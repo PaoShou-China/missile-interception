@@ -25,6 +25,7 @@ Vite 使用 `base: "./"`，因此构建产物在任意子路径下都能正确�
 ```bash
 curl -I https://paoshou-china.github.io/missile-interception/interceptor-vision/
 curl -I https://paoshou-china.github.io/missile-interception/interceptor-vision/assets/interceptor-lod0.glb
+curl -I https://paoshou-china.github.io/missile-interception/interceptor-vision/data/scenario.json
 curl -s https://paoshou-china.github.io/missile-interception/interceptor-vision/renders/manifest.json
 ```
 

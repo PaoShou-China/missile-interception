@@ -15,6 +15,7 @@ export function TopBar() {
   const requestFullscreen = useApp((s) => s.requestFullscreen);
   const lang = useApp((s) => s.lang);
   const setLang = useApp((s) => s.setLang);
+  const setChartsOpen = useApp((s) => s.setChartsOpen);
 
   const uiVisible = leftOpen || rightOpen;
   const fromSite = typeof window !== "undefined" && new URLSearchParams(window.location.search).get("from") === "site";
@@ -72,6 +73,9 @@ export function TopBar() {
           </select>
         </label>
 
+        <button type="button" className="icon-button" title={t("charts")} onClick={() => setChartsOpen(true)}>
+          ▤
+        </button>
         <button type="button" className="icon-button" onClick={() => setLang(lang === "zh" ? "en" : "zh")}>
           {t("lang")}
         </button>

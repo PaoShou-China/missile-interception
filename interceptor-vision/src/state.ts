@@ -1,8 +1,10 @@
 import { create } from "zustand";
+import type { Telemetry } from "./data/telemetry";
+import { dataClock } from "./data/dataClock";
 
 export type TimeOfDay = "day" | "dusk" | "night";
 export type Quality = "performance" | "balanced" | "cinematic";
-export type CameraMode = "macro" | "meso" | "micro" | "cinematic" | "free";
+export type CameraMode = "macro" | "meso" | "micro" | "chase" | "top" | "cinematic" | "free";
 export type Livery = "sky" | "sunrise" | "arctic";
 export type Lang = "zh" | "en";
 
@@ -56,6 +58,20 @@ interface AppState {
   time: number;
   setTime: (t: number) => void;
   setPlaying: (p: boolean) => void;
+
+  /** Validated telemetry replay (loaded lazily after the first frame). */
+  telemetry: Telemetry | null;
+  dataStatus: "idle" | "loading" | "ready" | "error";
+  dataTime: number;
+  dataPlaying: boolean;
+  dataRate: number;
+  chartsOpen: boolean;
+  setTelemetry: (t: Telemetry | null) => void;
+  setDataStatus: (s: "idle" | "loading" | "ready" | "error") => void;
+  setDataTime: (t: number) => void;
+  setDataPlaying: (p: boolean) => void;
+  setDataRate: (r: number) => void;
+  setChartsOpen: (v: boolean) => void;
 
   galleryOpen: boolean;
   setGalleryOpen: (v: boolean) => void;
@@ -120,6 +136,28 @@ export const useApp = create<AppState>((set) => ({
   time: 0,
   setTime: (time) => set({ time }),
   setPlaying: (playing) => set({ playing }),
+
+  telemetry: null,
+  dataStatus: "idle",
+  dataTime: 0,
+  dataPlaying: false,
+  dataRate: 20,
+  chartsOpen: false,
+  setTelemetry: (telemetry) => set({ telemetry }),
+  setDataStatus: (dataStatus) => set({ dataStatus }),
+  setDataTime: (dataTime) => {
+    dataClock.t = dataTime;
+    set({ dataTime });
+  },
+  setDataPlaying: (dataPlaying) => {
+    dataClock.playing = dataPlaying;
+    set({ dataPlaying });
+  },
+  setDataRate: (dataRate) => {
+    dataClock.rate = dataRate;
+    set({ dataRate });
+  },
+  setChartsOpen: (chartsOpen) => set({ chartsOpen }),
 
   galleryOpen: false,
   setGalleryOpen: (galleryOpen) => set({ galleryOpen }),

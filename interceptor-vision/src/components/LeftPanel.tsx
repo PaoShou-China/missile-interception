@@ -1,6 +1,7 @@
 import { useApp, type CameraMode, type Livery, type TimeOfDay } from "../state";
 import { useT } from "../i18n";
 import { LIVERY } from "../scene/assets";
+import { MissionPanel } from "./MissionPanel";
 
 const TIMES: { key: TimeOfDay; label: "day" | "dusk" | "night" }[] = [
   { key: "day", label: "day" },
@@ -8,10 +9,12 @@ const TIMES: { key: TimeOfDay; label: "day" | "dusk" | "night" }[] = [
   { key: "night", label: "night" },
 ];
 
-const VIEWS: { key: CameraMode; label: "macro" | "meso" | "micro" | "cinematic" | "free" }[] = [
+const VIEWS: { key: CameraMode; label: "macro" | "meso" | "micro" | "chase" | "top" | "cinematic" | "free" }[] = [
   { key: "macro", label: "macro" },
   { key: "meso", label: "meso" },
   { key: "micro", label: "micro" },
+  { key: "chase", label: "chase" },
+  { key: "top", label: "top" },
   { key: "cinematic", label: "cinematic" },
   { key: "free", label: "free" },
 ];
@@ -44,6 +47,8 @@ export function LeftPanel() {
             ‹
           </button>
         </div>
+
+        <MissionPanel />
 
         <section className="group">
           <h3>{t("time")}</h3>

@@ -1,6 +1,7 @@
 import { useApp } from "../state";
 import { useT } from "../i18n";
 import { SKY_PRESETS } from "../scene/assets";
+import { TelemetryPanel } from "./TelemetryPanel";
 
 export function RightPanel() {
   const t = useT();
@@ -27,6 +28,8 @@ export function RightPanel() {
             ›
           </button>
         </div>
+
+        <TelemetryPanel />
 
         <section className="group">
           <h3>{t("haze")}</h3>

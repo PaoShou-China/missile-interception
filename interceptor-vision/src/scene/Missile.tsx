@@ -3,6 +3,7 @@ import { useFrame } from "@react-three/fiber";
 import { Detailed, useGLTF } from "@react-three/drei";
 import * as THREE from "three";
 import { LIVERY, MISSILE_LODS } from "./assets";
+import { sampleAt } from "../data/telemetry";
 import { useApp } from "../state";
 
 function tuneMaterials(root: THREE.Object3D, opts: { accent: string; paint: string; night: boolean }) {
@@ -158,9 +159,25 @@ export function Missile() {
     return () => window.clearTimeout(id);
   }, [ready]);
 
-  useFrame(({ clock }) => {
+  useFrame(({ clock }, delta) => {
     const t = clock.elapsedTime;
     if (!group.current) return;
+    const state = useApp.getState();
+    const sample = state.dataStatus === "ready" ? sampleAt(state.dataTime) : null;
+    if (sample?.finDeflectionsRad) {
+      // Control-surface telemetry drives a restrained body motion: exact ECEF
+      // attitude would be meaningless in this local cruise scene.
+      const f = sample.finDeflectionsRad;
+      const clamp = (v: number, m: number) => Math.max(-m, Math.min(m, v));
+      const tx = clamp((f.up - f.down) * 0.45, 0.16);
+      const tz = clamp((f.left - f.right) * 0.8, 0.32);
+      const k = 1 - Math.exp(-3 * Math.min(delta, 0.1));
+      group.current.rotation.x += (tx - group.current.rotation.x) * k;
+      group.current.rotation.z += (tz - group.current.rotation.z) * k;
+      group.current.rotation.y += (Math.sin(t * 0.17 + 0.8) * 0.012 - group.current.rotation.y) * k;
+      group.current.position.y += (Math.sin(t * 0.5) * 0.12 - group.current.position.y) * k;
+      return;
+    }
     group.current.rotation.x = Math.sin(t * 0.24) * 0.045;
     group.current.rotation.y = Math.sin(t * 0.17 + 0.8) * 0.012;
     group.current.rotation.z = Math.sin(t * 0.19 + 2.1) * 0.018;

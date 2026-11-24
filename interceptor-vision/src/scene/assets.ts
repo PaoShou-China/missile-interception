@@ -118,6 +118,16 @@ export const CAMERA_POSES: Record<Exclude<CameraMode, "cinematic" | "free">, Cam
     target: [2.15, 0.3, 0.15],
     fov: 34,
   },
+  chase: {
+    position: [-8.4, 1.9, 3.1],
+    target: [2.6, 0, 0],
+    fov: 38,
+  },
+  top: {
+    position: [0.01, 10.5, 0],
+    target: [0, 0, 0],
+    fov: 40,
+  },
 };
 
 /** Camera spline for the cinematic mode, sampled over CINEMATIC_SECONDS. */

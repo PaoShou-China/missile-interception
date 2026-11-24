@@ -1,8 +1,8 @@
-﻿import { Suspense, useEffect, useMemo, useRef } from "react";
+import { Suspense, useEffect, useMemo, useRef } from "react";
 import { useFrame, useLoader, useThree } from "@react-three/fiber";
 import * as THREE from "three";
 import { RGBELoader } from "three/examples/jsm/loaders/RGBELoader.js";
-import { SKY_PRESETS, ASSET_BASE } from "./assets";
+import { SKY_PRESETS, asset } from "./assets";
 import { useApp } from "../state";
 
 const R_EARTH = 6_371_000;
@@ -132,7 +132,7 @@ function HdriEnvironment({ file }: { file: string }) {
 
 function EnvironmentForTime() {
   const timeOfDay = useApp((s) => s.timeOfDay);
-  const file = `${ASSET_BASE}env-${timeOfDay}.hdr`;
+  const file = asset(`env-${timeOfDay}.hdr`);
   return (
     <Suspense fallback={null}>
       <HdriEnvironment key={file} file={file} />
@@ -259,7 +259,7 @@ function Terrain() {
   const quality = useApp((s) => s.quality);
   const timeOfDay = useApp((s) => s.timeOfDay);
   const segments = quality === "cinematic" ? 160 : quality === "balanced" ? 120 : 72;
-  const color = useLoader(THREE.TextureLoader, `${ASSET_BASE}terrain-day.jpg`) as THREE.Texture;
+  const color = useLoader(THREE.TextureLoader, asset("terrain-day.webp")) as THREE.Texture;
   const preset = SKY_PRESETS[timeOfDay];
 
   useEffect(() => {
@@ -366,8 +366,8 @@ function Clouds() {
   const timeOfDay = useApp((s) => s.timeOfDay);
   const quality = useApp((s) => s.quality);
   const preset = SKY_PRESETS[timeOfDay];
-  const a = useLoader(THREE.TextureLoader, `${ASSET_BASE}cloud-a.png`) as THREE.Texture;
-  const b = useLoader(THREE.TextureLoader, `${ASSET_BASE}cloud-b.png`) as THREE.Texture;
+  const a = useLoader(THREE.TextureLoader, asset("cloud-a.webp")) as THREE.Texture;
+  const b = useLoader(THREE.TextureLoader, asset("cloud-b.webp")) as THREE.Texture;
   const layers =
     quality === "performance"
       ? [{ y: -20_000, tex: a, repeat: 4, speed: 1800, size: 2_300_000 }]
@@ -425,8 +425,14 @@ export function RealtimeEnvironment() {
       <SkyDome />
       <EnvironmentForTime />
       <Lights />
-      <Terrain />
-      <Clouds />
+      {/* Ground cover and clouds stream in after the first frame instead of
+          delaying the whole scene on a slow connection. */}
+      <Suspense fallback={null}>
+        <Terrain />
+      </Suspense>
+      <Suspense fallback={null}>
+        <Clouds />
+      </Suspense>
       <Haze />
     </>
   );

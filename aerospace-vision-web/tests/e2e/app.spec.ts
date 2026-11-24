@@ -5,10 +5,11 @@ import fs from "node:fs";
 const SHOTS = path.resolve(process.cwd(), "test-results/visual");
 fs.mkdirSync(SHOTS, { recursive: true });
 
-/** Force English and open the explorer route. */
+/** Force English and open the legacy explorer route (the default entry now hands
+ * over to the standalone interceptor vision app). */
 async function gotoExplore(page: Page) {
   await page.addInitScript(() => window.localStorage.setItem("av.lang", "en"));
-  await page.goto("/#/explore");
+  await page.goto("/#/explore-legacy");
 }
 
 test("academic home renders and links to the explorer", async ({ page }) => {
@@ -21,7 +22,7 @@ test("academic home renders and links to the explorer", async ({ page }) => {
   await page.screenshot({ path: path.join(SHOTS, "00-academic-home.png"), fullPage: true });
 
   await page.locator(".site-header__actions a.btn--primary").click();
-  await expect(page).toHaveURL(/#\/explore$/);
+  await expect(page).toHaveURL(/(#\/explore$|interceptor-vision\/)/);
 });
 
 test("language switch translates the academic site and persists", async ({ page }) => {

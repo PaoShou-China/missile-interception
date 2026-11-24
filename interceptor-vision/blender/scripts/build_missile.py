@@ -492,6 +492,8 @@ def export(obj: bpy.types.Object, path: Path) -> None:
         export_materials="EXPORT",
         export_cameras=False,
         export_lights=False,
+        export_image_format="WEBP",
+        export_image_quality=90,
     )
     print(f"exported {path} ({path.stat().st_size / 1e6:.2f} MB)")
 

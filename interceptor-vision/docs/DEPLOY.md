@@ -8,6 +8,8 @@
 https://paoshou-china.github.io/missile-interception/interceptor-vision/
 ```
 
+主站的“进入三维探索 / 打开三维探索器”入口现在会跳转到该地址（`?from=site`，页内提供“返回学术主页”）；原数据驱动探索器保留在 `#/explore-legacy`，供历史链接与回归测试使用。
+
 `.github/workflows/aerospace-vision-pages.yml` 在原有构建流程中追加了三步：
 
 1. `npm ci`（working-directory: `interceptor-vision`）
@@ -26,7 +28,7 @@ curl -I https://paoshou-china.github.io/missile-interception/interceptor-vision/
 curl -s https://paoshou-china.github.io/missile-interception/interceptor-vision/renders/manifest.json
 ```
 
-预期：均返回 `200`；manifest 中包含 9 张静帧与 `flyby.mp4`。
+预期：均返回 `200`；manifest 中包含 9 张静帧与 `flyby.mp4`。另外打开主站首页点击“进入三维探索”，应落到本 Demo 且页面显示“返回学术主页”。
 
 ## 方式二：任意静态服务器
 

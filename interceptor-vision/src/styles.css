@@ -129,6 +129,17 @@ button, select, input { font-family: inherit; color: inherit; }
 .status-pill--ok { color: #9fe3c3; border-color: rgba(87, 227, 160, 0.26); background: rgba(25, 70, 52, 0.2); }
 
 .topbar__actions { display: flex; align-items: center; gap: 10px; flex: none; }
+.topbar__back {
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+  text-decoration: none;
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  white-space: nowrap;
+}
+.topbar__back:hover { color: var(--text); border-color: var(--accent-soft); }
 
 .segmented {
   display: inline-flex;
@@ -500,6 +511,7 @@ input[type="range"]::-moz-range-thumb {
 .loading__bar { height: 2px; background: rgba(140, 175, 205, 0.18); border-radius: 2px; overflow: hidden; }
 .loading__bar span { display: block; height: 100%; background: linear-gradient(90deg, #2f9fc0, #9fe6f5); transition: width 0.25s; }
 .loading__pct { margin-top: 8px; font-family: var(--mono); font-size: 9.5px; letter-spacing: 0.14em; color: var(--muted-2); }
+.loading__slow { margin: 14px 0 0; font-size: 10px; line-height: 1.6; color: var(--accent-soft); }
 
 /* ------------------------------------------------------------------ */
 /* Responsive                                                          */

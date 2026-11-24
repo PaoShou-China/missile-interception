@@ -123,6 +123,7 @@ def build_terrain(size: int = 2048) -> None:
 
     rgba = np.concatenate([np.clip(col, 0, 1), np.ones((size, size, 1), dtype=np.float32)], axis=-1)
     write_image("terrain-day", rgba, OUT / "terrain-day.jpg", "JPEG")
+    write_image("terrain-day-web", rgba, OUT / "terrain-day.webp", "WEBP")
 
     gy, gx = np.gradient(h)
     strength = 22.0
@@ -147,6 +148,7 @@ def build_clouds(size: int = 1024) -> None:
         rgb = np.stack([shade, shade, shade * 1.02], axis=-1)
         rgba = np.concatenate([rgb, alpha[..., None]], axis=-1)
         write_image(name, rgba, OUT / f"{name}.png")
+        write_image(f"{name}-web", rgba, OUT / f"{name}.webp", "WEBP")
 
 
 # ----------------------------------------------------------------------------
@@ -159,8 +161,8 @@ def setup_sky_render(sun_elevation: float, sun_rotation: float, strength: float,
     scene.cycles.device = "CPU"
     scene.cycles.samples = 48
     scene.cycles.use_denoising = True
-    scene.render.resolution_x = 1024
-    scene.render.resolution_y = 512
+    scene.render.resolution_x = 512
+    scene.render.resolution_y = 256
     scene.render.resolution_percentage = 100
     scene.render.film_transparent = False
     scene.view_settings.view_transform = "Standard"

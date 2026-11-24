@@ -17,6 +17,7 @@ export function TopBar() {
   const setLang = useApp((s) => s.setLang);
 
   const uiVisible = leftOpen || rightOpen;
+  const fromSite = typeof window !== "undefined" && new URLSearchParams(window.location.search).get("from") === "site";
 
   return (
     <header className="topbar">
@@ -44,6 +45,11 @@ export function TopBar() {
       </div>
 
       <div className="topbar__actions">
+        {fromSite && (
+          <a className="topbar__back" href="../">
+            {t("backToSite")}
+          </a>
+        )}
         <div className="segmented" role="group" aria-label="Presentation">
           <button
             type="button"

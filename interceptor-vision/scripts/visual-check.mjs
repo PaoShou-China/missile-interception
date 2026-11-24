@@ -31,7 +31,7 @@ await page.waitForTimeout(2200);
 
 const resources = await page.evaluate(() =>
   performance.getEntriesByType("resource")
-    .filter((e) => /\.(glb|hdr|jpg|png)$/.test(e.name))
+    .filter((e) => /\.(glb|hdr|webp|jpg|png)(\?|$)/.test(e.name))
     .map((e) => ({ name: e.name.split("/").pop(), ms: Math.round(e.duration), bytes: e.transferSize || 0 })),
 );
 

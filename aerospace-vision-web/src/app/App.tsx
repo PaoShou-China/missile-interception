@@ -21,6 +21,7 @@ const META: Record<RoutePath, { nav: string; desc: string }> = {
   "/resources": { nav: "nav.resources", desc: "meta.description.resources" },
   "/compare": { nav: "nav.compare", desc: "meta.description.compare" },
   "/explore": { nav: "explore.title", desc: "meta.description.explore" },
+  "/explore-legacy": { nav: "explore.title", desc: "meta.description.explore" },
 };
 
 const BASE_URL = "https://paoshou-china.github.io/missile-interception/";
@@ -85,10 +86,40 @@ function RouteFallback() {
   );
 }
 
+/** The "3D explorer" entry now hands over to the dedicated interceptor vision app. */
+function ExploreRedirect() {
+  const { t } = useI18n();
+
+  useEffect(() => {
+    // In dev the demo runs as its own Vite server; in a production build the
+    // workflow stages it next to this app under /interceptor-vision/.
+    const target = import.meta.env.DEV
+      ? "http://127.0.0.1:4176/?from=site"
+      : "./interceptor-vision/?from=site";
+    window.location.replace(target);
+  }, []);
+
+  return (
+    <div className="route-fallback" role="status" aria-live="polite">
+      <span className="route-fallback__mark" aria-hidden>◎</span>
+      <p>{t("common.explorerLoading")}</p>
+    </div>
+  );
+}
+
 export default function App() {
   const route = useRoute();
 
   if (route === "/explore") {
+    return (
+      <I18nProvider>
+        <RouteMeta route={route} />
+        <ExploreRedirect />
+      </I18nProvider>
+    );
+  }
+
+  if (route === "/explore-legacy") {
     return (
       <I18nProvider>
         <RouteMeta route={route} />

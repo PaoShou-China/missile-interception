@@ -2,6 +2,8 @@
 
 独立的拦截弹三维视景 Demo：Blender 负责模型、纹理与 HDRI，Three.js 负责实时渲染与交互，GitHub Pages 负责静态部署。它与参考工程 `missile_interception` 的制导、控制、弹道算法完全解耦，仅复用其"专业航空航天软件"的界面与渲染思想。
 
+**该应用现在是原平台“进入三维探索”的正式视景页**：首页/导航中的探索入口会重定向到这里；原数据驱动探索器保留在 `#/explore-legacy`，仅用于历史链接与回归测试。
+
 在线演示：<https://paoshou-china.github.io/missile-interception/interceptor-vision/>
 
 ![白天 · 中观](docs/screenshots/day-meso.png)
@@ -25,7 +27,7 @@ npm run build      # 生产构建
 npm run preview -- --port 4176
 ```
 
-浏览器打开 `http://127.0.0.1:4176/`。首次加载会拉取 GLB（约 3 MB）与 HDRI（约 2 MB/套）。
+浏览器打开 `http://127.0.0.1:4176/`。首次加载约 1.1 MB（LOD0 + 当日 HDRI；云层与地形随后流式加载，远端 LOD 在首帧后预热）。
 
 ### 快捷键
 
@@ -101,15 +103,16 @@ interceptor-vision/
 | Balanced | 1–1.5 | 2048 | 3 层 | 120 | SMAA + 暗角 |
 | Cinematic | 1–2 | 4096 | 3 层 | 160 | SMAA + 暗角 + 弱 Bloom |
 
-纹理压缩：GLB 纹理以 JPEG/PNG 嵌入并在导出前生成，尺寸受限；几何使用三级 LOD（约 26 m / 160 m 距离切换）。如需进一步压缩可对 GLB 运行 `gltf-transform` 的 Draco/Meshopt 优化。
+纹理压缩：GLB 纹理由 Blender 以 WebP（质量 90）嵌入；地形/云层使用 WebP 副本；HDRI 降为 512×256。几何使用三级 LOD（约 26 m / 160 m 距离切换），LOD1/LOD2 在首帧后预热，不阻塞首屏。如需进一步压缩可对 GLB 运行 `gltf-transform` 的 Draco/Meshopt 优化。
 
 ## 性能（实测）
 
 | 指标 | 结果 |
 | --- | --- |
-| 首帧就绪 | 3.0 s（本地 preview，1920×1080 无头 Edge） |
-| 关键资源 | GLB 1.31/0.95/0.74 MB，HDRI 2.10 MB，地形/云约 1.5 MB |
-| 帧率（Intel UHD） | Performance 60.0 / Balanced 51.7 / Cinematic 39.1 FPS |
+| 首帧就绪 | 0.7 s（本地 preview，1920×1080 无头 Edge） |
+| 首屏关键资源 | LOD0 0.72 MB，HDRI 0.51 MB，地形/云 WebP 约 0.37 MB |
+| 延迟加载 | LOD1 0.38 MB、LOD2 0.18 MB 在首帧后预热 |
+| 帧率（Intel UHD） | Performance 60.0 / Balanced 54.3 / Cinematic 40.2 FPS |
 | 控制台错误 | 0 |
 
 详见 [docs/PERFORMANCE.md](docs/PERFORMANCE.md)。

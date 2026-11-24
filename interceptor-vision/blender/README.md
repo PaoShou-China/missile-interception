@@ -15,7 +15,7 @@ blender -b -P blender/scripts/build_missile.py
 - 光电头罩（深色介电材质 + 发光镜片）、尾部喷管与发光喉部、面板环、服务环带、作动器、天线、舱口、腹部整流罩。
 - 程序化面板线法线贴图与粗糙度贴图（1024×512），通过圆柱 UV 贴在弹体上。
 - 三种 LOD：LOD0 全精度、LOD1 简化 45%、LOD2 简化 16%。
-- 导出 `public/assets/interceptor-lod{0,1,2}.glb` 与 `blender/interceptor.blend`。
+- 导出 `public/assets/interceptor-lod{0,1,2}.glb` 与 `blender/interceptor.blend`；glTF 纹理以 WebP（质量 90）嵌入，首屏 GLB 约 0.72 MB。
 
 坐标：Blender +X 弹头、+Z 向上；glTF 导出后为 +X 弹头、+Y 向上，与网页相机一致。
 
@@ -26,8 +26,10 @@ blender -b -P blender/scripts/build_environment.py
 ```
 
 - `terrain-day.jpg` / `terrain-normal.jpg`：2048×2048 可平铺地形（海洋、海岸、平原、山地）。
+- `terrain-day.webp`：地形颜色的 WebP 副本，供网页实时渲染使用。
 - `cloud-a.png` / `cloud-b.png`：1024×1024 分形云层（RGB + Alpha）。
-- `env-day.hdr` / `env-dusk.hdr` / `env-night.hdr`：1024×512 equirectangular HDRI。
+- `cloud-a.webp` / `cloud-b.webp`：云层 WebP 副本，供网页实时渲染使用。
+- `env-day.hdr` / `env-dusk.hdr` / `env-night.hdr`：512×256 equirectangular HDRI（每张约 0.52 MB）。
   - Cycles 渲染 Nishita 天空（白天 42°、黄昏 3°、夜晚关闭太阳），32-bit EXR 转 Radiance RGBE。
   - Three.js 使用 `RGBELoader` 作为 `scene.environment`，提供 PBR 反射与环境光。
 
@@ -52,7 +54,7 @@ blender -b blender/interceptor.blend -P blender/scripts/render_flyby.py
 IV_FRAMES=6 blender -b blender/interceptor.blend -P blender/scripts/render_flyby.py
 ```
 
-- EEVEE Next，48 TAA samples，1280×720，24 fps，240 帧（10 s）。
+- EEVEE Next，48 TAA samples，1600×900，24 fps，240 帧（10 s）。
 - 相机沿螺旋轨迹从 15.5 m 拉近至约 7 m，再拉开；合成器加入 Fog Glow 辉光。
 - 直接输出 H.264：`public/renders/flyby.mp4`（Blender 内置 FFmpeg，无需外部 ffmpeg）。
 
@@ -62,8 +64,9 @@ IV_FRAMES=6 blender -b blender/interceptor.blend -P blender/scripts/render_flyby
 | --- | --- |
 | `interceptor.blend` | 弹体原始工程，含预览相机 |
 | `environment.blend` | 环境资产生成工程（天空、云、地形） |
-| `public/assets/interceptor-lod*.glb` | 实时渲染资产，材质为 Principled PBR，纹理嵌入 |
-| `public/assets/env-*.hdr` | RGBE 环境贴图 |
+| `public/assets/interceptor-lod*.glb` | 实时渲染资产，材质为 Principled PBR，纹理以 WebP 嵌入 |
+| `public/assets/env-*.hdr` | 512×256 RGBE 环境贴图（每张约 0.52 MB） |
+| `public/assets/*.webp` | 地形与云层的网页用压缩纹理 |
 | `public/renders/*` | 离线成品 |
 
 所有脚本幂等：重复运行会覆盖同名产物。渲染脚本不会修改 `.blend` 源文件。

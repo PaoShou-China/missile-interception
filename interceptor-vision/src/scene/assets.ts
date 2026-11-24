@@ -3,10 +3,18 @@ import type { CameraMode, Livery, TimeOfDay } from "../state";
 
 export const ASSET_BASE = `${import.meta.env.BASE_URL}assets/`;
 
+/**
+ * Cache-busting version for the long-lived asset filenames. Bump it whenever
+ * the Blender pipeline rewrites a GLB, HDRI or texture in place.
+ */
+export const ASSET_VERSION = "3";
+
+export const asset = (file: string) => `${ASSET_BASE}${file}?v=${ASSET_VERSION}`;
+
 export const MISSILE_LODS = [
-  `${ASSET_BASE}interceptor-lod0.glb`,
-  `${ASSET_BASE}interceptor-lod1.glb`,
-  `${ASSET_BASE}interceptor-lod2.glb`,
+  asset("interceptor-lod0.glb"),
+  asset("interceptor-lod1.glb"),
+  asset("interceptor-lod2.glb"),
 ];
 
 export interface SkyPreset {

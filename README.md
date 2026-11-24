@@ -35,6 +35,7 @@
 | --- | --- |
 | **`missile_intercept/`** | Python/NumPy 6DOF simulator: boost → midcourse → handover → terminal, sensors, guidance, control, Monte-Carlo campaigns |
 | **`aerospace-vision-web/`** | React 19 + Vite + Three.js + ECharts platform: academic site, 3D explorer, cinematic mode, **Experiment Configuration Studio** |
+| **`interceptor-vision/`** | Blender + Three.js interceptor visualisation demo; it is now the site's "3D explorer" entry (legacy explorer kept at `#/explore-legacy`) |
 | **`docs/experiments/`** | Paired Monte-Carlo campaigns: guidance-law, boost-law, attitude-control and architecture comparisons |
 | **Legacy reports** | The original static HTML overview / intercept analysis / test report, preserved at their original URLs |
 

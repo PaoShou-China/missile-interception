@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from "react";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useFrame } from "@react-three/fiber";
 import { Detailed, useGLTF } from "@react-three/drei";
 import * as THREE from "three";
@@ -134,8 +134,29 @@ function Plume() {
   );
 }
 
+/** Fetches the far LODs in the background once the first frame is on screen. */
+function LodsPreloader({ onReady }: { onReady: () => void }) {
+  useGLTF(MISSILE_LODS[1]);
+  useGLTF(MISSILE_LODS[2]);
+  useEffect(() => {
+    onReady();
+  }, [onReady]);
+  return null;
+}
+
 export function Missile() {
   const group = useRef<THREE.Group>(null);
+  const ready = useApp((s) => s.ready);
+  const [tiered, setTiered] = useState(false);
+  const [warm, setWarm] = useState(false);
+
+  // Let the near LOD and the HDRI finish first, then upgrade to the full LOD
+  // chain. On a slow connection this keeps the first frame ~1 MB lighter.
+  useEffect(() => {
+    if (!ready) return;
+    const id = window.setTimeout(() => setWarm(true), 1200);
+    return () => window.clearTimeout(id);
+  }, [ready]);
 
   useFrame(({ clock }) => {
     const t = clock.elapsedTime;
@@ -148,14 +169,23 @@ export function Missile() {
 
   return (
     <group ref={group}>
-      <Detailed distances={[0, 26, 160]}>
+      {tiered ? (
+        <Detailed distances={[0, 26, 160]}>
+          <Model url={MISSILE_LODS[0]} />
+          <Model url={MISSILE_LODS[1]} />
+          <Model url={MISSILE_LODS[2]} />
+        </Detailed>
+      ) : (
         <Model url={MISSILE_LODS[0]} />
-        <Model url={MISSILE_LODS[1]} />
-        <Model url={MISSILE_LODS[2]} />
-      </Detailed>
+      )}
+      {warm && !tiered && (
+        <Suspense fallback={null}>
+          <LodsPreloader onReady={() => setTiered(true)} />
+        </Suspense>
+      )}
       <Plume />
     </group>
   );
 }
 
-MISSILE_LODS.forEach((url) => useGLTF.preload(url));
+useGLTF.preload(MISSILE_LODS[0]);

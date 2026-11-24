@@ -11,7 +11,8 @@ export type RoutePath =
   | "/verification"
   | "/resources"
   | "/compare"
-  | "/explore";
+  | "/explore"
+  | "/explore-legacy";
 
 const ROUTES: RoutePath[] = [
   "/",
@@ -21,6 +22,7 @@ const ROUTES: RoutePath[] = [
   "/resources",
   "/compare",
   "/explore",
+  "/explore-legacy",
 ];
 
 export function parseHash(hash: string): RoutePath {

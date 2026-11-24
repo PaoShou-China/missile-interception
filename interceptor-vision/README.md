@@ -1,4 +1,4 @@
-﻿# Interceptor Vision · 拦截弹视景
+# Interceptor Vision · 拦截弹视景
 
 独立的拦截弹三维视景 Demo：Blender 负责模型、纹理与 HDRI，Three.js 负责实时渲染与交互，GitHub Pages 负责静态部署。它与参考工程 `missile_interception` 的制导、控制、弹道算法完全解耦，仅复用其"专业航空航天软件"的界面与渲染思想。
 

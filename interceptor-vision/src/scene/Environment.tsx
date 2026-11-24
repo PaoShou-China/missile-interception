@@ -1,4 +1,4 @@
-﻿﻿import { Suspense, useEffect, useMemo, useRef } from "react";
+﻿import { Suspense, useEffect, useMemo, useRef } from "react";
 import { useFrame, useLoader, useThree } from "@react-three/fiber";
 import * as THREE from "three";
 import { RGBELoader } from "three/examples/jsm/loaders/RGBELoader.js";

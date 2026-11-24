@@ -1,0 +1,60 @@
+{
+  "generatedAt": "2026-11-24T13:05:56.741Z",
+  "stills": [
+    {
+      "file": "still-day-macro.jpg",
+      "time": "day",
+      "view": "macro",
+      "label": "白天 · 宏观 / Day · Macro"
+    },
+    {
+      "file": "still-day-meso.jpg",
+      "time": "day",
+      "view": "meso",
+      "label": "白天 · 中观 / Day · Meso"
+    },
+    {
+      "file": "still-day-micro.jpg",
+      "time": "day",
+      "view": "micro",
+      "label": "白天 · 微观 / Day · Micro"
+    },
+    {
+      "file": "still-dusk-macro.jpg",
+      "time": "dusk",
+      "view": "macro",
+      "label": "黄昏 · 宏观 / Dusk · Macro"
+    },
+    {
+      "file": "still-dusk-meso.jpg",
+      "time": "dusk",
+      "view": "meso",
+      "label": "黄昏 · 中观 / Dusk · Meso"
+    },
+    {
+      "file": "still-dusk-micro.jpg",
+      "time": "dusk",
+      "view": "micro",
+      "label": "黄昏 · 微观 / Dusk · Micro"
+    },
+    {
+      "file": "still-night-macro.jpg",
+      "time": "night",
+      "view": "macro",
+      "label": "夜晚 · 宏观 / Night · Macro"
+    },
+    {
+      "file": "still-night-meso.jpg",
+      "time": "night",
+      "view": "meso",
+      "label": "夜晚 · 中观 / Night · Meso"
+    },
+    {
+      "file": "still-night-micro.jpg",
+      "time": "night",
+      "view": "micro",
+      "label": "夜晚 · 微观 / Night · Micro"
+    }
+  ],
+  "video": "flyby.mp4"
+}

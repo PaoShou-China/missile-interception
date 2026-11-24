@@ -1,0 +1,10 @@
+node_modules
+dist
+.vite
+*.log
+test-results
+playwright-report
+blender/preview
+blender/*.exr
+blender/*.blend1
+*.tsbuildinfo

@@ -155,7 +155,9 @@ export function TargetTrack() {
     const tel = getTelemetry();
     if (!tel) return;
     const dist = targetLocalAt(dataClock.t, local);
-    if (dist === null) return;
+    if (dist === null || !Number.isFinite(local.x) || !Number.isFinite(local.y) || !Number.isFinite(local.z)) {
+      return;
+    }
 
     objects.vehicle.position.copy(local);
     const target = sampleTarget(tel.targetSamples, dataClock.t);
@@ -184,7 +186,6 @@ export function TargetTrack() {
     pos.setXYZ(0, 0, 0, 0);
     pos.setXYZ(1, local.x, local.y, local.z);
     pos.needsUpdate = true;
-    objects.geo.computeBoundingSphere();
     objects.losObj.computeLineDistances();
     objects.losMat.dashSize = Math.max(400, dist * 0.006);
     objects.losMat.gapSize = Math.max(260, dist * 0.004);

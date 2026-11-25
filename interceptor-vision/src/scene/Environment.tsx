@@ -31,6 +31,8 @@ const SKY_FRAG = /* glsl */ `
   uniform vec3 uMoonDir;
   uniform float uSunPower;
   uniform float uStars;
+  uniform float uTime;
+  uniform float uSkyPow;
   varying vec3 vDir;
 
   float hash(vec3 p) {
@@ -39,17 +41,79 @@ const SKY_FRAG = /* glsl */ `
     return fract(p.x * p.y * p.z * (p.x + p.y + p.z));
   }
 
+  float hash2(vec2 p) {
+    return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
+  }
+
+  float vnoise(vec2 p) {
+    vec2 i = floor(p);
+    vec2 f = fract(p);
+    f = f * f * (3.0 - 2.0 * f);
+    return mix(
+      mix(hash2(i), hash2(i + vec2(1.0, 0.0)), f.x),
+      mix(hash2(i + vec2(0.0, 1.0)), hash2(i + vec2(1.0, 1.0)), f.x),
+      f.y
+    );
+  }
+
+  float fbm(vec2 p) {
+    float v = 0.0;
+    float a = 0.6;
+    for (int i = 0; i < 3; i++) {
+      v += a * vnoise(p);
+      p *= 2.07;
+      a *= 0.5;
+    }
+    return v;
+  }
+
   void main() {
     vec3 d = normalize(vDir);
     float up = clamp(d.y, 0.0, 1.0);
-    vec3 col = mix(uHorizon, uZenith, pow(up, 0.52));
+    vec3 col = mix(uHorizon, uZenith, pow(up, uSkyPow));
+
+    float sun = max(dot(d, normalize(uSunDir)), 0.0);
+    vec3 sunFlat = normalize(vec3(uSunDir.x, 0.0, uSunDir.z) + vec3(0.0001, 0.0, 0.0));
+    float az = max(dot(normalize(vec3(d.x, 0.0, d.z) + vec3(0.0001, 0.0, 0.0)), sunFlat), 0.0);
+
+    // Warm band hugging the horizon on the sun side: this is what makes the
+    // sky read as air rather than a two-stop gradient.
+    float band = exp(-abs(d.y) * 15.0);
+    col += uSunColor * pow(az, 5.0) * band * 0.2 * uSunPower;
 
     // Ground side fades into haze so the terrain patch and sky meet smoothly.
     col = mix(uHaze, col, smoothstep(-0.22, 0.02, d.y));
 
-    float sun = max(dot(d, normalize(uSunDir)), 0.0);
+    // Thin atmosphere limb just above the horizon: at 30 km the planet edge
+    // should read blue, not as a white paper cut-out.
+    float limb = exp(-abs(d.y) * 26.0) * smoothstep(-0.02, 0.02, d.y);
+    col += vec3(0.2, 0.45, 0.82) * limb * 0.12 * (1.0 - smoothstep(0.25, 0.55, uSunPower));
+
     col += uSunColor * pow(sun, 1400.0) * 3.2;
-    col += uSunColor * pow(sun, 26.0) * 0.14 * uSunPower;
+    col += uSunColor * pow(sun, 120.0) * 0.42 * uSunPower;
+    col += uSunColor * pow(sun, 22.0) * 0.18 * uSunPower;
+
+    // Slow high cirrus, projected onto a plane so it stretches towards the
+    // horizon like real high cloud instead of following the sphere. One noise
+    // fbm plus a streak term keeps the full-screen shader cheap on integrated
+    // GPUs while still reading as weather rather than a flat gradient.
+    float day = smoothstep(0.02, 0.4, uSunPower);
+    if (day > 0.001 && d.y > 0.005) {
+      vec2 p = d.xz / (d.y + 0.22);
+      p = p * 0.62 + vec2(uTime * 0.0035, uTime * 0.0012);
+      float n = fbm(p * 1.7);
+      float streak = 0.5 + 0.5 * sin(p.y * 7.5 + n * 7.0);
+      float cloud = smoothstep(0.46, 0.8, n * 0.78 + streak * 0.28);
+      cloud *= smoothstep(0.01, 0.2, d.y) * smoothstep(1.0, 0.3, d.y);
+      vec3 cloudCol = mix(uHaze, uSunColor, 0.5) * (0.95 + 0.6 * sun);
+      col = mix(col, cloudCol, cloud * 0.3 * day);
+    }
+
+    // Twilight only: a magenta veil above the horizon keeps dusk from reading
+    // as a single saturated orange block.
+    float twilight =
+      smoothstep(0.02, 0.14, uSunPower) * (1.0 - smoothstep(0.16, 0.42, uSunPower));
+    col += vec3(0.42, 0.12, 0.26) * pow(1.0 - clamp(abs(d.y), 0.0, 1.0), 9.0) * 0.22 * twilight;
 
     float moon = max(dot(d, normalize(uMoonDir)), 0.0);
     col += vec3(0.86, 0.92, 1.0) * pow(moon, 5200.0) * 2.4 * (1.0 - uSunPower);
@@ -60,8 +124,12 @@ const SKY_FRAG = /* glsl */ `
       float h = hash(g);
       float twinkle = 0.55 + 0.45 * sin(h * 71.0);
       float s = smoothstep(0.9975, 1.0, h) * twinkle;
-      col += vec3(0.82, 0.89, 1.0) * s * 2.4 * uStars * smoothstep(0.0, 0.12, d.y);
+      // Stars must vanish while there is still daylight in the sky.
+      float dark = 1.0 - smoothstep(0.0, 0.12, uSunPower);
+      col += vec3(0.82, 0.89, 1.0) * s * 2.4 * uStars * dark * smoothstep(0.0, 0.12, d.y);
     }
+    // Dither the smooth gradients so 8-bit output does not band.
+    col += (hash2(gl_FragCoord.xy) - 0.5) / 255.0;
     gl_FragColor = vec4(col, 1.0);
   }
 `;
@@ -81,6 +149,8 @@ function SkyDome() {
       uMoonDir: { value: preset.moonDir.clone() },
       uSunPower: { value: Math.max(0, preset.sunDir.y) },
       uStars: { value: preset.stars },
+      uTime: { value: 0 },
+      uSkyPow: { value: preset.skyPow },
     }),
     // Preset uniforms are replaced on theme change.
     [preset],
@@ -95,13 +165,15 @@ function SkyDome() {
     uniforms.uMoonDir.value.copy(preset.moonDir);
     uniforms.uSunPower.value = Math.max(0, preset.sunDir.y);
     uniforms.uStars.value = preset.stars;
+    uniforms.uSkyPow.value = preset.skyPow;
   }, [uniforms, preset]);
 
   // The dome has to follow the camera, otherwise the target tracking shot (which
   // rides tens of kilometres or more from the missile) ends up outside the shell
   // and the sky drops out behind the airframe.
-  useFrame(({ camera }) => {
+  useFrame(({ camera, clock }) => {
     if (dome.current) dome.current.position.copy(camera.position);
+    uniforms.uTime.value = clock.elapsedTime;
   });
 
   return (
@@ -198,6 +270,17 @@ function Lights() {
       <hemisphereLight
         args={[preset.horizon, preset.ground, timeOfDay === "night" ? 0.34 : timeOfDay === "dusk" ? 0.28 : 0.42]}
       />
+      {/* Cool kicker from behind the vehicle: separates the airframe from the
+          sky and gives the paint a crisp edge the sun alone cannot. */}
+      <directionalLight
+        position={[
+          -preset.sunDir.x * 400,
+          Math.abs(preset.sunDir.y) * 260 + 140,
+          -preset.sunDir.z * 400,
+        ]}
+        color={timeOfDay === "night" ? "#7fa6ff" : "#a8d4ff"}
+        intensity={timeOfDay === "night" ? 0.9 : timeOfDay === "dusk" ? 0.55 : 0.7}
+      />
       <CameraFillLight />
     </>
   );
@@ -217,7 +300,7 @@ function CameraFillLight() {
     <pointLight
       ref={light}
       // Night needs a readable body instead of a black silhouette.
-      intensity={timeOfDay === "night" ? 0.55 : 0.12}
+      intensity={timeOfDay === "night" ? 0.55 : timeOfDay === "dusk" ? 0.2 : 0.18}
       distance={timeOfDay === "night" ? 140 : 80}
       decay={2}
       color="#c2d6f2"
@@ -254,6 +337,7 @@ const EARTH_FRAG = /* glsl */ `
   void main() {
     vec3 N = normalize(vNormal);
     vec3 L = normalize(uSunDir);
+    float sunPower = max(L.y, 0.0);
     // Planar projection across the visible cap avoids the extreme stretching a
     // lat/long map shows when a 2D terrain tile is wrapped onto the globe.
     vec2 uvFar = vWorld.xz / 520000.0 + uFarOffset;
@@ -278,12 +362,27 @@ const EARTH_FRAG = /* glsl */ `
 
     vec3 V = normalize(cameraPosition - vWorld);
     float fres = pow(1.0 - max(dot(N, V), 0.0), 5.0);
-    col += vec3(0.33, 0.58, 0.86) * fres * 0.28 * (1.0 - uNight * 0.85);
+    col += vec3(0.33, 0.58, 0.86) * fres * 0.22 * (1.0 - uNight * 0.85);
+
+    // Sun glitter on open water: the imagery is bluish there, so a tight
+    // half-vector highlight lifts the sea without turning land into plastic.
+    float water = smoothstep(0.02, 0.16, base.b - base.r);
+    vec3 H = normalize(L + V);
+    float spec = pow(max(dot(N, H), 0.0), 140.0);
+    float sparkle = 0.55 + 0.65 * base.g;
+    col += uSunColor * spec * water * sparkle * 0.9 * (1.0 - uNight) * sunPower;
+
+    // Warm scattering towards the low sun so the far ground melts into the
+    // horizon glow instead of ending on a hard tonal step.
+    float toSun = max(dot(V, L), 0.0);
+    float far = smoothstep(60000.0, 520000.0, length(vWorld - cameraPosition));
+    col += uSunColor * pow(toSun, 7.0) * far * 0.14 * sunPower;
 
     float dist = length(vWorld - cameraPosition);
     // The planar far layer stretches badly near the horizon; haze it out before
     // the stretch becomes visible so the horizon reads as a clean gradient.
     col = mix(col, uFog, smoothstep(180000.0, 600000.0, dist));
+    col += (fract(sin(dot(gl_FragCoord.xy, vec2(12.9898, 78.233))) * 43758.5453) - 0.5) / 255.0;
     gl_FragColor = vec4(col, 1.0);
     #include <tonemapping_fragment>
     #include <colorspace_fragment>

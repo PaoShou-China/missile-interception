@@ -47,6 +47,8 @@ button, select, input { font-family: inherit; color: inherit; }
   inset: 0;
   width: 100% !important;
   height: 100% !important;
+  /* A whisper of grade on the 3D layer only: the UI keeps its own palette. */
+  filter: saturate(1.06) contrast(1.02);
 }
 
 /* Both scenes stay mounted so switching never rebuilds a WebGL context.

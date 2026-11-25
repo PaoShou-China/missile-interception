@@ -18,30 +18,57 @@ function tuneMaterials(root: THREE.Object3D, opts: { accent: string; paint: stri
     for (const raw of materials) {
       const m = raw as THREE.MeshStandardMaterial;
       if (!m) continue;
+      const phys = m as THREE.MeshPhysicalMaterial;
       switch (m.name) {
         case "MAT_Body":
           m.color.set(opts.paint);
-          m.envMapIntensity = 1.15;
+          // The authored body ships fully rough, which flattens every highlight.
+          // A semi-gloss lacquer plus a clearcoat gives it the read of painted
+          // metal under the HDRI.
+          m.roughness = opts.night ? 0.62 : 0.5;
+          m.envMapIntensity = 1.5;
+          if (phys.clearcoat !== undefined) {
+            phys.clearcoat = 0.7;
+            phys.clearcoatRoughness = 0.22;
+          }
           break;
         case "MAT_Accent":
           m.color.set(opts.accent);
           m.emissive = new THREE.Color(opts.accent);
-          m.emissiveIntensity = opts.night ? 0.6 : 0.22;
+          m.emissiveIntensity = opts.night ? 0.9 : 0.3;
+          m.envMapIntensity = 1.15;
           break;
         case "MAT_Fin":
           m.color.set(opts.paint).multiplyScalar(0.82);
-          m.envMapIntensity = 1.0;
+          m.roughness = 0.34;
+          m.envMapIntensity = 1.3;
+          if (phys.clearcoat !== undefined) {
+            phys.clearcoat = 0.4;
+            phys.clearcoatRoughness = 0.3;
+          }
+          break;
+        case "MAT_Booster":
+          m.roughness = 0.5;
+          m.envMapIntensity = 1.15;
+          break;
+        case "MAT_Metal":
+          m.roughness = 0.2;
+          m.envMapIntensity = 1.5;
+          break;
+        case "MAT_Band":
+          m.roughness = 0.36;
+          m.envMapIntensity = 1.2;
           break;
         case "MAT_Lens":
           m.emissive = new THREE.Color("#3fd0ff");
-          m.emissiveIntensity = opts.night ? 2.4 : 0.7;
+          m.emissiveIntensity = opts.night ? 2.6 : 0.9;
           break;
         case "MAT_Glow":
           m.emissive = new THREE.Color("#ff8a3c");
-          m.emissiveIntensity = opts.night ? 9 : 6;
+          m.emissiveIntensity = opts.night ? 10 : 7;
           break;
         case "MAT_Nozzle":
-          m.envMapIntensity = 1.4;
+          m.envMapIntensity = 1.6;
           break;
         default:
           break;
@@ -97,6 +124,22 @@ function Plume() {
     return tex;
   }, []);
 
+  const glow = useMemo(() => {
+    const c = document.createElement("canvas");
+    c.width = c.height = 128;
+    const ctx = c.getContext("2d")!;
+    const g = ctx.createRadialGradient(64, 64, 0, 64, 64, 64);
+    g.addColorStop(0, "rgba(255,255,255,1)");
+    g.addColorStop(0.22, "rgba(255,255,255,0.6)");
+    g.addColorStop(0.55, "rgba(255,255,255,0.16)");
+    g.addColorStop(1, "rgba(255,255,255,0)");
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, 128, 128);
+    const tex = new THREE.CanvasTexture(c);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    return tex;
+  }, []);
+
   useFrame(({ clock }) => {
     if (!group.current) return;
     const t = clock.elapsedTime;
@@ -132,6 +175,30 @@ function Plume() {
           ))}
         </group>
       ))}
+      {/* Camera-facing engine bloom: at 60-120 m the additive planes are a few
+          pixels wide, so a pair of soft sprites carries the glow instead. */}
+      <sprite scale={[2.1, 2.1, 1]}>
+        <spriteMaterial
+          map={glow}
+          color="#ffd6a6"
+          transparent
+          opacity={Math.min(1, 0.52 * boost)}
+          blending={THREE.AdditiveBlending}
+          depthWrite={false}
+          toneMapped={false}
+        />
+      </sprite>
+      <sprite scale={[5.6, 5.6, 1]}>
+        <spriteMaterial
+          map={glow}
+          color="#61c8ff"
+          transparent
+          opacity={0.1 * boost}
+          blending={THREE.AdditiveBlending}
+          depthWrite={false}
+          toneMapped={false}
+        />
+      </sprite>
       <pointLight position={[-0.5, 0, 0]} color="#ffa45c" intensity={1.2 * boost} distance={5} decay={2} />
     </group>
   );

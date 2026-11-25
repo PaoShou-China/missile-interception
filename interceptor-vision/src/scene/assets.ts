@@ -26,6 +26,8 @@ export interface SkyPreset {
   moonIntensity: number;
   zenith: string;
   horizon: string;
+  /** Gradient exponent: smaller keeps the horizon band low and tight. */
+  skyPow: number;
   hazeColor: string;
   ground: string;
   envIntensity: number;
@@ -40,15 +42,16 @@ export const SKY_PRESETS: Record<TimeOfDay, SkyPreset> = {
     label: "day",
     sunDir: new THREE.Vector3(-0.42, 0.72, -0.55).normalize(),
     sunColor: "#fff4e2",
-    sunIntensity: 2.15,
+    sunIntensity: 1.95,
     moonDir: new THREE.Vector3(0.4, -0.5, 0.7).normalize(),
     moonIntensity: 0,
     zenith: "#0b2340",
     horizon: "#9cc0dd",
+    skyPow: 0.55,
     hazeColor: "#a8c6dd",
     ground: "#6c7a88",
-    envIntensity: 0.72,
-    exposure: 0.95,
+    envIntensity: 0.78,
+    exposure: 1.0,
     stars: 0,
     cloudTint: "#dfe7ee",
     cloudOpacity: 0.5,
@@ -61,8 +64,9 @@ export const SKY_PRESETS: Record<TimeOfDay, SkyPreset> = {
     moonDir: new THREE.Vector3(0.4, -0.2, 0.8).normalize(),
     moonIntensity: 0,
     zenith: "#0d1a33",
-    horizon: "#d9814f",
-    hazeColor: "#c58b6c",
+    horizon: "#cf8a5f",
+    skyPow: 0.85,
+    hazeColor: "#b98a72",
     ground: "#5b616b",
     envIntensity: 0.66,
     exposure: 1.02,
@@ -79,6 +83,7 @@ export const SKY_PRESETS: Record<TimeOfDay, SkyPreset> = {
     moonIntensity: 1.7,
     zenith: "#02040a",
     horizon: "#111d30",
+    skyPow: 0.5,
     hazeColor: "#0d1726",
     ground: "#111a26",
     envIntensity: 0.85,
@@ -91,7 +96,7 @@ export const SKY_PRESETS: Record<TimeOfDay, SkyPreset> = {
 
 /** Missile finishes: body paint plus the accent used on fins and the stripe. */
 export const LIVERY: Record<Livery, { paint: string; accent: string }> = {
-  sky: { paint: "#c7d1da", accent: "#1f8fb0" },
+  sky: { paint: "#b7c2cd", accent: "#1f8fb0" },
   sunrise: { paint: "#c0c6cb", accent: "#b8542c" },
   arctic: { paint: "#828b94", accent: "#3f4a55" },
 };

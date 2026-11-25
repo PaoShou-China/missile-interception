@@ -97,8 +97,8 @@ function QualityEffects() {
   if (quality !== "cinematic") return null;
   return (
     <EffectComposer multisampling={0}>
-      <Vignette offset={0.28} darkness={0.55} />
-      <Bloom intensity={0.22} luminanceThreshold={0.92} luminanceSmoothing={0.22} mipmapBlur radius={0.6} />
+      <Vignette offset={0.28} darkness={0.6} />
+      <Bloom intensity={0.42} luminanceThreshold={0.82} luminanceSmoothing={0.24} mipmapBlur radius={0.72} />
     </EffectComposer>
   );
 }

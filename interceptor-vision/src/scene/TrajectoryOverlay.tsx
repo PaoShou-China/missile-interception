@@ -77,6 +77,10 @@ export function TrajectoryOverlay() {
     const n = picks.length;
     const airLine = makeGlowLine(n, 0x8ff3ff, 3.4, 0.95);
     const groundLine = makeGlowLine(n, 0x45b9d6, 2.2, 0.65);
+    // The arc spans up to 2000 km and is rebuilt every frame, so culling it is
+    // pointless work (and its bounds are meaningless while the clock is at 0).
+    airLine.frustumCulled = false;
+    groundLine.frustumCulled = false;
     // Hundreds of kilometres away the 600 m lift is below the terrain's depth
     // precision, which reads as a shredded dashed line. Draw it as a projection
     // overlay instead of letting it fight the ground.
@@ -234,10 +238,13 @@ export function TrajectoryOverlay() {
       const i0 = Math.floor(fi);
       const i1 = Math.min(n - 1, i0 + 1);
       const f = fi - i0;
+      // Sample the point buffer, not the interleaved segment buffer: reading
+      // the last point out of the segment stride produced a NaN vertex (and a
+      // computeBoundingSphere warning) once per loop.
       tmp.set(
-        airArr[i0 * 6] + (airArr[i1 * 6] - airArr[i0 * 6]) * f,
-        airArr[i0 * 6 + 1] + (airArr[i1 * 6 + 1] - airArr[i0 * 6 + 1]) * f,
-        airArr[i0 * 6 + 2] + (airArr[i1 * 6 + 2] - airArr[i0 * 6 + 2]) * f,
+        scratch[i0 * 3] + (scratch[i1 * 3] - scratch[i0 * 3]) * f,
+        scratch[i0 * 3 + 1] + (scratch[i1 * 3 + 1] - scratch[i0 * 3 + 1]) * f,
+        scratch[i0 * 3 + 2] + (scratch[i1 * 3 + 2] - scratch[i0 * 3 + 2]) * f,
       );
       dp.setXYZ(i, tmp.x, tmp.y, tmp.z);
       const dist = tmp.length();

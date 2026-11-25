@@ -152,6 +152,23 @@ export function Missile() {
   const quality = useApp((s) => s.quality);
   const [tiered, setTiered] = useState(false);
   const [warm, setWarm] = useState(false);
+  // Reused every frame: BODY->ECEF from telemetry, re-expressed in the local
+  // East/Up/-North scene frame so the airframe really pitches over.
+  const basis = useMemo(
+    () => ({
+      enu: new THREE.Matrix4(),
+      scene: new THREE.Matrix4().makeBasis(
+        new THREE.Vector3(1, 0, 0),
+        new THREE.Vector3(0, 0, -1),
+        new THREE.Vector3(0, 1, 0),
+      ),
+      rot: new THREE.Matrix4(),
+      body: new THREE.Matrix4(),
+      quat: new THREE.Quaternion(),
+      target: new THREE.Quaternion(),
+    }),
+    [],
+  );
 
   // Let the near LOD and the HDRI finish first, then upgrade to the full LOD
   // chain. The performance tier keeps the single near LOD on purpose.
@@ -161,36 +178,33 @@ export function Missile() {
     return () => window.clearTimeout(id);
   }, [ready, quality]);
 
-  useFrame(({ clock, camera }, delta) => {
-    const t = clock.elapsedTime;
+  useFrame((_, delta) => {
     if (!group.current) return;
     const state = useApp.getState();
-    // Body sway reads as camera shake in the close-ups, so attenuate it with
-    // proximity instead of moving the camera.
-    const prox = THREE.MathUtils.clamp(camera.position.length() / 16, 0.16, 1);
-    // Sample the continuous clock, not the 12 Hz UI mirror: stepping the target
-    // 12 times a second is what made the near views jitter.
     const sample = state.dataStatus === "ready" ? sampleAt(dataClock.t) : null;
-    const k = 1 - Math.exp(-7 * Math.min(delta, 0.1));
-    if (sample?.finDeflectionsRad) {
-      // Control-surface telemetry drives a restrained body motion: exact ECEF
-      // attitude would be meaningless in this local cruise scene.
-      const f = sample.finDeflectionsRad;
-      const clamp = (v: number, m: number) => Math.max(-m, Math.min(m, v));
-      const tx = clamp((f.up - f.down) * 0.45, 0.16);
-      const tz = clamp((f.left - f.right) * 0.8, 0.32);
-      group.current.rotation.x += (tx * prox - group.current.rotation.x) * k;
-      group.current.rotation.z += (tz * prox - group.current.rotation.z) * k;
-      const yaw = Math.sin(t * 0.17 + 0.8) * 0.012 * prox;
-      group.current.rotation.y += (yaw - group.current.rotation.y) * k;
-      const bob = Math.sin(t * 0.5) * 0.05 * prox;
-      group.current.position.y += (bob - group.current.position.y) * k;
-      return;
-    }
-    group.current.rotation.x = Math.sin(t * 0.24) * 0.045 * prox;
-    group.current.rotation.y = Math.sin(t * 0.17 + 0.8) * 0.012 * prox;
-    group.current.rotation.z = Math.sin(t * 0.19 + 2.1) * 0.018 * prox;
-    group.current.position.y = Math.sin(t * 0.5) * 0.05 * prox;
+    if (!sample) return;
+    const k = 1 - Math.exp(-20 * Math.min(delta, 0.1));
+
+    // Recorded attitude is BODY->ECEF. Convert to the local ENU frame, then to
+    // the scene frame (x east, y up, z south), so the nose follows the real
+    // pitch-over instead of a decorative sway.
+    const lat = sample.latDeg * (Math.PI / 180);
+    const lon = sample.lonDeg * (Math.PI / 180);
+    const sl = Math.sin(lat), cl = Math.cos(lat);
+    const so = Math.sin(lon), co = Math.cos(lon);
+    basis.enu.makeBasis(
+      new THREE.Vector3(-so, co, 0),
+      new THREE.Vector3(-sl * co, -sl * so, cl),
+      new THREE.Vector3(cl * co, cl * so, sl),
+    );
+    basis.rot.copy(basis.enu).transpose(); // ECEF -> ENU
+    basis.body.makeRotationFromQuaternion(
+      basis.quat.set(sample.attitude.x, sample.attitude.y, sample.attitude.z, sample.attitude.w),
+    );
+    // scene <- ENU <- ECEF <- BODY
+    basis.rot.premultiply(basis.scene).multiply(basis.body);
+    basis.target.setFromRotationMatrix(basis.rot);
+    group.current.quaternion.slerp(basis.target, k);
   });
 
   return (

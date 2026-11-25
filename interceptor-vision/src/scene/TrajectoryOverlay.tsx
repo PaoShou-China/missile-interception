@@ -197,12 +197,14 @@ export function TrajectoryOverlay() {
       airArr[i * 6 + 4] = scratch[(i + 1) * 3 + 1];
       airArr[i * 6 + 5] = scratch[(i + 1) * 3 + 2];
       groundArr[i * 6] = scratch[i * 3];
-      // Lift the ground track slightly above the sphere to avoid z-fighting
-      // with the terrain, which reads as a flickering dashed line.
-      groundArr[i * 6 + 1] = -((scratch[i * 3] ** 2 + scratch[i * 3 + 2] ** 2) / (2 * EARTH_R)) + 600;
+      // The ground track lives on the terrain, i.e. cur.altM below the airframe,
+      // plus the spherical drop. A 20 m lift is enough now that the material
+      // draws without depth testing.
+      groundArr[i * 6 + 1] = -cur.altM - (scratch[i * 3] ** 2 + scratch[i * 3 + 2] ** 2) / (2 * EARTH_R) + 20;
       groundArr[i * 6 + 2] = scratch[i * 3 + 2];
       groundArr[i * 6 + 3] = scratch[(i + 1) * 3];
-      groundArr[i * 6 + 4] = -((scratch[(i + 1) * 3] ** 2 + scratch[(i + 1) * 3 + 2] ** 2) / (2 * EARTH_R)) + 600;
+      groundArr[i * 6 + 4] =
+        -cur.altM - (scratch[(i + 1) * 3] ** 2 + scratch[(i + 1) * 3 + 2] ** 2) / (2 * EARTH_R) + 20;
       groundArr[i * 6 + 5] = scratch[(i + 1) * 3 + 2];
     }
     air.data.needsUpdate = true;

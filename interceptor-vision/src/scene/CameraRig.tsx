@@ -4,6 +4,7 @@ import { OrbitControls } from "@react-three/drei";
 import * as THREE from "three";
 import { CAMERA_POSES, CINEMATIC_PATH, CINEMATIC_SECONDS } from "./assets";
 import { useApp } from "../state";
+import { dataClock, sampleAt } from "../data/telemetry";
 
 function damp(rate: number, dt: number) {
   return 1 - Math.exp(-rate * Math.min(dt, 0.1));
@@ -42,6 +43,8 @@ export function CameraRig() {
   const tmpOff = useMemo(() => new THREE.Vector3(), []);
   const tmpDesired = useMemo(() => new THREE.Vector3(), []);
   const tmpSph = useMemo(() => new THREE.Spherical(), []);
+  const attitude = useMemo(() => new THREE.Quaternion(), []);
+  const nose = useMemo(() => new THREE.Vector3(), []);
   const orbit = useRef({ yaw: 0, pitch: 0, zoom: 1 });
 
   // Snap to a sensible pose on first mount.
@@ -168,7 +171,26 @@ export function CameraRig() {
     // the preset cameras back until the 7 m airframe still fits across the
     // screen. The 3.2 m floor keeps the wheel from parking inside the body.
     const fit = THREE.MathUtils.clamp(1.7778 / Math.max(0.35, cam.aspect), 1, 3.4);
-    tmpSph.radius = Math.max(3.2, tmpSph.radius * Math.max(0.55, orbit.current.zoom) * fit);
+    // The airframe now follows its recorded attitude, so a vertical launch is a
+    // 7 m tall subject: dolly back a little while it is nose-up or the meso
+    // preset crops the nose.
+    let vertical = 0;
+    if (useApp.getState().cameraMode === "meso") {
+      const s = sampleAt(dataClock.t);
+      if (s) {
+        const lat = (s.latDeg * Math.PI) / 180;
+        const lon = (s.lonDeg * Math.PI) / 180;
+        attitude.set(s.attitude.x, s.attitude.y, s.attitude.z, s.attitude.w);
+        nose.set(1, 0, 0).applyQuaternion(attitude);
+        vertical = Math.abs(
+          nose.x * Math.cos(lat) * Math.cos(lon) + nose.y * Math.cos(lat) * Math.sin(lon) + nose.z * Math.sin(lat),
+        );
+      }
+    }
+    tmpSph.radius = Math.max(
+      3.2,
+      tmpSph.radius * Math.max(0.55, orbit.current.zoom) * fit * (1 + 0.3 * vertical),
+    );
     tmpDesired.setFromSpherical(tmpSph).add(lookTarget.current);
     camera.position.lerp(tmpDesired, damp(5, delta));
     camera.lookAt(lookTarget.current);

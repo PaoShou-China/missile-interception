@@ -44,6 +44,8 @@ export function TelemetryPanel() {
         <dd>{sample.loadG.toFixed(2)} g</dd>
         <dt>{t("range")}</dt>
         <dd>{(sample.rangeM / 1000).toFixed(1)} km</dd>
+        <dt>{t("seekerFov")}</dt>
+        <dd>{sample.fovDeg.toFixed(1)}°</dd>
         <dt>{t("mass")}</dt>
         <dd>{sample.massKg.toFixed(0)} kg</dd>
         {fins && (

@@ -6,9 +6,11 @@ import { RightPanel } from "./components/RightPanel";
 import { Transport } from "./components/Transport";
 import { GalleryOverlay } from "./components/GalleryOverlay";
 import { ChartsOverlay } from "./components/ChartsOverlay";
+import { MethodsOverlay } from "./components/MethodsOverlay";
 import { LoadingOverlay } from "./components/LoadingOverlay";
 import { MapCredit } from "./components/MapCredit";
 import { useApp } from "./state";
+import type { CameraMode } from "./state";
 import { useT } from "./i18n";
 import { loadTelemetry, seekDataTime, toggleDataPlay } from "./data/telemetry";
 
@@ -20,6 +22,7 @@ export function App() {
   const fullscreenRequest = useApp((s) => s.fullscreenRequest);
   const galleryOpen = useApp((s) => s.galleryOpen);
   const chartsOpen = useApp((s) => s.chartsOpen);
+  const methodsOpen = useApp((s) => s.methodsOpen);
   const ready = useApp((s) => s.ready);
 
   useEffect(() => {
@@ -27,9 +30,18 @@ export function App() {
     const id = window.setTimeout(() => {
       void loadTelemetry()
         .then((tel) => {
-          // Open on the midcourse arc: the launch instant projects as a vertical
-          // spike in a 30 km cruise scene and reads worse as a first impression.
-          seekDataTime(Math.min(300, Math.max(0, tel.end - 1)));
+          // Deep links (?t=seconds&view=meso) win; otherwise open on the midcourse
+          // arc because the launch instant reads as a vertical spike.
+          const params = new URLSearchParams(window.location.search);
+          const rawT = Number(params.get("t"));
+          const t = params.has("t") && Number.isFinite(rawT)
+            ? Math.min(tel.end, Math.max(tel.start, rawT))
+            : Math.min(300, Math.max(0, tel.end - 1));
+          seekDataTime(t);
+          const view = params.get("view");
+          if (view && ["macro", "meso", "micro", "chase", "top", "cinematic", "free"].includes(view)) {
+            useApp.getState().setCameraMode(view as CameraMode);
+          }
         })
         .catch(() => undefined);
     }, 900);
@@ -75,6 +87,8 @@ export function App() {
         s.setGalleryOpen(false);
       } else if (e.key === "Escape" && s.chartsOpen) {
         s.setChartsOpen(false);
+      } else if (e.key === "Escape" && s.methodsOpen) {
+        s.setMethodsOpen(false);
       } else if (e.key.toLowerCase() === "s") {
         s.requestScreenshot();
       } else if (e.key.toLowerCase() === "f") {
@@ -109,6 +123,7 @@ export function App() {
       <MapCredit />
       {galleryOpen && <GalleryOverlay />}
       {chartsOpen && <ChartsOverlay />}
+      {methodsOpen && <MethodsOverlay />}
       <LoadingOverlay />
     </div>
   );

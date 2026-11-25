@@ -6,6 +6,7 @@ import { Missile } from "./Missile";
 import { RealtimeEnvironment } from "./Environment";
 import { CameraRig } from "./CameraRig";
 import { TrajectoryOverlay } from "./TrajectoryOverlay";
+import { TargetTrack } from "./TargetTrack";
 import { TelemetryClock } from "./TelemetryClock";
 import { useApp } from "../state";
 import { SKY_PRESETS } from "./assets";
@@ -126,6 +127,7 @@ export function SceneCanvas({ active = true }: { active?: boolean }) {
       <TelemetryClock />
       <RealtimeEnvironment />
       <Missile />
+      <TargetTrack />
       <TrajectoryOverlay />
       <CameraRig />
       <QualityEffects />

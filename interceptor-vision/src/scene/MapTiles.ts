@@ -5,8 +5,9 @@ import * as THREE from "three";
  * shader samples in scene space. The texture stays centred on the vehicle, so
  * the ground scrolls underneath while the recorded latitude/longitude advances.
  *
- * Google's satellite tile endpoint is the primary source; ArcGIS World Imagery
- * is used automatically if a tile fails.
+ * ArcGIS World Imagery is the primary source because its public tile service is
+ * intended for this kind of reference use; Google's satellite endpoint remains
+ * as a fallback if a tile fails.
  */
 const WORLD_METERS = 40075016.686;
 
@@ -46,7 +47,7 @@ export class MapTileTexture {
   private readonly span: number;
   private blockX = Number.NaN;
   private blockY = Number.NaN;
-  private provider: Provider = "google";
+  private provider: Provider = "esri";
   private images = new Map<string, HTMLImageElement>();
   private loading = new Set<string>();
   private failed = new Set<string>();
@@ -193,8 +194,8 @@ export class MapTileTexture {
       this.loading.delete(key);
       if (this.disposed) return;
       this.failed.add(`${key}:${this.provider}`);
-      if (this.provider === "google") {
-        this.provider = "esri";
+      if (this.provider === "esri") {
+        this.provider = "google";
         this.loadTile(tx, ty);
       }
     };

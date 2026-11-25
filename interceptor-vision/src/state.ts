@@ -79,6 +79,10 @@ interface AppState {
   setDataRate: (r: number) => void;
   setChartsOpen: (v: boolean) => void;
 
+  /** Provenance / validation / limitations sheet for the research showcase. */
+  methodsOpen: boolean;
+  setMethodsOpen: (v: boolean) => void;
+
   galleryOpen: boolean;
   setGalleryOpen: (v: boolean) => void;
 
@@ -170,6 +174,9 @@ export const useApp = create<AppState>((set) => ({
     set({ dataRate });
   },
   setChartsOpen: (chartsOpen) => set({ chartsOpen }),
+
+  methodsOpen: false,
+  setMethodsOpen: (methodsOpen) => set({ methodsOpen }),
 
   galleryOpen: false,
   setGalleryOpen: (galleryOpen) => set({ galleryOpen }),

@@ -16,10 +16,23 @@ export function TopBar() {
   const lang = useApp((s) => s.lang);
   const setLang = useApp((s) => s.setLang);
   const setChartsOpen = useApp((s) => s.setChartsOpen);
+  const setMethodsOpen = useApp((s) => s.setMethodsOpen);
+  const telemetry = useApp((s) => s.telemetry);
   const compact = useApp((s) => s.compact);
 
   const uiVisible = leftOpen || rightOpen;
   const fromSite = typeof window !== "undefined" && new URLSearchParams(window.location.search).get("from") === "site";
+  // Read the headline from the payload instead of hard-coding a class label:
+  // the validated case is 1655 km downrange with a 29.9 km apogee.
+  const downrange = telemetry?.metrics?.downrangeKM;
+  const apogee = telemetry?.metrics?.maxAltitudeM;
+  const scenarioTitle =
+    typeof downrange === "number" && typeof apogee === "number"
+      ? lang === "zh"
+        ? `${Math.round(downrange)} km 下程 · 顶点 ${(apogee / 1000).toFixed(1)} km`
+        : `${Math.round(downrange)} km downrange · ${(apogee / 1000).toFixed(1)} km apogee`
+      : t("scenario");
+  const scenarioId = typeof downrange === "number" ? `IV-${Math.round(downrange)}` : "IV-2000";
 
   return (
     <header className="topbar">
@@ -38,8 +51,8 @@ export function TopBar() {
       </div>
 
       <div className="topbar__scenario">
-        <span className="topbar__id">IV-2000</span>
-        <span className="topbar__title">{t("scenario")}</span>
+        <span className="topbar__id">{scenarioId}</span>
+        <span className="topbar__title">{scenarioTitle}</span>
         <span className="status-pill status-pill--ok">
           <span className="status-pill__dot" />
           CYCLES · GLB · PBR
@@ -74,6 +87,9 @@ export function TopBar() {
           </select>
         </label>
 
+        <button type="button" className="icon-button" title={t("methods")} onClick={() => setMethodsOpen(true)}>
+          ⓘ
+        </button>
         <button type="button" className="icon-button" title={t("charts")} onClick={() => setChartsOpen(true)}>
           ▤
         </button>

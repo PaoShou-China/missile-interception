@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import { useApp } from "../state";
 import { useT } from "../i18n";
-import { seekDataTime, sampleAt } from "../data/telemetry";
+import { formatMissionTime, seekDataTime, sampleAt } from "../data/telemetry";
 
 interface Series {
   name: string;
@@ -84,6 +84,11 @@ function LineChart({
         ))}
         <line x1={cursorX} x2={cursorX} y1={0} y2={H} className="chart-cursor" />
       </svg>
+      <div className="chart-axis">
+        <span>{formatMissionTime(start)}</span>
+        <span>{formatMissionTime((start + end) / 2)}</span>
+        <span>{formatMissionTime(end)}</span>
+      </div>
       <div className="chart-scale">
         <span>{yMax.toFixed(decimals)}</span>
         <span>{yMin.toFixed(decimals)}</span>
@@ -107,6 +112,53 @@ export function ChartsOverlay() {
   const dataTime = useApp((s) => s.dataTime);
   const close = () => useApp.getState().setChartsOpen(false);
 
+  const exportCsv = () => {
+    if (!telemetry) return;
+    const d = 180 / Math.PI;
+    const head = [
+      "t_s",
+      "alt_m",
+      "speed_m_s",
+      "mach",
+      "q_pa",
+      "load_g",
+      "range_m",
+      "seeker_fov_deg",
+      "fin_up_deg",
+      "fin_down_deg",
+      "fin_left_deg",
+      "fin_right_deg",
+      "p_deg_s",
+      "q_deg_s",
+      "r_deg_s",
+    ];
+    const rows = telemetry.samples.map((s) =>
+      [
+        s.t.toFixed(2),
+        s.altM.toFixed(2),
+        s.speedMS.toFixed(2),
+        s.mach.toFixed(3),
+        s.qPa.toFixed(1),
+        s.loadG.toFixed(3),
+        s.rangeM.toFixed(1),
+        s.fovDeg.toFixed(3),
+        ((s.finDeflectionsRad?.up ?? 0) * d).toFixed(3),
+        ((s.finDeflectionsRad?.down ?? 0) * d).toFixed(3),
+        ((s.finDeflectionsRad?.left ?? 0) * d).toFixed(3),
+        ((s.finDeflectionsRad?.right ?? 0) * d).toFixed(3),
+        ((s.bodyRatesRadS?.p ?? 0) * d).toFixed(4),
+        ((s.bodyRatesRadS?.q ?? 0) * d).toFixed(4),
+        ((s.bodyRatesRadS?.r ?? 0) * d).toFixed(4),
+      ].join(","),
+    );
+    const blob = new Blob([[head.join(","), ...rows].join("\n")], { type: "text/csv;charset=utf-8" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = `interceptor-telemetry-${telemetry.samples.length}rows.csv`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+  };
+
   const series = useMemo(() => {
     if (!telemetry) return null;
     const step = Math.max(1, Math.ceil(telemetry.samples.length / 520));
@@ -125,6 +177,7 @@ export function ChartsOverlay() {
       { title: t("dynPressure"), unit: "kPa", series: [{ name: "q", color: "#f0a35e", points: pick((s) => s!.qPa / 1000) }] },
       { title: t("load"), unit: "g", series: [{ name: "n", color: "#f27d7d", points: pick((s) => s!.loadG) }] },
       { title: t("range"), unit: "km", series: [{ name: t("range"), color: "#9fb4ff", points: pick((s) => s!.rangeM / 1000) }] },
+      { title: t("seekerFov"), unit: "deg", series: [{ name: "LOS", color: "#c9a6ff", points: pick((s) => s!.fovDeg) }] },
       {
         title: t("fins"),
         unit: "deg",
@@ -154,9 +207,14 @@ export function ChartsOverlay() {
           <h2>{t("chartsTitle")}</h2>
           <p>{t("chartsSub")}</p>
         </div>
-        <button type="button" className="icon-button" onClick={close} title={t("close")}>
-          ✕
-        </button>
+        <div className="charts-overlay__actions">
+          <button type="button" className="ghost-btn ghost-btn--sm" onClick={exportCsv} disabled={!telemetry}>
+            {t("exportCsv")}
+          </button>
+          <button type="button" className="icon-button" onClick={close} title={t("close")}>
+            ✕
+          </button>
+        </div>
       </header>
       {series ? (
         <div className="charts-grid">

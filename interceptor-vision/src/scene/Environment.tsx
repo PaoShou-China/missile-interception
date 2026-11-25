@@ -289,6 +289,7 @@ function Terrain() {
   const preset = SKY_PRESETS[timeOfDay];
   const map = useMemo(() => new MapTileTexture(2048, 8, 9), []);
   const mat = useRef<THREE.ShaderMaterial>(null);
+  const ground = useRef<THREE.Mesh>(null);
   const acc = useRef(0);
 
   useEffect(() => () => map.dispose(), [map]);
@@ -336,6 +337,12 @@ function Terrain() {
     const tel = getTelemetry();
     const sample = tel ? sampleAt(dataClock.t) : null;
     const frame = map.update(sample?.latDeg ?? 34, sample?.lonDeg ?? 118);
+    // The world scrolls under a fixed camera, so the only way the recorded
+    // altitude can read on screen is by moving the ground shell itself: at
+    // T+0 the surface is at the airframe, at apogee it is 29.9 km below.
+    if (ground.current) {
+      ground.current.position.y = -(R_EARTH + (sample?.altM ?? 0));
+    }
     const u = mat.current?.uniforms;
     if (u) {
       u.uOrigin.value.set(frame.originU, frame.originV);
@@ -353,7 +360,7 @@ function Terrain() {
   const geometry = useMemo(() => new THREE.SphereGeometry(1, segments * 2, segments), [segments]);
 
   return (
-    <mesh geometry={geometry} position={[0, -(R_EARTH + 30_000), 0]} scale={[R_EARTH, R_EARTH, R_EARTH]}>
+    <mesh ref={ground} geometry={geometry} position={[0, -(R_EARTH + 30_000), 0]} scale={[R_EARTH, R_EARTH, R_EARTH]}>
       <shaderMaterial
         ref={mat}
         vertexShader={EARTH_VERT}

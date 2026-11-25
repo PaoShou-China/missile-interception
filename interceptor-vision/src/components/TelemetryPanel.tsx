@@ -1,6 +1,16 @@
 import { useApp } from "../state";
-import { useT } from "../i18n";
-import { sampleAt, formatMissionTime } from "../data/telemetry";
+import { useT, type StringKey } from "../i18n";
+import { sampleAt, formatMissionTime, seekDataTime, type FlightEvent } from "../data/telemetry";
+
+const EVENT_KEY: Record<string, StringKey> = {
+  launch: "eventLaunch",
+  phase: "eventPhase",
+  peak: "eventPeak",
+  lock: "eventLock",
+  handover: "eventHandover",
+  intercept: "eventIntercept",
+  custom: "eventPhase",
+};
 
 export function TelemetryPanel() {
   const t = useT();
@@ -23,40 +33,60 @@ export function TelemetryPanel() {
   const deg = (rad: number) => ((rad * 180) / Math.PI).toFixed(1);
 
   return (
-    <section className="group">
-      <h3>{t("telemetry")}</h3>
-      <div className="mission-clock">
-        <b>{formatMissionTime(dataTime)}</b>
-        <span className={`lock-pill ${sample.seekerLock ? "is-lock" : ""}`}>
-          {sample.seekerLock ? `LOCK ${Math.round(sample.fovDeg)}°` : "SEARCH"}
-        </span>
-      </div>
-      <dl className="kv kv--compact">
-        <dt>{t("altitude")}</dt>
-        <dd>{(sample.altM / 1000).toFixed(2)} km</dd>
-        <dt>{t("speed")}</dt>
-        <dd>{sample.speedMS.toFixed(0)} m/s</dd>
-        <dt>{t("mach")}</dt>
-        <dd>{sample.mach.toFixed(2)}</dd>
-        <dt>{t("dynPressure")}</dt>
-        <dd>{(sample.qPa / 1000).toFixed(1)} kPa</dd>
-        <dt>{t("load")}</dt>
-        <dd>{sample.loadG.toFixed(2)} g</dd>
-        <dt>{t("range")}</dt>
-        <dd>{(sample.rangeM / 1000).toFixed(1)} km</dd>
-        <dt>{t("seekerFov")}</dt>
-        <dd>{sample.fovDeg.toFixed(1)}°</dd>
-        <dt>{t("mass")}</dt>
-        <dd>{sample.massKg.toFixed(0)} kg</dd>
-        {fins && (
-          <>
-            <dt>{t("fins")}</dt>
-            <dd>
-              {deg(fins.up)}/{deg(fins.down)}/{deg(fins.left)}/{deg(fins.right)}°
-            </dd>
-          </>
-        )}
-      </dl>
-    </section>
+    <>
+      <section className="group">
+        <div className="mission-clock">
+          <b>{formatMissionTime(dataTime)}</b>
+          <span className={`lock-pill ${sample.seekerLock ? "is-lock" : ""}`}>
+            {sample.seekerLock ? `LOCK ${Math.round(sample.fovDeg)}°` : "SEARCH"}
+          </span>
+        </div>
+        <dl className="kv kv--compact">
+          <dt>{t("altitude")}</dt>
+          <dd>{(sample.altM / 1000).toFixed(2)} km</dd>
+          <dt>{t("speed")}</dt>
+          <dd>{sample.speedMS.toFixed(0)} m/s</dd>
+          <dt>{t("mach")}</dt>
+          <dd>{sample.mach.toFixed(2)}</dd>
+          <dt>{t("dynPressure")}</dt>
+          <dd>{(sample.qPa / 1000).toFixed(1)} kPa</dd>
+          <dt>{t("load")}</dt>
+          <dd>{sample.loadG.toFixed(2)} g</dd>
+          <dt>{t("range")}</dt>
+          <dd>{(sample.rangeM / 1000).toFixed(1)} km</dd>
+          <dt>{t("seekerFov")}</dt>
+          <dd>{sample.fovDeg.toFixed(1)}°</dd>
+          <dt>{t("mass")}</dt>
+          <dd>{sample.massKg.toFixed(0)} kg</dd>
+          {fins && (
+            <>
+              <dt>{t("fins")}</dt>
+              <dd>
+                {deg(fins.up)}/{deg(fins.down)}/{deg(fins.left)}/{deg(fins.right)}°
+              </dd>
+            </>
+          )}
+        </dl>
+      </section>
+
+      <section className="group">
+        <h3>{t("events")}</h3>
+        <div className="event-list">
+          {telemetry.events.map((e: FlightEvent) => (
+            <button
+              key={e.id}
+              type="button"
+              className={`event-row ${dataTime >= e.t - 0.01 ? "is-passed" : ""}`}
+              onClick={() => seekDataTime(e.t)}
+              title={e.description}
+            >
+              <span className={`event-row__dot event-row__dot--${e.severity}`} />
+              <span className="event-row__label">{t(EVENT_KEY[e.kind] ?? "eventPhase")}</span>
+              <span className="event-row__time">{formatMissionTime(e.t)}</span>
+            </button>
+          ))}
+        </div>
+      </section>
+    </>
   );
 }

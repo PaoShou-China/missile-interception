@@ -5,9 +5,7 @@ import {
   loadTelemetry,
   phaseAt,
   sampleAt,
-  seekDataTime,
   type Phase,
-  type FlightEvent,
 } from "../data/telemetry";
 
 const PHASE_KEY: Record<Phase, StringKey> = {
@@ -15,16 +13,6 @@ const PHASE_KEY: Record<Phase, StringKey> = {
   midcourse: "phaseMidcourse",
   terminal: "phaseTerminal",
   coast: "phaseCoast",
-};
-
-const EVENT_KEY: Record<string, StringKey> = {
-  launch: "eventLaunch",
-  phase: "eventPhase",
-  peak: "eventPeak",
-  lock: "eventLock",
-  handover: "eventHandover",
-  intercept: "eventIntercept",
-  custom: "eventPhase",
 };
 
 function metric(value: number | null | undefined, digits = 1): string {
@@ -135,25 +123,6 @@ export function MissionPanel() {
         <div className="kpi-foot">
           {t("downrange")} {metric(m.downrangeKM, 0)} km · {t("apogee")}{" "}
           {metric((m.maxAltitudeM ?? 0) / 1000, 1)} km · {t("maxSpeed")} {metric(m.maxSpeedMS, 0)} m/s
-        </div>
-      </section>
-
-      <section className="group">
-        <h3>{t("telemetry")}</h3>
-        <div className="event-list">
-          {telemetry.events.map((e: FlightEvent) => (
-            <button
-              key={e.id}
-              type="button"
-              className={`event-row ${dataTime >= e.t - 0.01 ? "is-passed" : ""}`}
-              onClick={() => seekDataTime(e.t)}
-              title={e.description}
-            >
-              <span className={`event-row__dot event-row__dot--${e.severity}`} />
-              <span className="event-row__label">{t(EVENT_KEY[e.kind] ?? "eventPhase")}</span>
-              <span className="event-row__time">{formatMissionTime(e.t)}</span>
-            </button>
-          ))}
         </div>
       </section>
     </>

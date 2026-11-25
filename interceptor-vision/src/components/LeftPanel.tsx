@@ -1,6 +1,5 @@
-import { useApp, type CameraMode, type Livery, type TimeOfDay } from "../state";
+import { useApp, type CameraMode, type TimeOfDay } from "../state";
 import { useT } from "../i18n";
-import { LIVERY } from "../scene/assets";
 import { MissionPanel } from "./MissionPanel";
 
 const TIMES: { key: TimeOfDay; label: "day" | "dusk" | "night" }[] = [
@@ -20,12 +19,6 @@ const VIEWS: { key: CameraMode; label: "macro" | "meso" | "micro" | "chase" | "t
   { key: "free", label: "free" },
 ];
 
-const FINISHES: { key: Livery; label: "finishSky" | "finishSunrise" | "finishArctic" }[] = [
-  { key: "sky", label: "finishSky" },
-  { key: "sunrise", label: "finishSunrise" },
-  { key: "arctic", label: "finishArctic" },
-];
-
 export function LeftPanel() {
   const t = useT();
   const open = useApp((s) => s.leftOpen);
@@ -34,10 +27,6 @@ export function LeftPanel() {
   const setTimeOfDay = useApp((s) => s.setTimeOfDay);
   const cameraMode = useApp((s) => s.cameraMode);
   const setCameraMode = useApp((s) => s.setCameraMode);
-  const livery = useApp((s) => s.livery);
-  const setLivery = useApp((s) => s.setLivery);
-  const cloudDensity = useApp((s) => s.cloudDensity);
-  const setCloudDensity = useApp((s) => s.setCloudDensity);
   const showTrajectory = useApp((s) => s.showTrajectory);
   const setShowTrajectory = useApp((s) => s.setShowTrajectory);
 
@@ -88,29 +77,6 @@ export function LeftPanel() {
         </section>
 
         <section className="group">
-          <h3>{t("finish")}</h3>
-          <div className="swatch-row">
-            {FINISHES.map((item) => (
-              <button
-                key={item.key}
-                type="button"
-                className={`swatch ${livery === item.key ? "is-active" : ""}`}
-                title={t(item.label)}
-                onClick={() => setLivery(item.key)}
-              >
-                <span
-                  className="swatch__dot"
-                  style={{
-                    background: `linear-gradient(135deg, ${LIVERY[item.key].paint} 55%, ${LIVERY[item.key].accent} 55%)`,
-                  }}
-                />
-                <span>{t(item.label)}</span>
-              </button>
-            ))}
-          </div>
-        </section>
-
-        <section className="group">
           <h3>{t("overlay")}</h3>
           <button
             type="button"
@@ -123,26 +89,7 @@ export function LeftPanel() {
             </span>
             <span>{showTrajectory ? "ON" : "OFF"}</span>
           </button>
-          <p className="hint">{t("trajectoryHint")}</p>
         </section>
-
-        <section className="group">
-          <h3>{t("clouds")}</h3>
-          <input
-            type="range"
-            min={0}
-            max={1}
-            step={0.01}
-            value={cloudDensity}
-            onChange={(e) => setCloudDensity(Number(e.target.value))}
-          />
-          <div className="readout">{Math.round(cloudDensity * 100)}%</div>
-        </section>
-
-        <div className="panel-note">
-          <span className="panel-note__dot" />
-          GLB · DRACO-ready · LOD × 3
-        </div>
         </>
       </aside>
 

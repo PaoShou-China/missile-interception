@@ -11,8 +11,6 @@ export function TopBar() {
   const rightOpen = useApp((s) => s.rightOpen);
   const toggleLeft = useApp((s) => s.toggleLeft);
   const toggleRight = useApp((s) => s.toggleRight);
-  const requestScreenshot = useApp((s) => s.requestScreenshot);
-  const requestFullscreen = useApp((s) => s.requestFullscreen);
   const lang = useApp((s) => s.lang);
   const setLang = useApp((s) => s.setLang);
   const setChartsOpen = useApp((s) => s.setChartsOpen);
@@ -60,10 +58,6 @@ export function TopBar() {
             <b>{miss.toFixed(1)} m</b>
           </span>
         )}
-        <span className="status-pill status-pill--ok">
-          <span className="status-pill__dot" />
-          CYCLES · GLB · PBR
-        </span>
       </div>
 
       <div className="topbar__actions">
@@ -102,12 +96,6 @@ export function TopBar() {
         </button>
         <button type="button" className="icon-button" onClick={() => setLang(lang === "zh" ? "en" : "zh")}>
           {t("lang")}
-        </button>
-        <button type="button" className="icon-button" title={t("screenshot")} onClick={requestScreenshot}>
-          ⛶
-        </button>
-        <button type="button" className="icon-button" title={t("fullscreen")} onClick={requestFullscreen}>
-          ⤢
         </button>
         <button
           type="button"

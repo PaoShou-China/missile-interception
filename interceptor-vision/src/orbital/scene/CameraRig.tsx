@@ -1,4 +1,4 @@
-﻿import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
 import { simClock, useAppStore, type CameraMode } from "../state/store";
@@ -9,6 +9,10 @@ import { shotAtWall, simToWall } from "../cinematic/shots";
 import { cameraInput } from "./cameraInput";
 
 const REGION = geodeticToEcef(34, 118, 0);
+const CLOSE_OFFSET = new THREE.Vector3(-0.0090, 0.0040, -0.0060);
+const CLOSE_LOOK = new THREE.Vector3(-0.0012, 0, 0);
+const Z_AXIS = new THREE.Vector3(0, 0, 1);
+const BODY_FORWARD = new THREE.Vector3(1, 0, 0);
 
 function regionAnchor(): THREE.Vector3 {
   return new THREE.Vector3(REGION.x, REGION.y, REGION.z).multiplyScalar(KM);
@@ -28,15 +32,42 @@ export function CameraRig() {
   const lastPresentation = useRef(presentation);
   const camOffset = useRef(new THREE.Vector3());
   const lookOffset = useRef(new THREE.Vector3());
+  // Close-up smoothing state; the recorded attitude can change measurably
+  // between frames at 60x playback, which reads as shake if applied raw.
+  const smoothPos = useRef(new THREE.Vector3());
+  const smoothLook = useRef(new THREE.Vector3());
+  const smoothUp = useRef(new THREE.Vector3(0, 1, 0));
+  const lastFov = useRef(43);
 
   const anchor = useMemo(regionAnchor, []);
   const regionDir = useMemo(() => anchor.clone().normalize(), [anchor]);
+
+  const tmp = useMemo(
+    () => ({
+      off: new THREE.Vector3(),
+      pos: new THREE.Vector3(),
+      look: new THREE.Vector3(),
+      mpos: new THREE.Vector3(),
+      tpos: new THREE.Vector3(),
+      mvel: new THREE.Vector3(),
+      up: new THREE.Vector3(),
+      fwd: new THREE.Vector3(),
+      side: new THREE.Vector3(),
+      mid: new THREE.Vector3(),
+      anchor: new THREE.Vector3(),
+      q: new THREE.Quaternion(),
+      userQ: new THREE.Quaternion(),
+      euler: new THREE.Euler(),
+      sph: new THREE.Spherical(),
+    }),
+    [],
+  );
 
   // Set a sensible starting view once the globe is mounted.
   useEffect(() => {
     if (lastMode.current === null) {
       const start = regionDir.clone().multiplyScalar(15200);
-      start.applyAxisAngle(new THREE.Vector3(0, 0, 1), 0.5);
+      start.applyAxisAngle(Z_AXIS, 0.5);
       camera.position.copy(start);
       camera.lookAt(anchor);
       look.current.copy(anchor);
@@ -52,17 +83,14 @@ export function CameraRig() {
     let lastX = 0;
     let lastY = 0;
 
-    const freeMode = () => false;
-
     const onDown = (e: PointerEvent) => {
-      if (freeMode()) return;
       dragging = true;
       lastX = e.clientX;
       lastY = e.clientY;
       el.setPointerCapture?.(e.pointerId);
     };
     const onMove = (e: PointerEvent) => {
-      if (!dragging || freeMode()) return;
+      if (!dragging) return;
       const dx = e.clientX - lastX;
       const dy = e.clientY - lastY;
       lastX = e.clientX;
@@ -75,7 +103,6 @@ export function CameraRig() {
       el.releasePointerCapture?.(e.pointerId);
     };
     const onWheel = (e: WheelEvent) => {
-      if (freeMode()) return;
       e.preventDefault();
       cameraInput.zoom = THREE.MathUtils.clamp(
         cameraInput.zoom * Math.exp(e.deltaY * 0.0012),
@@ -128,40 +155,51 @@ export function CameraRig() {
     const userZoom = THREE.MathUtils.clamp(cameraInput.zoom * driftZoom, 0.12, 10);
     const ms = rt.missileSampler.sampleAt(t);
     const ts = rt.targetSampler.sampleAt(t);
-    const mpos = new THREE.Vector3(ms.position.x, ms.position.y, ms.position.z).multiplyScalar(KM);
-    const tpos = new THREE.Vector3(ts.position.x, ts.position.y, ts.position.z).multiplyScalar(KM);
-    const mvel = new THREE.Vector3(ms.velocity.x, ms.velocity.y, ms.velocity.z).normalize();
-    const up = new THREE.Vector3(mpos.x, mpos.y, mpos.z).normalize();
+    const mpos = tmp.mpos.set(ms.position.x, ms.position.y, ms.position.z).multiplyScalar(KM);
+    const tpos = tmp.tpos.set(ts.position.x, ts.position.y, ts.position.z).multiplyScalar(KM);
+    const mvel = tmp.mvel.set(ms.velocity.x, ms.velocity.y, ms.velocity.z).normalize();
+    const up = tmp.up.set(mpos.x, mpos.y, mpos.z).normalize();
+
+    const modeChanged = lastMode.current !== mode;
 
     // Body-locked close-ups: offsets are expressed in the vehicle body frame
     // (x forward, y right, z down) and rotated by the recorded attitude.
     if (BODY_CAMERAS.includes(mode)) {
-      const q = new THREE.Quaternion(ms.attitude.x, ms.attitude.y, ms.attitude.z, ms.attitude.w);
-      const bodyUp = new THREE.Vector3(0, 0, -1).applyQuaternion(q);
-      // One near three-quarter rear view: the tail fins, nozzle/plume and the
-      // body axes are all visible at once instead of three separate cameras.
-      const off = new THREE.Vector3(-0.0090, 0.0040, -0.0060);
-      const lookOff: THREE.Vector3 = new THREE.Vector3(-0.0012, 0, 0);
-      const fov = 38;
-      const userQ = new THREE.Quaternion().setFromEuler(
-        new THREE.Euler(userPitch * 0.8, userYaw * 0.8, 0, "YXZ"),
-      );
-      off.applyQuaternion(userQ);
-      off.multiplyScalar(userZoom);
-      const desiredPos = off.clone().applyQuaternion(q).add(mpos);
-      const desiredLook = lookOff ? lookOff.clone().applyQuaternion(q).add(mpos) : tpos;
-      camera.position.copy(desiredPos);
-      camera.up.copy(bodyUp);
-      camera.lookAt(desiredLook);
-      cam.fov = fov;
-      camera.updateProjectionMatrix();
+      const q = tmp.q.set(ms.attitude.x, ms.attitude.y, ms.attitude.z, ms.attitude.w);
+      const bodyUp = tmp.side.set(0, 0, -1).applyQuaternion(q);
+      tmp.euler.set(userPitch * 0.8, userYaw * 0.8, 0, "YXZ");
+      tmp.userQ.setFromEuler(tmp.euler);
+      const off = tmp.off.copy(CLOSE_OFFSET).applyQuaternion(tmp.userQ).multiplyScalar(userZoom);
+      const desiredPos = tmp.pos.copy(off).applyQuaternion(q).add(mpos);
+      const desiredLook = tmp.look.copy(CLOSE_LOOK).applyQuaternion(q).add(mpos);
+
+      if (modeChanged) {
+        smoothPos.current.copy(desiredPos);
+        smoothLook.current.copy(desiredLook);
+        smoothUp.current.copy(bodyUp);
+      } else {
+        // 60x playback moves the recorded attitude quickly; damping the camera
+        // pose keeps the airframe framed without per-frame jitter.
+        const kPos = damp(16, dt);
+        const kUp = damp(10, dt);
+        smoothPos.current.lerp(desiredPos, kPos);
+        smoothLook.current.lerp(desiredLook, kPos);
+        smoothUp.current.lerp(bodyUp, kUp).normalize();
+      }
+      camera.position.copy(smoothPos.current);
+      camera.up.copy(smoothUp.current);
+      camera.lookAt(smoothLook.current);
+      if (Math.abs(cam.fov - 38) > 1e-3) {
+        cam.fov = 38;
+        camera.updateProjectionMatrix();
+      }
       lastMode.current = mode;
       lastPresentation.current = presentation;
       return;
     }
 
-    const desiredPos = new THREE.Vector3();
-    const desiredLook = new THREE.Vector3();
+    const desiredPos = tmp.pos;
+    const desiredLook = tmp.look;
     const elapsed = simClock.time - rt.manifest.time.startS;
     const shot = presentation === "cinematic"
       ? shotAtWall(simToWall(simClock.time, rt.manifest.phases))
@@ -177,13 +215,13 @@ export function CameraRig() {
       const dist = shot ? 0.035 + shot.distance * 0.5 : 0.075;
       // At launch the recorded velocity is exactly zero; fall back to the body
       // x-axis so the chase camera does not sit inside the vehicle.
-      let forward = mvel.clone();
+      const forward = tmp.fwd.copy(mvel);
       if (forward.lengthSq() < 1e-8) {
-        const q = new THREE.Quaternion(ms.attitude.x, ms.attitude.y, ms.attitude.z, ms.attitude.w);
-        forward = new THREE.Vector3(1, 0, 0).applyQuaternion(q);
+        const q = tmp.q.set(ms.attitude.x, ms.attitude.y, ms.attitude.z, ms.attitude.w);
+        forward.copy(BODY_FORWARD).applyQuaternion(q);
       }
       forward.normalize();
-      const side = new THREE.Vector3().crossVectors(forward, up).normalize();
+      const side = tmp.side.crossVectors(forward, up).normalize();
       if (side.lengthSq() < 1e-8) side.set(1, 0, 0);
       desiredPos.copy(mpos)
         .addScaledVector(forward, -dist)
@@ -194,9 +232,8 @@ export function CameraRig() {
     } else if (mode === "target") {
       const sep = mpos.distanceTo(tpos);
       const dist = Math.max(0.008, sep * 0.55);
-      const mid = mpos.clone().lerp(tpos, 0.5);
-      const side = new THREE.Vector3().subVectors(tpos, mpos).normalize()
-        .cross(up).normalize();
+      const mid = tmp.anchor.copy(mpos).lerp(tpos, 0.5);
+      const side = tmp.side.subVectors(tpos, mpos).normalize().cross(up).normalize();
       desiredPos.copy(mid)
         .addScaledVector(up, Math.min(dist * 0.35, 0.4))
         .addScaledVector(side, dist * 0.25);
@@ -208,26 +245,25 @@ export function CameraRig() {
       const dist = 7800;
       const theta = 0.85 + elapsed * 0.00035;
       const elevation = 0.62;
-      desiredPos.copy(regionDir.clone().multiplyScalar(Math.cos(elevation)))
-        .add(new THREE.Vector3(0, 0, Math.sin(elevation)))
+      desiredPos.copy(regionDir).multiplyScalar(Math.cos(elevation))
+        .add(tmp.fwd.set(0, 0, Math.sin(elevation)))
         .normalize()
         .multiplyScalar(dist)
-        .applyAxisAngle(new THREE.Vector3(0, 0, 1), -theta);
+        .applyAxisAngle(Z_AXIS, -theta);
       desiredLook.copy(anchor);
       cam.fov = 43;
     }
 
     // Apply user orbit/zoom around the automatic look point.
     {
-      const off = desiredPos.clone().sub(desiredLook);
-      const sph = new THREE.Spherical().setFromVector3(off);
+      const off = tmp.off.copy(desiredPos).sub(desiredLook);
+      const sph = tmp.sph.setFromVector3(off);
       sph.theta += userYaw;
       sph.phi = THREE.MathUtils.clamp(sph.phi + userPitch, 0.06, Math.PI - 0.06);
       sph.radius = Math.max(0.0004, sph.radius * userZoom);
-      desiredPos.copy(desiredLook).add(new THREE.Vector3().setFromSpherical(sph));
+      desiredPos.copy(desiredLook).add(tmp.fwd.setFromSpherical(sph));
     }
 
-    const modeChanged = lastMode.current !== mode;
     // Cinematic mode opens on a cut, like a film. Without this the first shot
     // has to fly in from the orbital view, which is slow on low-end GPUs.
     const justEnteredCinematic =
@@ -242,8 +278,8 @@ export function CameraRig() {
         lookOffset.current.copy(look.current).sub(lookAnchor);
       }
       const rate = modeChanged ? 3.2 : 4.5;
-      camOffset.current.lerp(desiredPos.clone().sub(anchorPoint), damp(rate, dt));
-      lookOffset.current.lerp(desiredLook.clone().sub(lookAnchor), damp(rate + 1.5, dt));
+      camOffset.current.lerp(tmp.mid.copy(desiredPos).sub(anchorPoint), damp(rate, dt));
+      lookOffset.current.lerp(tmp.side.copy(desiredLook).sub(lookAnchor), damp(rate + 1.5, dt));
       camera.position.copy(anchorPoint).add(camOffset.current);
       look.current.copy(lookAnchor).add(lookOffset.current);
     } else if (justEnteredCinematic) {
@@ -256,11 +292,13 @@ export function CameraRig() {
 
     camera.up.copy(up);
     camera.lookAt(look.current);
-    camera.updateProjectionMatrix();
+    if (Math.abs(cam.fov - lastFov.current) > 1e-3) {
+      lastFov.current = cam.fov;
+      camera.updateProjectionMatrix();
+    }
     lastMode.current = mode;
     lastPresentation.current = presentation;
   });
 
   return null;
 }
-

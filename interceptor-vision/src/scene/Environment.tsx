@@ -150,7 +150,7 @@ function Lights() {
   const quality = useApp((s) => s.quality);
   const preset = SKY_PRESETS[timeOfDay];
   const sun = useRef<THREE.DirectionalLight>(null);
-  const shadowSize = quality === "cinematic" ? 4096 : quality === "balanced" ? 2048 : 1024;
+  const shadowSize = quality === "cinematic" ? 2048 : 1024;
   const cast = shadows && quality !== "performance";
 
   useEffect(() => {
@@ -258,7 +258,7 @@ const EARTH_FRAG = /* glsl */ `
 function Terrain() {
   const quality = useApp((s) => s.quality);
   const timeOfDay = useApp((s) => s.timeOfDay);
-  const segments = quality === "cinematic" ? 160 : quality === "balanced" ? 120 : 72;
+  const segments = quality === "cinematic" ? 128 : quality === "balanced" ? 96 : 64;
   const color = useLoader(THREE.TextureLoader, asset("terrain-day.webp")) as THREE.Texture;
   const preset = SKY_PRESETS[timeOfDay];
 
@@ -344,15 +344,15 @@ function CloudLayer({
   return (
     <mesh ref={mesh} position={[0, y, 0]} rotation={[-Math.PI / 2, 0, 0]}>
       <planeGeometry args={[size, size]} />
-      <meshStandardMaterial
+      {/* Unlit and single-sided: these are full-screen translucent layers, so
+          PBR shading and back faces would multiply fill cost for no gain. */}
+      <meshBasicMaterial
         map={map}
         transparent
         opacity={opacity}
         color={tintColor}
         depthWrite={false}
-        roughness={1}
-        metalness={0}
-        side={THREE.DoubleSide}
+        side={THREE.FrontSide}
         fog
         polygonOffset
         polygonOffsetFactor={-1}
@@ -371,11 +371,14 @@ function Clouds() {
   const layers =
     quality === "performance"
       ? [{ y: -20_000, tex: a, repeat: 4, speed: 1800, size: 2_300_000 }]
-      : [
-          { y: -12_000, tex: a, repeat: 6, speed: 2600, size: 2_200_000 },
-          { y: -20_000, tex: b, repeat: 4, speed: 1500, size: 2_700_000 },
-          { y: -27_000, tex: a, repeat: 3, speed: 800, size: 3_200_000 },
-        ];
+      : quality === "cinematic"
+        ? [
+            { y: -12_000, tex: a, repeat: 6, speed: 2600, size: 2_200_000 },
+            { y: -27_000, tex: b, repeat: 3, speed: 800, size: 3_200_000 },
+          ]
+        : [
+            { y: -18_000, tex: b, repeat: 4, speed: 1500, size: 2_700_000 },
+          ];
 
   return (
     <group>
@@ -420,6 +423,16 @@ function Haze() {
 }
 
 export function RealtimeEnvironment() {
+  // Warm the other two HDRIs once the first frame is settled so switching
+  // time-of-day never stalls on a network round trip.
+  useEffect(() => {
+    const id = window.setTimeout(() => {
+      useLoader.preload(RGBELoader, asset("env-dusk.hdr"));
+      useLoader.preload(RGBELoader, asset("env-night.hdr"));
+    }, 4000);
+    return () => window.clearTimeout(id);
+  }, []);
+
   return (
     <>
       <SkyDome />

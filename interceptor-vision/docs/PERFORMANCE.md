@@ -5,15 +5,18 @@
 - 浏览器：Microsoft Edge（Playwright 驱动，headless），1920×1080 视口
 - GPU：Intel UHD Graphics（ANGLE / D3D11，集显）
 - 服务：`vite preview`（本地生产构建，无 CDN）
-- 时间：2026-11-24，构建版本 `1.0.0`
+- 时间：2026-11-25，构建版本 `1.0.0`
+- 技术栈：Vite 8 + React 19 + three 0.187，`base: "./"`
 
 ## 结果
 
 | 画质档 | 中景帧率 | 说明 |
 | --- | --- | --- |
-| Performance | 60.0 FPS | DPR 1.0，关闭阴影，单层云，无后期 |
-| Balanced | 54.3 FPS | DPR ≤1.5，2048 阴影，三层云，SMAA + 暗角 |
-| Cinematic | 40.2 FPS | DPR ≤2，4096 阴影，SMAA + 暗角 + 弱 Bloom |
+| Performance | 60.0 FPS | DPR 自适应上限 1.0，关闭阴影，单层云，无后期 |
+| Balanced | 60.3 FPS | DPR 自适应上限 1.25，1024 阴影，单层云，原生 MSAA，无后期 |
+| Cinematic | 50.2 FPS | DPR 自适应上限 1.5，2048 阴影，两层云，暗角 + 弱 Bloom |
+
+优化前同一台机器：Balanced 54.3 FPS、Cinematic 40.2 FPS。本次优化后中景档两档都跑满或接近 60 FPS。
 
 首帧就绪（从导航到 `window.__iv.store.ready`）：**0.73 s**（优化前约 3.0 s）。
 
@@ -45,7 +48,22 @@
 6. **缓存失效策略**：资产 URL 带 `?v=3` 版本号，重新生成同名资产后强制回源。
 7. **慢网提示**：加载超过 8 s 时显示“网络较慢”提示，避免误以为卡死。
 8. **遥测延迟加载**：原平台 1504 帧遥测（1.0 MB，gzip 后约 0.2 MB）在首帧后 0.9 s 才请求，任务/遥测面板在数据到位后填充，不拖慢首屏；图表只在打开时渲染 SVG 曲线。
-9. **地球弹道按需加载**：地球贴图（2048/1024 约 0.7 MB，高画质 8K/4K 约 6.8 MB）只在切换到“地球弹道”时请求；实景首屏不加载这些纹理，也不创建第二个 WebGL 上下文。
+9. **地球弹道按需加载**：地球贴图（2048/1024 约 0.7 MB，高画质 8K/4K 约 6.8 MB）只在切换到“地球弹道”时请求；实景首屏不加载这些纹理。首次切换后两个场景常驻，用 `frameloop` 暂停隐藏场景，之后来回切换不再重建 WebGL 上下文（实测切换约 0.1 s，隐藏画布渲染帧数保持 0）。
+
+## 本次卡顿专项优化
+
+| 项目 | 处理 |
+| --- | --- |
+| 面板实时模糊 | 移除 `.rail`、时间线、顶栏按钮等处的 `backdrop-filter: blur(10–18px)`，改为 93% 不透明度纯色。模糊层叠在动画画布上由 GPU 每帧重算，是集显卡顿的首要来源。 |
+| 像素比 | 固定 `dpr` 1.5/2 改为上限 1.25/1.5，并加入自适应分辨率：连续帧率低于 44 时按 0.15 下调，高于 57 时缓慢回升，最低 0.7。 |
+| 绘图缓冲 | 关闭 `preserveDrawingBuffer`（每帧强制拷贝后备缓冲）。截图改为“显式 `gl.render()` 后同一任务内 `toDataURL`”。 |
+| 云层 | `meshStandardMaterial` + 双面 + 三层全屏透明面改为无光照 `meshBasicMaterial` + 单面；Balanced 只留一层，Cinematic 两层。 |
+| 每帧分配 | `CameraRig`、`Entities`、轨道相机改为复用临时 `Vector3`/`Quaternion`/`Spherical`，消除逐帧 GC 尖峰。 |
+| 阴影 | `shadowMap.autoUpdate = false`，约 10 Hz 刷新一次；阴影图上限 4096 → 2048（Balanced 1024）。 |
+| 后期 | 仅 Cinematic 启用暗角 + 弱 Bloom；Balanced 依赖画布原生 MSAA，省掉整条 composer 全屏采样。 |
+| 场景切换 | 两个 Canvas 常驻，隐藏层 `visibility: hidden` + `frameloop="never"`，不再重新上传 GLB/HDRI/纹理。 |
+| UI 刷新 | 遥测 store 镜像由 12 Hz 降到约 7 Hz；3D 场景直接读连续时钟，不再受 UI 步进影响。 |
+| 近景抖动 | 弹体姿态改用连续仿真时钟采样（原来按 12 Hz 的 UI 时间步进），并随相机距离衰减摆动幅度；弹道特写相机对准/姿态做阻尼平滑；修复 60× 播放时 `simClock` 被 7 Hz 镜像回写导致的周期性倒退。 |
 
 ## 复现
 
@@ -66,8 +84,8 @@ npm run visual:check -- http://127.0.0.1:4176/
 ## 优化手段
 
 - **LOD**：三档 GLB，距离 26 m / 160 m 切换；首屏仅加载近景 LOD0。
-- **阴影**：按画质 1024/2048/4096，Performance 关闭。
-- **云层**：Performance 仅一层，其余三层，全部使用 alpha 贴图与加法透明度。
-- **后期**：仅 Balanced/Cinematic 启用 SMAA + 暗角；Cinematic 额外弱 Bloom（阈值 0.92，强度 0.22），避免泛光滥用。
+- **阴影**：按画质 1024/1024/2048，约 10 Hz 按需刷新，Performance 关闭。
+- **云层**：Performance/Balanced 各一层，Cinematic 两层；无光照单面材质。
+- **后期**：仅 Cinematic 启用暗角 + 弱 Bloom（阈值 0.92，强度 0.22）；Balanced 使用画布原生 MSAA。
 - **纹理**：程序化面板法线/粗糙度贴图 1024×512（WebP 嵌入 GLB），地形 2048²，云层 1024²（WebP）。
 - **几何**：弹体 150 站位 × 72 边环，LOD1/2 分别简化至 45% / 16%。

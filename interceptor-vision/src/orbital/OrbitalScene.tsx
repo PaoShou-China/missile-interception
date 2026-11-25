@@ -13,6 +13,7 @@ import { buildRuntime } from "./runtime";
 import { useApp } from "../state";
 import { useT } from "../i18n";
 import { dataClock } from "../data/dataClock";
+import { AdaptiveResolution, DPR_CAP } from "../scene/AdaptiveResolution";
 
 const QUALITY_MAP: Record<string, QualityLevel> = {
   performance: "low",
@@ -23,10 +24,13 @@ const QUALITY_MAP: Record<string, QualityLevel> = {
 /** Bridges the shared flight clock with the orbital store. */
 function ClockBridge() {
   const acc = useRef(0);
-  useFrame((_, dt) => {
+  useFrame((_, rawDt) => {
     const orb = useOrbitalStore.getState();
     const main = useApp.getState();
     if (!orb.runtime) return;
+    // A canvas that has just mounted (or a backgrounded tab) reports a huge
+    // first delta; clamping it keeps playback from jumping to the end.
+    const dt = Math.min(0.1, rawDt);
     if (orb.presentation === "cinematic") {
       if (simClock.playing) {
         const phases = orb.runtime.manifest.phases;
@@ -44,18 +48,23 @@ function ClockBridge() {
       return;
     }
     if (main.dataPlaying) {
+      // The wall clock is authoritative while playing. Seeking the simulation
+      // clock from the 7 Hz UI mirror made it jump backwards between updates,
+      // which read as camera shake in the close-ups.
       dataClock.t = Math.min(main.telemetry?.end ?? Infinity, dataClock.t + dt * main.dataRate);
+      simClock.seek(dataClock.t);
       acc.current += dt;
-      if (acc.current >= 0.08) {
+      if (acc.current >= 0.14) {
         acc.current = 0;
         main.setDataTime(dataClock.t);
       }
+    } else {
+      if (Math.abs(simClock.time - main.dataTime) > 0.03) simClock.seek(main.dataTime);
     }
-    if (Math.abs(simClock.time - main.dataTime) > 0.03) simClock.seek(main.dataTime);
     if (main.dataPlaying && !simClock.playing) simClock.play();
     if (!main.dataPlaying && simClock.playing) simClock.pause();
     acc.current += dt;
-    if (acc.current >= 0.08) {
+    if (acc.current >= 0.14) {
       acc.current = 0;
       orb.syncTime();
     }
@@ -65,6 +74,7 @@ function ClockBridge() {
 
 function RendererSetup() {
   const { gl, scene, camera } = useThree();
+  const acc = useRef({ t: 0, frames: 0 });
   gl.toneMapping = THREE.ACESFilmicToneMapping;
   gl.toneMappingExposure = 1.06;
   gl.outputColorSpace = THREE.SRGBColorSpace;
@@ -76,9 +86,17 @@ function RendererSetup() {
     main: useApp,
     clock: simClock,
   };
+  useFrame((_, delta) => {
+    acc.current.t += delta;
+    acc.current.frames += 1;
+    if (acc.current.t >= 0.5) {
+      useApp.getState().setFps(Math.round(acc.current.frames / acc.current.t));
+      acc.current.t = 0;
+      acc.current.frames = 0;
+    }
+  });
   return null;
 }
-
 function Effects() {
   const quality = useOrbitalStore((s) => s.quality);
   if (quality !== "high") return null;
@@ -98,7 +116,7 @@ function CameraFillLight() {
   return <pointLight ref={light} intensity={0.12} distance={0.3} decay={2} color="#cfe0ff" />;
 }
 
-export function OrbitalScene() {
+export function OrbitalScene({ active = true }: { active?: boolean }) {
   const telemetry = useApp((s) => s.telemetry);
   const quality = useApp((s) => s.quality);
   const t = useT();
@@ -120,11 +138,12 @@ export function OrbitalScene() {
     simClock.seek(useApp.getState().dataTime);
   }, [telemetry]);
 
-  const dpr: [number, number] = quality === "performance" ? [1, 1] : quality === "balanced" ? [1, 1.5] : [1, 2];
+  const cap = DPR_CAP[quality] ?? 1.25;
 
   return (
     <Canvas
-      dpr={dpr}
+      frameloop={active ? "always" : "never"}
+      dpr={cap}
       camera={{ fov: 43, near: 0.0008, far: 300_000, position: [13_000, 8_000, 9_000] }}
       gl={{
         antialias: quality !== "performance",
@@ -135,6 +154,7 @@ export function OrbitalScene() {
       className="scene-canvas"
     >
       <RendererSetup />
+      <AdaptiveResolution max={cap} />
       <ClockBridge />
       <Suspense fallback={null}>
         {runtime && (

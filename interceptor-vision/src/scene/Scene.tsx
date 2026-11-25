@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
-import { Bloom, EffectComposer, SMAA, Vignette } from "@react-three/postprocessing";
+import { Bloom, EffectComposer, Vignette } from "@react-three/postprocessing";
 import * as THREE from "three";
 import { Missile } from "./Missile";
 import { RealtimeEnvironment } from "./Environment";
@@ -8,6 +8,26 @@ import { CameraRig } from "./CameraRig";
 import { TelemetryClock } from "./TelemetryClock";
 import { useApp } from "../state";
 import { SKY_PRESETS } from "./assets";
+import { AdaptiveResolution, DPR_CAP } from "./AdaptiveResolution";
+
+/** Shadow maps only need to track a slowly rotating vehicle, so refresh at ~10 Hz. */
+function ShadowBudget() {
+  const gl = useThree((s) => s.gl);
+  const tick = useRef(0);
+  useEffect(() => {
+    gl.shadowMap.autoUpdate = false;
+    gl.shadowMap.needsUpdate = true;
+    return () => {
+      gl.shadowMap.autoUpdate = true;
+    };
+  }, [gl]);
+  useFrame(() => {
+    if (!gl.shadowMap.enabled) return;
+    tick.current += 1;
+    if (tick.current % 6 === 0) gl.shadowMap.needsUpdate = true;
+  });
+  return null;
+}
 
 function RendererBridge() {
   const { gl, scene, camera } = useThree();
@@ -17,7 +37,6 @@ function RendererBridge() {
   const screenshot = useApp((s) => s.screenshotRequest);
   const setReady = useApp((s) => s.setReady);
   const setFps = useApp((s) => s.setFps);
-  const lastShot = useRef(0);
   const acc = useRef({ t: 0, frames: 0 });
 
   useEffect(() => {
@@ -32,14 +51,18 @@ function RendererBridge() {
 
   useEffect(() => {
     if (screenshot === 0) return;
-    lastShot.current = screenshot;
-    // The drawing buffer is preserved, so a synchronous read is safe.
+    // In orbital mode this canvas is paused and hidden; capturing it would save
+    // the wrong scene.
+    if (useApp.getState().sceneMode !== "vision") return;
+    // The drawing buffer is not preserved; render and read back in the same
+    // task so no compositing can clear it in between.
+    gl.render(scene, camera);
     const url = gl.domElement.toDataURL("image/png");
     const a = document.createElement("a");
     a.href = url;
     a.download = `interceptor-vision-${new Date().toISOString().replace(/[:.]/g, "-")}.png`;
     a.click();
-  }, [screenshot, gl]);
+  }, [screenshot, gl, scene, camera]);
 
   useFrame((_, delta) => {
     acc.current.t += delta;
@@ -70,38 +93,38 @@ function RendererBridge() {
 
 function QualityEffects() {
   const quality = useApp((s) => s.quality);
-  if (quality === "performance") return null;
+  // Balanced relies on the canvas MSAA; a full-screen composer pass costs more
+  // than it buys on integrated GPUs.
+  if (quality !== "cinematic") return null;
   return (
     <EffectComposer multisampling={0}>
-      <SMAA />
       <Vignette offset={0.28} darkness={0.55} />
-      {quality === "cinematic" && (
-        <Bloom intensity={0.22} luminanceThreshold={0.92} luminanceSmoothing={0.22} mipmapBlur radius={0.6} />
-      )}
+      <Bloom intensity={0.22} luminanceThreshold={0.92} luminanceSmoothing={0.22} mipmapBlur radius={0.6} />
     </EffectComposer>
   );
 }
 
-export function SceneCanvas() {
+export function SceneCanvas({ active = true }: { active?: boolean }) {
   const quality = useApp((s) => s.quality);
-  const dpr: [number, number] =
-    quality === "performance" ? [1, 1] : quality === "balanced" ? [1, 1.5] : [1, 2];
+  const cap = DPR_CAP[quality] ?? 1.25;
 
   return (
     <Canvas
+      frameloop={active ? "always" : "never"}
       shadows={quality !== "performance"}
-      dpr={dpr}
-      camera={{ fov: 34, near: 0.05, far: 3_000_000, position: [7.4, 2.3, 6.6] }}
+      dpr={cap}
+      camera={{ fov: 34, near: 0.12, far: 3_000_000, position: [7.4, 2.3, 6.6] }}
       gl={{
         antialias: quality !== "performance",
         powerPreference: "high-performance",
         logarithmicDepthBuffer: true,
         alpha: false,
-        preserveDrawingBuffer: true,
       }}
       className="scene-canvas"
     >
       <RendererBridge />
+      <AdaptiveResolution max={cap} />
+      <ShadowBudget />
       <TelemetryClock />
       <RealtimeEnvironment />
       <Missile />

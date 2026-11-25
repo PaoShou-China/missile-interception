@@ -39,6 +39,9 @@ export function CameraRig() {
   const cinematic = useMemo(() => curveFrom(CINEMATIC_PATH), []);
   const tmpPos = useMemo(() => new THREE.Vector3(), []);
   const tmpLook = useMemo(() => new THREE.Vector3(), []);
+  const tmpOff = useMemo(() => new THREE.Vector3(), []);
+  const tmpDesired = useMemo(() => new THREE.Vector3(), []);
+  const tmpSph = useMemo(() => new THREE.Spherical(), []);
   const orbit = useRef({ yaw: 0, pitch: 0, zoom: 1 });
 
   // Snap to a sensible pose on first mount.
@@ -145,22 +148,28 @@ export function CameraRig() {
       const fov = cinematic.fov[i0] + (cinematic.fov[i1] - cinematic.fov[i0]) * (fi - i0);
       camera.position.lerp(tmpPos, damp(6, delta));
       lookTarget.current.lerp(tmpLook, damp(6, delta));
-      cam.fov += (fov - cam.fov) * damp(5, delta);
-      cam.updateProjectionMatrix();
+      const nextFov = cam.fov + (fov - cam.fov) * damp(5, delta);
+      if (Math.abs(nextFov - cam.fov) > 1e-3) {
+        cam.fov = nextFov;
+        cam.updateProjectionMatrix();
+      }
       camera.lookAt(lookTarget.current);
       return;
     }
 
-    const off = posTarget.current.clone().sub(lookTarget.current);
-    const sph = new THREE.Spherical().setFromVector3(off);
-    sph.theta += orbit.current.yaw;
-    sph.phi = THREE.MathUtils.clamp(sph.phi + orbit.current.pitch, 0.12, Math.PI - 0.12);
-    sph.radius *= orbit.current.zoom;
-    const desired = new THREE.Vector3().setFromSpherical(sph).add(lookTarget.current);
-    camera.position.lerp(desired, damp(2.6, delta));
+    tmpOff.copy(posTarget.current).sub(lookTarget.current);
+    tmpSph.setFromVector3(tmpOff);
+    tmpSph.theta += orbit.current.yaw;
+    tmpSph.phi = THREE.MathUtils.clamp(tmpSph.phi + orbit.current.pitch, 0.12, Math.PI - 0.12);
+    tmpSph.radius *= orbit.current.zoom;
+    tmpDesired.setFromSpherical(tmpSph).add(lookTarget.current);
+    camera.position.lerp(tmpDesired, damp(5, delta));
     camera.lookAt(lookTarget.current);
-    cam.fov += (fovTarget.current - cam.fov) * damp(2.8, delta);
-    cam.updateProjectionMatrix();
+    const nextFov = cam.fov + (fovTarget.current - cam.fov) * damp(2.8, delta);
+    if (Math.abs(nextFov - cam.fov) > 1e-3) {
+      cam.fov = nextFov;
+      cam.updateProjectionMatrix();
+    }
   });
 
   return mode === "free" ? (

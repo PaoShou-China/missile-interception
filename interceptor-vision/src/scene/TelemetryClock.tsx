@@ -18,7 +18,7 @@ export function TelemetryClock() {
     if (!tel) return;
 
     if (dataClock.playing) {
-      dataClock.t += delta * dataClock.rate;
+      dataClock.t += Math.min(delta, 0.1) * dataClock.rate;
       if (dataClock.t >= tel.end) {
         dataClock.t = tel.end;
         dataClock.playing = false;
@@ -26,7 +26,9 @@ export function TelemetryClock() {
       }
     }
     acc.current += delta;
-    if (acc.current >= 0.08) {
+    // The 3D scene samples the clock directly; the React mirror only needs to
+    // refresh the numeric read-outs, so 7 Hz is plenty and halves panel churn.
+    if (acc.current >= 0.14) {
       acc.current = 0;
       if (Math.abs(state.dataTime - dataClock.t) > 0.01) state.setDataTime(dataClock.t);
     }

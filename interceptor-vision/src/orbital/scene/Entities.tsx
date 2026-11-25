@@ -242,6 +242,7 @@ export function EntityVisual({ kind, label, color, showLabel = false, modelScale
   const marker = useRef<THREE.Sprite>(null);
   const labelAnchor = useRef<THREE.Group>(null);
   const labelRef = useRef<HTMLDivElement>(null);
+  const p = useMemo(() => new THREE.Vector3(), []);
   const glowTex = useGlowTexture(
     "rgba(255,255,255,1)",
     kind === "missile" ? "rgba(255,178,87,0.55)" : "rgba(99,230,255,0.55)",
@@ -252,7 +253,7 @@ export function EntityVisual({ kind, label, color, showLabel = false, modelScale
     if (!rt || !model.current) return;
     const sampler = kind === "missile" ? rt.missileSampler : rt.targetSampler;
     const s = sampler.sampleAt(simClock.time);
-    const p = new THREE.Vector3(s.position.x, s.position.y, s.position.z).multiplyScalar(KM);
+    p.set(s.position.x, s.position.y, s.position.z).multiplyScalar(KM);
     model.current.position.copy(p);
     model.current.quaternion.set(s.attitude.x, s.attitude.y, s.attitude.z, s.attitude.w);
     model.current.scale.setScalar(modelScale);

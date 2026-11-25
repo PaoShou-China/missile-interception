@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { SceneCanvas } from "./scene/Scene";
 import { TopBar } from "./components/TopBar";
 import { LeftPanel } from "./components/LeftPanel";
@@ -24,6 +24,13 @@ export function App() {
   const sceneMode = useApp((s) => s.sceneMode);
   const orbitalPresentation = useOrbitalStore((s) => s.presentation);
   const cinematic = sceneMode === "orbital" && orbitalPresentation === "cinematic";
+  // Mount the orbital scene on first visit, then keep it alive: rebuilding the
+  // canvas and re-uploading the Earth textures on every switch caused a stall.
+  const [orbitalMounted, setOrbitalMounted] = useState(sceneMode === "orbital");
+
+  useEffect(() => {
+    if (sceneMode === "orbital") setOrbitalMounted(true);
+  }, [sceneMode]);
 
   useEffect(() => {
     if (!ready) return;
@@ -80,7 +87,14 @@ export function App() {
 
   return (
     <div className={`app-shell ${leftOpen ? "" : "left-collapsed"} ${rightOpen ? "" : "right-collapsed"}`}>
-      {sceneMode === "orbital" ? <OrbitalScene /> : <SceneCanvas />}
+      <div className={`scene-layer ${sceneMode === "vision" ? "" : "scene-layer--hidden"}`}>
+        <SceneCanvas active={sceneMode === "vision"} />
+      </div>
+      {orbitalMounted && (
+        <div className={`scene-layer ${sceneMode === "orbital" ? "" : "scene-layer--hidden"}`}>
+          <OrbitalScene active={sceneMode === "orbital"} />
+        </div>
+      )}
       <div className="vignette" aria-hidden />
       {!cinematic && (
         <>

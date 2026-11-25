@@ -4,6 +4,7 @@ import { Detailed, useGLTF } from "@react-three/drei";
 import * as THREE from "three";
 import { LIVERY, MISSILE_LODS } from "./assets";
 import { sampleAt } from "../data/telemetry";
+import { dataClock } from "../data/dataClock";
 import { useApp } from "../state";
 
 function tuneMaterials(root: THREE.Object3D, opts: { accent: string; paint: string; night: boolean }) {
@@ -148,22 +149,29 @@ function LodsPreloader({ onReady }: { onReady: () => void }) {
 export function Missile() {
   const group = useRef<THREE.Group>(null);
   const ready = useApp((s) => s.ready);
+  const quality = useApp((s) => s.quality);
   const [tiered, setTiered] = useState(false);
   const [warm, setWarm] = useState(false);
 
   // Let the near LOD and the HDRI finish first, then upgrade to the full LOD
-  // chain. On a slow connection this keeps the first frame ~1 MB lighter.
+  // chain. The performance tier keeps the single near LOD on purpose.
   useEffect(() => {
     if (!ready) return;
-    const id = window.setTimeout(() => setWarm(true), 1200);
+    const id = window.setTimeout(() => setWarm(true), quality === "performance" ? 6000 : 1200);
     return () => window.clearTimeout(id);
-  }, [ready]);
+  }, [ready, quality]);
 
-  useFrame(({ clock }, delta) => {
+  useFrame(({ clock, camera }, delta) => {
     const t = clock.elapsedTime;
     if (!group.current) return;
     const state = useApp.getState();
-    const sample = state.dataStatus === "ready" ? sampleAt(state.dataTime) : null;
+    // Body sway reads as camera shake in the close-ups, so attenuate it with
+    // proximity instead of moving the camera.
+    const prox = THREE.MathUtils.clamp(camera.position.length() / 16, 0.16, 1);
+    // Sample the continuous clock, not the 12 Hz UI mirror: stepping the target
+    // 12 times a second is what made the near views jitter.
+    const sample = state.dataStatus === "ready" ? sampleAt(dataClock.t) : null;
+    const k = 1 - Math.exp(-7 * Math.min(delta, 0.1));
     if (sample?.finDeflectionsRad) {
       // Control-surface telemetry drives a restrained body motion: exact ECEF
       // attitude would be meaningless in this local cruise scene.
@@ -171,17 +179,18 @@ export function Missile() {
       const clamp = (v: number, m: number) => Math.max(-m, Math.min(m, v));
       const tx = clamp((f.up - f.down) * 0.45, 0.16);
       const tz = clamp((f.left - f.right) * 0.8, 0.32);
-      const k = 1 - Math.exp(-3 * Math.min(delta, 0.1));
-      group.current.rotation.x += (tx - group.current.rotation.x) * k;
-      group.current.rotation.z += (tz - group.current.rotation.z) * k;
-      group.current.rotation.y += (Math.sin(t * 0.17 + 0.8) * 0.012 - group.current.rotation.y) * k;
-      group.current.position.y += (Math.sin(t * 0.5) * 0.12 - group.current.position.y) * k;
+      group.current.rotation.x += (tx * prox - group.current.rotation.x) * k;
+      group.current.rotation.z += (tz * prox - group.current.rotation.z) * k;
+      const yaw = Math.sin(t * 0.17 + 0.8) * 0.012 * prox;
+      group.current.rotation.y += (yaw - group.current.rotation.y) * k;
+      const bob = Math.sin(t * 0.5) * 0.05 * prox;
+      group.current.position.y += (bob - group.current.position.y) * k;
       return;
     }
-    group.current.rotation.x = Math.sin(t * 0.24) * 0.045;
-    group.current.rotation.y = Math.sin(t * 0.17 + 0.8) * 0.012;
-    group.current.rotation.z = Math.sin(t * 0.19 + 2.1) * 0.018;
-    group.current.position.y = Math.sin(t * 0.5) * 0.12;
+    group.current.rotation.x = Math.sin(t * 0.24) * 0.045 * prox;
+    group.current.rotation.y = Math.sin(t * 0.17 + 0.8) * 0.012 * prox;
+    group.current.rotation.z = Math.sin(t * 0.19 + 2.1) * 0.018 * prox;
+    group.current.position.y = Math.sin(t * 0.5) * 0.05 * prox;
   });
 
   return (

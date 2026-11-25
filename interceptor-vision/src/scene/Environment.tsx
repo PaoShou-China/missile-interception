@@ -321,20 +321,24 @@ function Terrain() {
     );
   }, [uniforms, preset, timeOfDay]);
 
-  // Re-centre the satellite tiles at 4 Hz; the recorded position does the rest.
+  // Re-centre the satellite tiles at 2 Hz and upload at most every 200 ms, so
+  // a burst of arriving tiles cannot stall the frame.
   useFrame((_, delta) => {
     acc.current += delta;
-    if (acc.current < 0.25) return;
-    acc.current = 0;
-    const tel = getTelemetry();
-    const sample = tel ? sampleAt(dataClock.t) : null;
-    const frame = map.update(sample?.latDeg ?? 34, sample?.lonDeg ?? 118);
-    const u = mat.current?.uniforms;
-    if (!u) return;
-    u.uOrigin.value.set(frame.originU, frame.originV);
-    u.uFarOffset.value.set(frame.farU, frame.farV);
-    u.uSpan.value = frame.spanMeters;
-    u.uHasMap.value = frame.ready ? 1 : 0;
+    if (acc.current >= 0.5) {
+      acc.current = 0;
+      const tel = getTelemetry();
+      const sample = tel ? sampleAt(dataClock.t) : null;
+      const frame = map.update(sample?.latDeg ?? 34, sample?.lonDeg ?? 118);
+      const u = mat.current?.uniforms;
+      if (u) {
+        u.uOrigin.value.set(frame.originU, frame.originV);
+        u.uFarOffset.value.set(frame.farU, frame.farV);
+        u.uSpan.value = frame.spanMeters;
+        u.uHasMap.value = frame.ready ? 1 : 0;
+      }
+    }
+    map.flush();
   });
 
   const geometry = useMemo(() => new THREE.SphereGeometry(1, segments * 2, segments), [segments]);

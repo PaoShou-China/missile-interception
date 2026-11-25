@@ -14,7 +14,7 @@
 | --- | --- | --- |
 | Performance | 60.0 FPS | DPR 自适应上限 1.0，关闭阴影，单层云，无后期 |
 | Balanced | 60.3 FPS | DPR 自适应上限 1.25，1024 阴影，单层云，原生 MSAA，无后期 |
-| Cinematic | 48.0 FPS | DPR 自适应上限 1.5，2048 阴影，一层淡云，暗角 + 弱 Bloom |
+| Cinematic | 55.9 FPS | DPR 自适应上限 1.5，2048 阴影，一层淡云，暗角 + 弱 Bloom |
 
 优化前同一台机器：Balanced 54.3 FPS、Cinematic 40.2 FPS。本次优化后中景档两档都跑满或接近 60 FPS。
 
@@ -62,7 +62,9 @@
 | 阴影 | `shadowMap.autoUpdate = false`，约 10 Hz 刷新一次；阴影图上限 4096 → 2048（Balanced 1024）。 |
 | 后期 | 仅 Cinematic 启用暗角 + 弱 Bloom；Balanced 依赖画布原生 MSAA，省掉整条 composer 全屏采样。 |
 | 场景切换 | 两个 Canvas 常驻，隐藏层 `visibility: hidden` + `frameloop="never"`，不再重新上传 GLB/HDRI/纹理。 |
+| 快速播放 | 20× / 60× 连续播放 9–12 s，长任务（>50 ms）0 次，稳定 60 FPS |
 | UI 刷新 | 遥测 store 镜像由 12 Hz 降到约 7 Hz；3D 场景直接读连续时钟，不再受 UI 步进影响。 |
+| 卫星瓦片上传 | 每张瓦片 landing 后只标脏，由渲染循环统一在 200 ms 窗口内上传一次（原来每张瓦片都整体上传 2048² 纹理并重建 mipmap，是卡顿主因）；关闭 mipmap 生成。 |
 | 近景抖动 | 弹体姿态改用连续仿真时钟采样（原来按 12 Hz 的 UI 时间步进），并随相机距离衰减摆动幅度；弹道特写相机对准/姿态做阻尼平滑；修复 60× 播放时 `simClock` 被 7 Hz 镜像回写导致的周期性倒退。 |
 
 ## 复现

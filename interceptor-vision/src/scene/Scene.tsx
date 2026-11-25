@@ -5,6 +5,7 @@ import * as THREE from "three";
 import { Missile } from "./Missile";
 import { RealtimeEnvironment } from "./Environment";
 import { CameraRig } from "./CameraRig";
+import { TrajectoryOverlay } from "./TrajectoryOverlay";
 import { TelemetryClock } from "./TelemetryClock";
 import { useApp } from "../state";
 import { SKY_PRESETS } from "./assets";
@@ -125,6 +126,7 @@ export function SceneCanvas({ active = true }: { active?: boolean }) {
       <TelemetryClock />
       <RealtimeEnvironment />
       <Missile />
+      <TrajectoryOverlay />
       <CameraRig />
       <QualityEffects />
     </Canvas>

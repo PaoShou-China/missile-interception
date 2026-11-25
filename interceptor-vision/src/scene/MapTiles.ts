@@ -50,6 +50,7 @@ export class MapTileTexture {
   private images = new Map<string, HTMLImageElement>();
   private failed = new Set<string>();
   private drawn = 0;
+  private dirty = false;
   private disposed = false;
 
   constructor(size = 2048, grid = 8, zoom = 10) {
@@ -63,9 +64,20 @@ export class MapTileTexture {
     this.texture = new THREE.CanvasTexture(this.canvas);
     this.texture.colorSpace = THREE.SRGBColorSpace;
     this.texture.wrapS = this.texture.wrapT = THREE.ClampToEdgeWrapping;
-    this.texture.minFilter = THREE.LinearMipmapLinearFilter;
+    // Uploading a 2048² canvas costs a full copy; building mipmaps on top of
+    // that every time a tile lands is what made playback hitch.
+    this.texture.generateMipmaps = false;
+    this.texture.minFilter = THREE.LinearFilter;
     this.texture.magFilter = THREE.LinearFilter;
-    this.texture.anisotropy = 4;
+    this.texture.anisotropy = 1;
+  }
+
+  /** Copies pending canvas changes to the GPU at most once per call. */
+  flush(): boolean {
+    if (!this.dirty) return false;
+    this.dirty = false;
+    this.texture.needsUpdate = true;
+    return true;
   }
 
   get spanMeters() {
@@ -116,7 +128,7 @@ export class MapTileTexture {
       }
     }
     this.drawn += 1;
-    this.texture.needsUpdate = true;
+    this.dirty = true;
   }
 
   private loadTile(key: string, tx: number, ty: number, gx: number, gy: number, cell: number) {
@@ -132,7 +144,7 @@ export class MapTileTexture {
       this.images.set(key, img);
       this.ctx.drawImage(img, gx * cell, gy * cell, cell, cell);
       this.drawn += 1;
-      this.texture.needsUpdate = true;
+      this.dirty = true;
     };
     img.onerror = () => {
       if (this.disposed) return;

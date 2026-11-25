@@ -37,6 +37,8 @@ export function LeftPanel() {
   const setLivery = useApp((s) => s.setLivery);
   const cloudDensity = useApp((s) => s.cloudDensity);
   const setCloudDensity = useApp((s) => s.setCloudDensity);
+  const showTrajectory = useApp((s) => s.showTrajectory);
+  const setShowTrajectory = useApp((s) => s.setShowTrajectory);
 
   return (
     <>
@@ -105,6 +107,22 @@ export function LeftPanel() {
               </button>
             ))}
           </div>
+        </section>
+
+        <section className="group">
+          <h3>{t("overlay")}</h3>
+          <button
+            type="button"
+            className={`switch ${showTrajectory ? "is-on" : ""}`}
+            onClick={() => setShowTrajectory(!showTrajectory)}
+            aria-pressed={showTrajectory}
+          >
+            <span className="switch__track">
+              <span className="switch__thumb" />
+            </span>
+            <span>{showTrajectory ? "ON" : "OFF"}</span>
+          </button>
+          <p className="hint">{t("trajectoryHint")}</p>
         </section>
 
         <section className="group">

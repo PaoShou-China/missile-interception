@@ -45,6 +45,9 @@ interface AppState {
   shadows: boolean;
   setShadows: (v: boolean) => void;
 
+  showTrajectory: boolean;
+  setShowTrajectory: (v: boolean) => void;
+
   horizon: boolean;
   setHorizon: (v: boolean) => void;
 
@@ -123,6 +126,9 @@ export const useApp = create<AppState>((set) => ({
 
   shadows: true,
   setShadows: (shadows) => set({ shadows }),
+
+  showTrajectory: true,
+  setShowTrajectory: (showTrajectory) => set({ showTrajectory }),
 
   horizon: true,
   setHorizon: (horizon) => set({ horizon }),

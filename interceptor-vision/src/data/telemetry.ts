@@ -52,6 +52,12 @@ export interface Sample {
   handover: boolean;
   finDeflectionsRad?: FinDeflections;
   bodyRatesRadS?: BodyRates;
+  /**
+   * True when the roll between the neighbouring records is larger than the
+   * 0.45 s cadence can resolve, i.e. the recorded roll channel is aliased.
+   * The nose direction stays valid; only the roll about it is unusable.
+   */
+  attitudeAliased?: boolean;
 }
 
 export interface FlightEvent {
@@ -106,6 +112,12 @@ export function sampleAt(time: number): Sample | null {
   const span = b.t - a.t || 1;
   const k = Math.max(0, Math.min(1, (t - a.t) / span));
   const lerp = (x: number, y: number) => x + (y - x) * k;
+  const qa = a.attitude;
+  const qb = b.attitude;
+  const qdot = Math.abs(qa.w * qb.w + qa.x * qb.x + qa.y * qb.y + qa.z * qb.z);
+  // 30 deg between neighbouring records: real manoeuvres stay well under this,
+  // the fast-roll windows alias far above it.
+  const attitudeAliased = 2 * Math.acos(Math.min(1, qdot)) > (30 * Math.PI) / 180;
   return {
     ...a,
     t,
@@ -120,6 +132,7 @@ export function sampleAt(time: number): Sample | null {
       z: lerp(a.velocity.z, b.velocity.z),
     },
     attitude: slerp(a.attitude, b.attitude, k),
+    attitudeAliased,
     latDeg: lerp(a.latDeg, b.latDeg),
     lonDeg: lerp(a.lonDeg, b.lonDeg),
     altM: lerp(a.altM, b.altM),

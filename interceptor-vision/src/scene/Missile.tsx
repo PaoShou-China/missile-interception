@@ -4,7 +4,7 @@ import { Detailed, useGLTF } from "@react-three/drei";
 import * as THREE from "three";
 import { LIVERY, MISSILE_LODS } from "./assets";
 import { sampleAt } from "../data/telemetry";
-import { attitudeToScene } from "./attitude";
+import { attitudeToScene, levelFromNose } from "./attitude";
 import { dataClock } from "../data/dataClock";
 import { useApp } from "../state";
 
@@ -39,9 +39,16 @@ function tuneMaterials(root: THREE.Object3D, opts: { accent: string; paint: stri
           m.envMapIntensity = 1.15;
           break;
         case "MAT_Fin":
-          m.color.set(opts.paint).multiplyScalar(0.82);
-          m.roughness = 0.34;
-          m.envMapIntensity = 1.3;
+          // Slightly darker than the body so both strakes read as a pair even
+          // when one is washed out against the bright airframe.
+          m.color.set(opts.paint).multiplyScalar(0.66);
+          m.roughness = 0.38;
+          m.envMapIntensity = 1.15;
+          // The extruded strakes are single-surface plates and the mirrored one
+          // is wound the other way, so FrontSide culling erased it and the
+          // vehicle looked like it had a single wing. Draw both faces; three
+          // flips the normal for back faces of a DoubleSide material.
+          m.side = THREE.DoubleSide;
           if (phys.clearcoat !== undefined) {
             phys.clearcoat = 0.4;
             phys.clearcoatRoughness = 0.3;
@@ -221,6 +228,7 @@ export function Missile() {
   const [tiered, setTiered] = useState(false);
   const [warm, setWarm] = useState(false);
   const targetQuat = useMemo(() => new THREE.Quaternion(), []);
+  const nose = useMemo(() => new THREE.Vector3(), []);
 
   // Let the near LOD and the HDRI finish first, then upgrade to the full LOD
   // chain. The performance tier keeps the single near LOD on purpose.
@@ -237,6 +245,13 @@ export function Missile() {
     if (!sample) return;
     const k = 1 - Math.exp(-20 * Math.min(delta, 0.1));
     attitudeToScene(sample.attitude, sample.latDeg, sample.lonDeg, targetQuat);
+    if (sample.attitudeAliased) {
+      // The recording cadence cannot resolve the roll during the fast-roll
+      // windows; replaying it verbatim spins the wings like a blender. Keep the
+      // recorded nose and draw the airframe wings-level instead.
+      nose.set(1, 0, 0).applyQuaternion(targetQuat);
+      levelFromNose(nose, targetQuat);
+    }
     group.current.quaternion.slerp(targetQuat, k);
   });
 

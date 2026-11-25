@@ -178,9 +178,18 @@ export function MethodsOverlay() {
               positioning.
             </li>
             <li>
-              Airframe attitude is the recorded BODY→ECEF quaternion re-expressed in that local frame. Both the
-              interceptor model (Blender, referenced to public SM-3 Block IB/IIA views) and the 4.2 m target vehicle
-              (procedural) are illustrative shapes sized to the telemetry, not accurate hardware representations.
+              Airframe attitude is the recorded BODY→ECEF quaternion re-expressed in that local frame. The BODY axes
+              follow the source schema (x forward, y right, z down) and are mapped onto the y-up glTF model with a
+              fixed −90° roll offset; without it the strakes render vertical. Both the interceptor model (Blender,
+              referenced to public SM-3 Block IB/IIA views) and the 7 m target vehicle (procedural) are illustrative
+              shapes sized to the telemetry, not accurate hardware representations.
+            </li>
+            <li>
+              The source samples the attitude every 0.45 s. In the fast-roll segments the roll advances more than
+              30° between records (up to ~180°), so it cannot be reconstructed. The viewer keeps the recorded nose
+              direction and draws the airframe wings-level in those windows; the roll is replayed verbatim where the
+              cadence can resolve it. The target aircraft is drawn wings-level from its recorded velocity, because its
+              payload attitude uses an Earth-fixed up reference rather than the local horizon.
             </li>
             <li>
               Satellite ground imagery is streamed as Web-Mercator tiles (Esri World Imagery by default, Google as a

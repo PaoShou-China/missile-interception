@@ -3,7 +3,7 @@ import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import { useApp } from "../state";
 import { dataClock, getTelemetry, sampleAt } from "../data/telemetry";
-import { attitudeToScene } from "./attitude";
+import { directionEcefToScene, levelFromNose } from "./attitude";
 import { sampleTarget, targetLocalAt } from "./intercept";
 
 /**
@@ -148,6 +148,7 @@ export function TargetTrack() {
   );
 
   const targetQuat = useMemo(() => new THREE.Quaternion(), []);
+  const nose = useMemo(() => new THREE.Vector3(), []);
   const local = useMemo(() => new THREE.Vector3(), []);
 
   useFrame(() => {
@@ -161,10 +162,15 @@ export function TargetTrack() {
 
     objects.vehicle.position.copy(local);
     const target = sampleTarget(tel.targetSamples, dataClock.t);
-    const cur = sampleAt(dataClock.t);
-    if (target && cur) {
-      attitudeToScene(target.attitude, target.latDeg, target.lonDeg, targetQuat);
-      objects.vehicle.quaternion.copy(targetQuat);
+    if (target) {
+      // The payload's target attitude is derived from its velocity with an
+      // Earth-fixed "up" reference, which leaves the wings tilted. Rebuild it
+      // from the recorded velocity so the aircraft flies wings-level.
+      directionEcefToScene(target.velocity, target.latDeg, target.lonDeg, nose);
+      if (nose.lengthSq() > 1) {
+        levelFromNose(nose, targetQuat);
+        objects.vehicle.quaternion.copy(targetQuat);
+      }
     }
 
     objects.spriteObj.position.copy(local);
@@ -180,7 +186,7 @@ export function TargetTrack() {
     // swallow the whole frame. The airframe itself is already in close-up.
     const camMode = useApp.getState().cameraMode;
     objects.spriteObj.visible = camMode !== "target" && spriteMat.opacity > 0.02;
-    spriteMat.color.set(cur?.seekerLock ? 0xffc46a : 0x9ff3ff);
+    spriteMat.color.set(sampleAt(dataClock.t)?.seekerLock ? 0xffc46a : 0x9ff3ff);
 
     const pos = objects.geo.getAttribute("position") as THREE.BufferAttribute;
     pos.setXYZ(0, 0, 0, 0);

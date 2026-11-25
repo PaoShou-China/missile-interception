@@ -8,10 +8,12 @@ import { useFrame, useThree } from "@react-three/fiber";
  */
 export function AdaptiveResolution({ max }: { max: number }) {
   const setDpr = useThree((s) => s.setDpr);
-  const acc = useRef({ t: 0, frames: 0, dpr: max });
+  const acc = useRef({ t: 0, frames: 0, dpr: max, low: 0, locked: false });
 
   useEffect(() => {
     acc.current.dpr = max;
+    acc.current.low = 0;
+    acc.current.locked = false;
     setDpr(max);
   }, [max, setDpr]);
 
@@ -19,16 +21,23 @@ export function AdaptiveResolution({ max }: { max: number }) {
     const a = acc.current;
     a.t += delta;
     a.frames += 1;
-    if (a.t < 1.2) return;
+    if (a.t < 2) return;
     const fps = a.frames / a.t;
     a.t = 0;
     a.frames = 0;
-    let next = a.dpr;
-    if (fps < 44 && next > 0.7) next = Math.max(0.7, next - 0.15);
-    else if (fps > 57 && next < max) next = Math.min(max, next + 0.05);
-    if (Math.abs(next - a.dpr) < 0.01) return;
-    a.dpr = next;
-    setDpr(Number(next.toFixed(2)));
+    // Only step down, and only after two consecutive bad windows. Recovering
+    // upward caused the resolution (and the whole image) to pulse every second.
+    if (fps < 48) {
+      a.low += 1;
+      if (a.low >= 2 && a.dpr > 0.7 && !a.locked) {
+        a.dpr = Math.max(0.7, a.dpr - 0.15);
+        a.locked = true;
+        a.low = 0;
+        setDpr(Number(a.dpr.toFixed(2)));
+      }
+    } else {
+      a.low = 0;
+    }
   });
   return null;
 }
@@ -37,5 +46,7 @@ export function AdaptiveResolution({ max }: { max: number }) {
 export const DPR_CAP: Record<string, number> = {
   performance: 1,
   balanced: 1.25,
-  cinematic: 1.5,
+  // 1.5 costs ~18 FPS at 1080p on integrated graphics because of the bloom
+  // chain, and the extra sharpness is barely visible next to the cost.
+  cinematic: 1.25,
 };

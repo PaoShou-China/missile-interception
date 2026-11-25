@@ -177,10 +177,12 @@ export function TrajectoryOverlay() {
         airArr[i * 6 + 4] = scratch[(i + 1) * 3 + 1];
         airArr[i * 6 + 5] = scratch[(i + 1) * 3 + 2];
         groundArr[i * 6] = x;
-        groundArr[i * 6 + 1] = -drop;
+        // Lift the ground track slightly above the sphere to avoid z-fighting
+        // with the terrain, which reads as a flickering dashed line.
+        groundArr[i * 6 + 1] = -drop + 600;
         groundArr[i * 6 + 2] = z;
         groundArr[i * 6 + 3] = scratch[(i + 1) * 3];
-        groundArr[i * 6 + 4] = -((scratch[(i + 1) * 3] ** 2 + scratch[(i + 1) * 3 + 2] ** 2) / (2 * EARTH_R));
+        groundArr[i * 6 + 4] = -((scratch[(i + 1) * 3] ** 2 + scratch[(i + 1) * 3 + 2] ** 2) / (2 * EARTH_R)) + 600;
         groundArr[i * 6 + 5] = scratch[(i + 1) * 3 + 2];
       }
     }

@@ -254,7 +254,10 @@ const EARTH_FRAG = /* glsl */ `
     vec2 uvNear = vWorld.xz / uSpan + uOrigin;
     vec3 baseNear = texture2D(uMap, uvNear).rgb;
     float r = length(vWorld.xz);
-    float blend = (1.0 - smoothstep(120000.0, 320000.0, r)) * uHasMap;
+    // Keep the satellite layer inside the tile block (span 626 km => +-313 km).
+    // Sampling past the block edge clamps to the border texels and smears into
+    // flickering streaks, so hand over to the procedural layer well inside it.
+    float blend = (1.0 - smoothstep(80000.0, 235000.0, r)) * uHasMap;
     vec3 base = mix(baseFar, baseNear, blend);
 
     float dl = max(dot(N, L), 0.0);
@@ -265,7 +268,9 @@ const EARTH_FRAG = /* glsl */ `
     col += vec3(0.33, 0.58, 0.86) * fres * 0.28 * (1.0 - uNight * 0.85);
 
     float dist = length(vWorld - cameraPosition);
-    col = mix(col, uFog, smoothstep(180000.0, 900000.0, dist));
+    // The planar far layer stretches badly near the horizon; haze it out before
+    // the stretch becomes visible so the horizon reads as a clean gradient.
+    col = mix(col, uFog, smoothstep(180000.0, 600000.0, dist));
     gl_FragColor = vec4(col, 1.0);
     #include <tonemapping_fragment>
     #include <colorspace_fragment>
@@ -321,24 +326,24 @@ function Terrain() {
     );
   }, [uniforms, preset, timeOfDay]);
 
-  // Re-centre the satellite tiles at 2 Hz and upload at most every 200 ms, so
-  // a burst of arriving tiles cannot stall the frame.
+  // The scroll offset follows the clock every frame (a 0.5 s step made the
+  // ground visibly jump), while tile uploads stay batched to one per 200 ms.
   useFrame((_, delta) => {
-    acc.current += delta;
-    if (acc.current >= 0.5) {
-      acc.current = 0;
-      const tel = getTelemetry();
-      const sample = tel ? sampleAt(dataClock.t) : null;
-      const frame = map.update(sample?.latDeg ?? 34, sample?.lonDeg ?? 118);
-      const u = mat.current?.uniforms;
-      if (u) {
-        u.uOrigin.value.set(frame.originU, frame.originV);
-        u.uFarOffset.value.set(frame.farU, frame.farV);
-        u.uSpan.value = frame.spanMeters;
-        u.uHasMap.value = frame.ready ? 1 : 0;
-      }
+    const tel = getTelemetry();
+    const sample = tel ? sampleAt(dataClock.t) : null;
+    const frame = map.update(sample?.latDeg ?? 34, sample?.lonDeg ?? 118);
+    const u = mat.current?.uniforms;
+    if (u) {
+      u.uOrigin.value.set(frame.originU, frame.originV);
+      u.uFarOffset.value.set(frame.farU, frame.farV);
+      u.uSpan.value = frame.spanMeters;
+      u.uHasMap.value = frame.ready ? 1 : 0;
     }
-    map.flush();
+    acc.current += delta;
+    if (acc.current >= 0.2) {
+      acc.current = 0;
+      map.flush();
+    }
   });
 
   const geometry = useMemo(() => new THREE.SphereGeometry(1, segments * 2, segments), [segments]);

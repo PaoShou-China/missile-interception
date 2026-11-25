@@ -12,9 +12,11 @@
 
 | 画质档 | 中景帧率 | 说明 |
 | --- | --- | --- |
-| Performance | 60.0 FPS | DPR 自适应上限 1.0，关闭阴影，单层云，无后期 |
+| Performance | 60.2 FPS | DPR 自适应上限 1.0，关闭阴影，单层云，无后期 |
 | Balanced | 60.3 FPS | DPR 自适应上限 1.25，1024 阴影，单层云，原生 MSAA，无后期 |
-| Cinematic | 52.2 FPS | DPR 自适应上限 1.5，2048 阴影，一层淡云，暗角 + 弱 Bloom |
+| Cinematic | 53.8 FPS | DPR 自适应上限 1.25，2048 阴影，一层淡云，暗角 + 弱 Bloom |
+
+1080p 下 Cinematic 的 1.5 倍像素比会把集显压到约 38 FPS（Bloom 链 + 全屏填充），而肉眼收益有限，因此上限收到 1.25；需要时自适应分辨率还会继续降到 0.7。
 
 优化前同一台机器：Balanced 54.3 FPS、Cinematic 40.2 FPS。本次优化后中景档两档都跑满或接近 60 FPS。
 

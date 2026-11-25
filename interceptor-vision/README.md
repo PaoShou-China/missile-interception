@@ -120,7 +120,7 @@ interceptor-vision/
 | 延迟加载 | LOD1 0.43 MB、LOD2 0.21 MB 在首帧后预热 |
 | 遥测数据 | `scenario.json` 1.0 MB（gzip 后约 0.2 MB），首帧后 0.9 s 后台加载，不阻塞画面 |
 | 卫星影像 | 按当前经纬度流式请求：8×8 张 z9 瓦片约 0.3–0.6 MB，按需缓存，Google 失败时自动切换 Esri |
-| 帧率（Intel UHD） | Performance 60.0 / Balanced 60.3 / Cinematic 52.2 FPS；20×/60× 连续播放无 >50 ms 长任务 |
+| 帧率（Intel UHD，1920×1080） | Performance 60.2 / Balanced 60.3 / Cinematic 53.8 FPS；20×/60× 连续播放无 >50 ms 长任务 |
 | 控制台错误 | 0 |
 
 详见 [docs/PERFORMANCE.md](docs/PERFORMANCE.md)。

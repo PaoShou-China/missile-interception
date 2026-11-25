@@ -102,14 +102,16 @@ export interface CameraPose {
   fov: number;
 }
 
-export const CAMERA_POSES: Record<Exclude<CameraMode, "cinematic" | "free">, CameraPose> = {
+export const CAMERA_POSES: Record<Exclude<CameraMode, "cinematic" | "free" | "target">, CameraPose> = {
   macro: {
     position: [24, 20, 108],
     target: [0, -6, -30],
     fov: 46,
   },
   meso: {
-    position: [4.2, 2.1, -8.6],
+    // 20 % further back than the broadside framing so a nose-up attitude still
+    // fits the 7 m airframe without a per-frame dolly.
+    position: [5.04, 2.52, -10.32],
     target: [0, 0.1, 0],
     fov: 34,
   },

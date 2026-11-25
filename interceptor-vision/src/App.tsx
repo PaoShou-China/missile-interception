@@ -39,7 +39,7 @@ export function App() {
             : Math.min(300, Math.max(0, tel.end - 1));
           seekDataTime(t);
           const view = params.get("view");
-          if (view && ["macro", "meso", "micro", "chase", "top", "cinematic", "free"].includes(view)) {
+          if (view && ["macro", "meso", "micro", "chase", "top", "target", "cinematic", "free"].includes(view)) {
             useApp.getState().setCameraMode(view as CameraMode);
           }
         })

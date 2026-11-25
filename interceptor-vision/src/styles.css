@@ -325,6 +325,8 @@ button, select, input { font-family: inherit; color: inherit; }
 .view-btn__icon--cinematic { border-radius: 2px; }
 .view-btn__icon--cinematic::after { content: ""; position: absolute; left: 3px; top: 3px; border-left: 5px solid currentColor; border-top: 4px solid transparent; border-bottom: 4px solid transparent; }
 .view-btn__icon--free { border-style: dashed; }
+.view-btn__icon--target { border-radius: 50%; border-style: dashed; }
+.view-btn__icon--target::after { content: ""; position: absolute; inset: 4px; border-radius: 50%; background: currentColor; opacity: 0.5; }
 
 .swatch-row { display: flex; flex-direction: column; gap: 7px; }
 .swatch {
@@ -733,6 +735,7 @@ input[type="range"]::-moz-range-thumb {
 }
 .chip--pass { color: #8ff0c0; border-color: rgba(143, 240, 192, 0.35); }
 .chip--warn { color: #ffc46a; border-color: rgba(255, 196, 106, 0.35); }
+.chip--slow { color: #ffc46a; border-color: rgba(255, 196, 106, 0.35); align-self: center; }
 .method-flag {
   margin: 0 0 8px;
   font-family: var(--mono);

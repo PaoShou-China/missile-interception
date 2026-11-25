@@ -115,7 +115,9 @@ export class MapTileTexture {
       const total = this.grid * this.grid;
       const ready = this.countReady(this.pending);
       const elapsed = performance.now() - this.pending.started;
-      if (ready >= total * 0.85 || elapsed > 900) {
+      // Swap only when the new block is essentially complete; a half-loaded
+      // block is what reads as the ground "jumping" at high playback rates.
+      if (ready >= total * 0.98 || (elapsed > 3000 && ready >= total * 0.7)) {
         this.blockX = this.pending.x0;
         this.blockY = this.pending.y0;
         this.pending = null;

@@ -178,9 +178,9 @@ export function MethodsOverlay() {
               positioning.
             </li>
             <li>
-              Airframe attitude is the recorded BODY→ECEF quaternion re-expressed in that local frame. The 3D model is
-              a Blender reconstruction referenced to public SM-3 Block IB/IIA views; dimensions and surfaces are
-              illustrative and do not represent hardware.
+              Airframe attitude is the recorded BODY→ECEF quaternion re-expressed in that local frame. Both the
+              interceptor model (Blender, referenced to public SM-3 Block IB/IIA views) and the 4.2 m target vehicle
+              (procedural) are illustrative shapes sized to the telemetry, not accurate hardware representations.
             </li>
             <li>
               Satellite ground imagery is streamed as Web-Mercator tiles (Esri World Imagery by default, Google as a

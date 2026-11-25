@@ -4,7 +4,7 @@ import { dataClock } from "./data/dataClock";
 
 export type TimeOfDay = "day" | "dusk" | "night";
 export type Quality = "performance" | "balanced" | "cinematic";
-export type CameraMode = "macro" | "meso" | "micro" | "chase" | "top" | "cinematic" | "free";
+export type CameraMode = "macro" | "meso" | "micro" | "chase" | "top" | "target" | "cinematic" | "free";
 export type Livery = "sky" | "sunrise" | "arctic";
 export type Lang = "zh" | "en";
 

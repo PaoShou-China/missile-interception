@@ -69,6 +69,7 @@ const SKY_FRAG = /* glsl */ `
 function SkyDome() {
   const timeOfDay = useApp((s) => s.timeOfDay);
   const preset = SKY_PRESETS[timeOfDay];
+  const dome = useRef<THREE.Mesh>(null);
 
   const uniforms = useMemo(
     () => ({
@@ -96,8 +97,15 @@ function SkyDome() {
     uniforms.uStars.value = preset.stars;
   }, [uniforms, preset]);
 
+  // The dome has to follow the camera, otherwise the target tracking shot (which
+  // rides tens of kilometres or more from the missile) ends up outside the shell
+  // and the sky drops out behind the airframe.
+  useFrame(({ camera }) => {
+    if (dome.current) dome.current.position.copy(camera.position);
+  });
+
   return (
-    <mesh scale={1_600_000} frustumCulled={false}>
+    <mesh ref={dome} scale={50_000} frustumCulled={false} renderOrder={-1000}>
       <sphereGeometry args={[1, 48, 32]} />
       <shaderMaterial
         vertexShader={SKY_VERT}
@@ -105,6 +113,7 @@ function SkyDome() {
         uniforms={uniforms}
         side={THREE.BackSide}
         depthWrite={false}
+        depthTest={false}
         fog={false}
         toneMapped={false}
       />
@@ -340,6 +349,8 @@ function Terrain() {
     // The world scrolls under a fixed camera, so the only way the recorded
     // altitude can read on screen is by moving the ground shell itself: at
     // T+0 the surface is at the airframe, at apogee it is 29.9 km below.
+    // Follow the sample exactly: damping left a lag that changed with playback
+    // rate, which read as the ground heaving under the vehicle.
     if (ground.current) {
       ground.current.position.y = -(R_EARTH + (sample?.altM ?? 0));
     }

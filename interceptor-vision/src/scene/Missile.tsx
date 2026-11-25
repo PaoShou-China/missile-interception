@@ -4,6 +4,7 @@ import { Detailed, useGLTF } from "@react-three/drei";
 import * as THREE from "three";
 import { LIVERY, MISSILE_LODS } from "./assets";
 import { sampleAt } from "../data/telemetry";
+import { attitudeToScene } from "./attitude";
 import { dataClock } from "../data/dataClock";
 import { useApp } from "../state";
 
@@ -152,23 +153,7 @@ export function Missile() {
   const quality = useApp((s) => s.quality);
   const [tiered, setTiered] = useState(false);
   const [warm, setWarm] = useState(false);
-  // Reused every frame: BODY->ECEF from telemetry, re-expressed in the local
-  // East/Up/-North scene frame so the airframe really pitches over.
-  const basis = useMemo(
-    () => ({
-      enu: new THREE.Matrix4(),
-      scene: new THREE.Matrix4().makeBasis(
-        new THREE.Vector3(1, 0, 0),
-        new THREE.Vector3(0, 0, -1),
-        new THREE.Vector3(0, 1, 0),
-      ),
-      rot: new THREE.Matrix4(),
-      body: new THREE.Matrix4(),
-      quat: new THREE.Quaternion(),
-      target: new THREE.Quaternion(),
-    }),
-    [],
-  );
+  const targetQuat = useMemo(() => new THREE.Quaternion(), []);
 
   // Let the near LOD and the HDRI finish first, then upgrade to the full LOD
   // chain. The performance tier keeps the single near LOD on purpose.
@@ -184,27 +169,8 @@ export function Missile() {
     const sample = state.dataStatus === "ready" ? sampleAt(dataClock.t) : null;
     if (!sample) return;
     const k = 1 - Math.exp(-20 * Math.min(delta, 0.1));
-
-    // Recorded attitude is BODY->ECEF. Convert to the local ENU frame, then to
-    // the scene frame (x east, y up, z south), so the nose follows the real
-    // pitch-over instead of a decorative sway.
-    const lat = sample.latDeg * (Math.PI / 180);
-    const lon = sample.lonDeg * (Math.PI / 180);
-    const sl = Math.sin(lat), cl = Math.cos(lat);
-    const so = Math.sin(lon), co = Math.cos(lon);
-    basis.enu.makeBasis(
-      new THREE.Vector3(-so, co, 0),
-      new THREE.Vector3(-sl * co, -sl * so, cl),
-      new THREE.Vector3(cl * co, cl * so, sl),
-    );
-    basis.rot.copy(basis.enu).transpose(); // ECEF -> ENU
-    basis.body.makeRotationFromQuaternion(
-      basis.quat.set(sample.attitude.x, sample.attitude.y, sample.attitude.z, sample.attitude.w),
-    );
-    // scene <- ENU <- ECEF <- BODY
-    basis.rot.premultiply(basis.scene).multiply(basis.body);
-    basis.target.setFromRotationMatrix(basis.rot);
-    group.current.quaternion.slerp(basis.target, k);
+    attitudeToScene(sample.attitude, sample.latDeg, sample.lonDeg, targetQuat);
+    group.current.quaternion.slerp(targetQuat, k);
   });
 
   return (

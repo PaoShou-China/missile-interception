@@ -3,8 +3,9 @@ import { useFrame, useThree } from "@react-three/fiber";
 import { OrbitControls } from "@react-three/drei";
 import * as THREE from "three";
 import { CAMERA_POSES, CINEMATIC_PATH, CINEMATIC_SECONDS } from "./assets";
+import { dataClock } from "../data/dataClock";
+import { targetLocalAt } from "./intercept";
 import { useApp } from "../state";
-import { dataClock, sampleAt } from "../data/telemetry";
 
 function damp(rate: number, dt: number) {
   return 1 - Math.exp(-rate * Math.min(dt, 0.1));
@@ -43,8 +44,11 @@ export function CameraRig() {
   const tmpOff = useMemo(() => new THREE.Vector3(), []);
   const tmpDesired = useMemo(() => new THREE.Vector3(), []);
   const tmpSph = useMemo(() => new THREE.Spherical(), []);
-  const attitude = useMemo(() => new THREE.Quaternion(), []);
-  const nose = useMemo(() => new THREE.Vector3(), []);
+  const tmpTarget = useMemo(() => new THREE.Vector3(), []);
+  const tmpMid = useMemo(() => new THREE.Vector3(), []);
+  const tmpAxis = useMemo(() => new THREE.Vector3(), []);
+  const tmpPerp = useMemo(() => new THREE.Vector3(), []);
+  const tmpUp = useMemo(() => new THREE.Vector3(), []);
   const orbit = useRef({ yaw: 0, pitch: 0, zoom: 1 });
 
   // Snap to a sensible pose on first mount.
@@ -58,6 +62,13 @@ export function CameraRig() {
 
   useEffect(() => {
     if (mode === "cinematic" || mode === "free") return;
+    if (mode === "target") {
+      fovTarget.current = 34;
+      orbit.current.yaw = 0;
+      orbit.current.pitch = 0;
+      orbit.current.zoom = 1;
+      return;
+    }
     const pose = CAMERA_POSES[mode];
     posTarget.current.set(...pose.position);
     lookTarget.current.set(...pose.target);
@@ -136,6 +147,50 @@ export function CameraRig() {
 
     if (mode === "free") return;
 
+    // Tracking shot on the target airframe: unlike the missile-anchored presets
+    // this rides with the target, so the 7 m body stays readable from midcourse
+    // through the intercept and the incoming missile crosses the same frame.
+    if (mode === "target") {
+      const s = targetLocalAt(dataClock.t, tmpTarget);
+      if (s !== null && s > 0.5) {
+        tmpAxis.copy(tmpTarget).normalize();
+        tmpPerp.set(0, 1, 0).cross(tmpAxis);
+        if (tmpPerp.lengthSq() < 1e-6) tmpPerp.set(1, 0, 0);
+        tmpPerp.normalize();
+        tmpUp.crossVectors(tmpAxis, tmpPerp).normalize();
+        // Hold a readable close-up on the target; only in the final metres does
+        // the lens recentre on the pair so the missile is in the same frame.
+        const windshield = THREE.MathUtils.clamp((70 - s) / 45, 0, 1);
+        tmpMid.copy(tmpTarget).multiplyScalar(0.5);
+        tmpLook.copy(tmpTarget).lerp(tmpMid, windshield);
+        const dist =
+          THREE.MathUtils.clamp(s * 0.55 + 20, 24, 72) *
+          THREE.MathUtils.clamp(orbit.current.zoom, 0.45, 5);
+        tmpDesired
+          .copy(tmpPerp)
+          .multiplyScalar(0.88)
+          .addScaledVector(tmpUp, 0.24)
+          .addScaledVector(tmpAxis, 0.42)
+          .normalize()
+          .applyAxisAngle(tmpUp, orbit.current.yaw)
+          .applyAxisAngle(tmpPerp, orbit.current.pitch)
+          .multiplyScalar(dist)
+          .add(tmpLook);
+        if (camera.position.distanceToSquared(tmpDesired) > 600 * 600) {
+          camera.position.copy(tmpDesired);
+        } else {
+          camera.position.lerp(tmpDesired, damp(5, delta));
+        }
+        camera.lookAt(tmpLook);
+        const nextFov = cam.fov + (fovTarget.current - cam.fov) * damp(4, delta);
+        if (Math.abs(nextFov - cam.fov) > 1e-3) {
+          cam.fov = nextFov;
+          cam.updateProjectionMatrix();
+        }
+      }
+      return;
+    }
+
     if (mode === "cinematic") {
       if (playing) {
         let next = state.time + delta;
@@ -171,26 +226,9 @@ export function CameraRig() {
     // the preset cameras back until the 7 m airframe still fits across the
     // screen. The 3.2 m floor keeps the wheel from parking inside the body.
     const fit = THREE.MathUtils.clamp(1.7778 / Math.max(0.35, cam.aspect), 1, 3.4);
-    // The airframe now follows its recorded attitude, so a vertical launch is a
-    // 7 m tall subject: dolly back a little while it is nose-up or the meso
-    // preset crops the nose.
-    let vertical = 0;
-    if (useApp.getState().cameraMode === "meso") {
-      const s = sampleAt(dataClock.t);
-      if (s) {
-        const lat = (s.latDeg * Math.PI) / 180;
-        const lon = (s.lonDeg * Math.PI) / 180;
-        attitude.set(s.attitude.x, s.attitude.y, s.attitude.z, s.attitude.w);
-        nose.set(1, 0, 0).applyQuaternion(attitude);
-        vertical = Math.abs(
-          nose.x * Math.cos(lat) * Math.cos(lon) + nose.y * Math.cos(lat) * Math.sin(lon) + nose.z * Math.sin(lat),
-        );
-      }
-    }
-    tmpSph.radius = Math.max(
-      3.2,
-      tmpSph.radius * Math.max(0.55, orbit.current.zoom) * fit * (1 + 0.3 * vertical),
-    );
+    // The meso preset is sized for a 7 m airframe seen broadside; the extra 20%
+    // keeps the nose in frame when the recorded attitude points it up.
+    tmpSph.radius = Math.max(3.2, tmpSph.radius * Math.max(0.55, orbit.current.zoom) * fit);
     tmpDesired.setFromSpherical(tmpSph).add(lookTarget.current);
     camera.position.lerp(tmpDesired, damp(5, delta));
     camera.lookAt(lookTarget.current);

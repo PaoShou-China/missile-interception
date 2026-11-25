@@ -9,12 +9,13 @@ const TIMES: { key: TimeOfDay; label: "day" | "dusk" | "night" }[] = [
   { key: "night", label: "night" },
 ];
 
-const VIEWS: { key: CameraMode; label: "macro" | "meso" | "micro" | "chase" | "top" | "cinematic" | "free" }[] = [
+const VIEWS: { key: CameraMode; label: "macro" | "meso" | "micro" | "chase" | "top" | "target" | "cinematic" | "free" }[] = [
   { key: "macro", label: "macro" },
   { key: "meso", label: "meso" },
   { key: "micro", label: "micro" },
   { key: "chase", label: "chase" },
   { key: "top", label: "top" },
+  { key: "target", label: "target" },
   { key: "cinematic", label: "cinematic" },
   { key: "free", label: "free" },
 ];

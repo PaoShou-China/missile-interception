@@ -14,7 +14,7 @@
 | --- | --- | --- |
 | Performance | 60.0 FPS | DPR 自适应上限 1.0，关闭阴影，单层云，无后期 |
 | Balanced | 60.3 FPS | DPR 自适应上限 1.25，1024 阴影，单层云，原生 MSAA，无后期 |
-| Cinematic | 55.9 FPS | DPR 自适应上限 1.5，2048 阴影，一层淡云，暗角 + 弱 Bloom |
+| Cinematic | 52.2 FPS | DPR 自适应上限 1.5，2048 阴影，一层淡云，暗角 + 弱 Bloom |
 
 优化前同一台机器：Balanced 54.3 FPS、Cinematic 40.2 FPS。本次优化后中景档两档都跑满或接近 60 FPS。
 

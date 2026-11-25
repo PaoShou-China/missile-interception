@@ -109,8 +109,8 @@ export const CAMERA_POSES: Record<Exclude<CameraMode, "cinematic" | "free">, Cam
     fov: 46,
   },
   meso: {
-    position: [7.6, 1.9, 7.4],
-    target: [0, 0.05, 0],
+    position: [4.2, 2.1, -8.6],
+    target: [0, 0.1, 0],
     fov: 34,
   },
   micro: {

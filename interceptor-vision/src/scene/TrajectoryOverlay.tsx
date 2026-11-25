@@ -1,116 +1,233 @@
-import { useMemo, useRef } from "react";
-import { useFrame } from "@react-three/fiber";
+import { useEffect, useMemo } from "react";
+import { useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
+import { Line2 } from "three/examples/jsm/lines/Line2.js";
+import { LineGeometry } from "three/examples/jsm/lines/LineGeometry.js";
+import { LineMaterial } from "three/examples/jsm/lines/LineMaterial.js";
 import { useApp } from "../state";
 import { dataClock, getTelemetry, sampleAt } from "../data/telemetry";
 
-/** Vertical exaggeration keeps the 30 km altitude profile readable in a local scene. */
-const ALT_SCALE = 4;
+const EARTH_R = 6_371_000;
 const M_PER_DEG_LAT = 110_540;
 const M_PER_DEG_LON = 111_320;
+const DOT_COUNT = 36;
 
-function makeLine(points: number[], color: number, opacity: number) {
-  const geo = new THREE.BufferGeometry();
-  geo.setAttribute("position", new THREE.Float32BufferAttribute(points, 3));
-  const mat = new THREE.LineBasicMaterial({
+function makeDotTexture() {
+  const size = 64;
+  const canvas = document.createElement("canvas");
+  canvas.width = canvas.height = size;
+  const ctx = canvas.getContext("2d")!;
+  const g = ctx.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2);
+  g.addColorStop(0, "rgba(255,255,255,1)");
+  g.addColorStop(0.45, "rgba(160,240,255,0.85)");
+  g.addColorStop(1, "rgba(80,200,255,0)");
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, size, size);
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
+}
+
+function makeGlowLine(count: number, color: number, width: number, opacity: number) {
+  const geo = new LineGeometry();
+  geo.setPositions(new Float32Array(count * 3));
+  const mat = new LineMaterial({
     color,
+    linewidth: width,
+    worldUnits: false,
     transparent: true,
     opacity,
     depthWrite: false,
   });
-  const line = new THREE.Line(geo, mat);
+  const line = new Line2(geo, mat);
   line.frustumCulled = false;
   return line;
 }
 
-function makeMarker(color: number, radius: number) {
-  const mesh = new THREE.Mesh(
-    new THREE.SphereGeometry(radius, 12, 10),
-    new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.9 }),
-  );
-  mesh.frustumCulled = false;
-  return mesh;
-}
-
 /**
- * Full recorded flight path, anchored to the current vehicle position: launch,
- * apogee and intercept stay in place on the map while the missile advances.
+ * Full recorded flight path as a screen-width glow line. Positions are rebuilt
+ * every frame in the vehicle's local frame, so the arc stays glued to the
+ * curved ground and to the current position at any playback rate.
  */
 export function TrajectoryOverlay() {
   const status = useApp((s) => s.dataStatus);
   const show = useApp((s) => s.showTrajectory);
-  const group = useRef<THREE.Group>(null);
+  const size = useThree((s) => s.size);
 
   const data = useMemo(() => {
     if (status !== "ready") return null;
     const tel = getTelemetry();
     if (!tel || tel.samples.length < 2) return null;
-    const s0 = tel.samples[0];
-    const lat0 = s0.latDeg * (Math.PI / 180);
-    const cos = Math.cos(lat0);
-    const project = (s: (typeof tel.samples)[number]) => ({
-      x: (s.lonDeg - s0.lonDeg) * M_PER_DEG_LON * cos,
-      y: (s.altM - s0.altM) * ALT_SCALE,
-      z: -(s.latDeg - s0.latDeg) * M_PER_DEG_LAT,
-    });
-
-    const step = Math.max(1, Math.ceil(tel.samples.length / 420));
-    const air: number[] = [];
-    const ground: number[] = [];
-    let apogee = tel.samples[0];
+    const step = Math.max(1, Math.ceil(tel.samples.length / 320));
+    const picks: { lat: number; lon: number; alt: number }[] = [];
+    let apogeeIdx = 0;
+    let maxAlt = -Infinity;
     for (let i = 0; i < tel.samples.length; i += step) {
       const s = tel.samples[i];
-      const p = project(s);
-      air.push(p.x, p.y, p.z);
-      ground.push(p.x, 0, p.z);
-      if (s.altM > apogee.altM) apogee = s;
+      picks.push({ lat: s.latDeg, lon: s.lonDeg, alt: s.altM });
+      if (s.altM > maxAlt) {
+        maxAlt = s.altM;
+        apogeeIdx = picks.length - 1;
+      }
     }
-    const last = tel.samples[tel.samples.length - 1];
-    const lp = project(last);
-    air.push(lp.x, lp.y, lp.z);
-    ground.push(lp.x, 0, lp.z);
+    const lastS = tel.samples[tel.samples.length - 1];
+    picks.push({ lat: lastS.latDeg, lon: lastS.lonDeg, alt: lastS.altM });
+    if (lastS.altM > maxAlt) apogeeIdx = picks.length - 1;
 
-    const airLine = makeLine(air, 0x7fe6ff, 0.32);
-    const groundLine = makeLine(ground, 0x9ff2ff, 0.55);
+    const n = picks.length;
+    const airLine = makeGlowLine(n, 0x8ff3ff, 3.4, 0.95);
+    const groundLine = makeGlowLine(n, 0x45b9d6, 2.2, 0.65);
 
-    const markers = new THREE.Group();
-    const start = project(s0);
-    const top = project(apogee);
-    const end = project(last);
-    const launch = makeMarker(0x7fe0a8, 1400);
-    launch.position.set(start.x, start.y, start.z);
-    const apex = makeMarker(0x63c8ff, 1400);
-    apex.position.set(top.x, top.y, top.z);
-    const impact = makeMarker(0xff7a59, 1600);
-    impact.position.set(end.x, end.y, end.z);
-    markers.add(launch, apex, impact);
+    const markerGeo = new THREE.BufferGeometry();
+    markerGeo.setAttribute("position", new THREE.BufferAttribute(new Float32Array(9), 3));
+    markerGeo.setAttribute(
+      "color",
+      new THREE.BufferAttribute(
+        new Float32Array([0.5, 0.88, 0.66, 0.39, 0.78, 1, 1, 0.48, 0.35]),
+        3,
+      ),
+    );
+    const dotTex = makeDotTexture();
+    const markers = new THREE.Points(
+      markerGeo,
+      new THREE.PointsMaterial({
+        size: 15,
+        sizeAttenuation: false,
+        vertexColors: true,
+        map: dotTex,
+        transparent: true,
+        depthWrite: false,
+      }),
+    );
+    markers.frustumCulled = false;
 
-    return { airLine, groundLine, markers, project, step, count: air.length / 3, tStart: s0.t, tEnd: last.t };
+    const dotGeo = new THREE.BufferGeometry();
+    dotGeo.setAttribute("position", new THREE.BufferAttribute(new Float32Array(DOT_COUNT * 3), 3));
+    const dots = new THREE.Points(
+      dotGeo,
+      new THREE.PointsMaterial({
+        size: 12,
+        sizeAttenuation: false,
+        color: 0xe8fdff,
+        map: dotTex,
+        transparent: true,
+        opacity: 0.95,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+      }),
+    );
+    dots.frustumCulled = false;
+
+    return { airLine, groundLine, markers, dots, picks, apogeeIdx, n };
   }, [status]);
 
-  useFrame(() => {
-    if (!data || !group.current) return;
-    const s = sampleAt(dataClock.t);
-    if (!s) return;
-    const p = data.project(s);
-    group.current.position.set(-p.x, -p.y, -p.z);
-    // Only the segment around the vehicle is drawn in the air; the full path
-    // stays visible as the ground track, which reads better in a local scene.
-    const span = data.tEnd - data.tStart || 1;
-    const idx = Math.round(((s.t - data.tStart) / span) * (data.count - 1));
-    const half = 45;
-    const start = Math.max(0, idx - half);
-    const count = Math.min(data.count - start, half * 2);
-    data.airLine.geometry.setDrawRange(start, count);
+  useEffect(() => {
+    if (!data) return;
+    const line = data.airLine.material as LineMaterial;
+    const groundMat = data.groundLine.material as LineMaterial;
+    line.resolution.set(size.width, size.height);
+    groundMat.resolution.set(size.width, size.height);
+  }, [data, size]);
+
+  useEffect(() => {
+    if (!data) return;
+    return () => {
+      data.airLine.geometry.dispose();
+      data.groundLine.geometry.dispose();
+      (data.airLine.material as THREE.Material).dispose();
+      (data.groundLine.material as THREE.Material).dispose();
+      data.markers.geometry.dispose();
+      (data.markers.material as THREE.Material).dispose();
+      data.dots.geometry.dispose();
+      (data.dots.material as THREE.Material).dispose();
+    };
+  }, [data]);
+
+  const scratch = useMemo(() => new Float32Array(320 * 3), []);
+  const tmp = useMemo(() => new THREE.Vector3(), []);
+
+  useFrame(({ clock }) => {
+    if (!data) return;
+    const cur = sampleAt(dataClock.t);
+    if (!cur) return;
+    const cos = Math.cos(cur.latDeg * (Math.PI / 180));
+    const n = data.n;
+    const air = data.airLine.geometry.getAttribute("instanceStart") as THREE.InterleavedBufferAttribute;
+    const airEnd = data.airLine.geometry.getAttribute("instanceEnd") as THREE.InterleavedBufferAttribute;
+    const ground = data.groundLine.geometry.getAttribute("instanceStart") as THREE.InterleavedBufferAttribute;
+    const groundEnd = data.groundLine.geometry.getAttribute("instanceEnd") as THREE.InterleavedBufferAttribute;
+    const airArr = (air.data as THREE.InstancedInterleavedBuffer).array as Float32Array;
+    const groundArr = (ground.data as THREE.InstancedInterleavedBuffer).array as Float32Array;
+
+    for (let i = 0; i < n; i++) {
+      const p = data.picks[i];
+      const x = (p.lon - cur.lonDeg) * M_PER_DEG_LON * cos;
+      const z = -(p.lat - cur.latDeg) * M_PER_DEG_LAT;
+      const drop = (x * x + z * z) / (2 * EARTH_R);
+      const y = p.alt - cur.altM - drop;
+      scratch[i * 3] = x;
+      scratch[i * 3 + 1] = y;
+      scratch[i * 3 + 2] = z;
+      // Line2 interleaves start/end per segment in one buffer.
+      if (i < n - 1) {
+        airArr[i * 6] = x;
+        airArr[i * 6 + 1] = y;
+        airArr[i * 6 + 2] = z;
+        airArr[i * 6 + 3] = scratch[(i + 1) * 3];
+        airArr[i * 6 + 4] = scratch[(i + 1) * 3 + 1];
+        airArr[i * 6 + 5] = scratch[(i + 1) * 3 + 2];
+        groundArr[i * 6] = x;
+        groundArr[i * 6 + 1] = -drop;
+        groundArr[i * 6 + 2] = z;
+        groundArr[i * 6 + 3] = scratch[(i + 1) * 3];
+        groundArr[i * 6 + 4] = -((scratch[(i + 1) * 3] ** 2 + scratch[(i + 1) * 3 + 2] ** 2) / (2 * EARTH_R));
+        groundArr[i * 6 + 5] = scratch[(i + 1) * 3 + 2];
+      }
+    }
+    air.data.needsUpdate = true;
+    ground.data.needsUpdate = true;
+
+    // Event markers.
+    const mp = data.markers.geometry.getAttribute("position") as THREE.BufferAttribute;
+    const setMarker = (slot: number, idx: number) => {
+      mp.setXYZ(slot, scratch[idx * 3], scratch[idx * 3 + 1], scratch[idx * 3 + 2]);
+    };
+    setMarker(0, 0);
+    setMarker(1, data.apogeeIdx);
+    setMarker(2, n - 1);
+    mp.needsUpdate = true;
+
+    // Flowing pulses, evenly spaced along the sampled path.
+    const dp = data.dots.geometry.getAttribute("position") as THREE.BufferAttribute;
+    const t = clock.elapsedTime * 0.12;
+    for (let i = 0; i < DOT_COUNT; i++) {
+      const u = (t + i / DOT_COUNT) % 1;
+      const fi = u * (n - 1);
+      const i0 = Math.floor(fi);
+      const i1 = Math.min(n - 1, i0 + 1);
+      const f = fi - i0;
+      tmp.set(
+        airArr[i0 * 6] + (airArr[i1 * 6] - airArr[i0 * 6]) * f,
+        airArr[i0 * 6 + 1] + (airArr[i1 * 6 + 1] - airArr[i0 * 6 + 1]) * f,
+        airArr[i0 * 6 + 2] + (airArr[i1 * 6 + 2] - airArr[i0 * 6 + 2]) * f,
+      );
+      dp.setXYZ(i, tmp.x, tmp.y, tmp.z);
+    }
+    dp.needsUpdate = true;
+
+    // Keep the unused end attribute bound to the same buffer.
+    void airEnd;
+    void groundEnd;
   });
 
   if (!data) return null;
 
   return (
-    <group ref={group} visible={show}>
+    <group visible={show}>
       <primitive object={data.airLine} />
       <primitive object={data.groundLine} />
       <primitive object={data.markers} />
+      <primitive object={data.dots} />
     </group>
   );
 }

@@ -9,7 +9,7 @@ import { ChartsOverlay } from "./components/ChartsOverlay";
 import { LoadingOverlay } from "./components/LoadingOverlay";
 import { MapCredit } from "./components/MapCredit";
 import { useApp } from "./state";
-import { loadTelemetry, toggleDataPlay } from "./data/telemetry";
+import { loadTelemetry, seekDataTime, toggleDataPlay } from "./data/telemetry";
 
 export function App() {
   const leftOpen = useApp((s) => s.leftOpen);
@@ -22,7 +22,13 @@ export function App() {
   useEffect(() => {
     if (!ready) return;
     const id = window.setTimeout(() => {
-      void loadTelemetry().catch(() => undefined);
+      void loadTelemetry()
+        .then((tel) => {
+          // Open on the midcourse arc: the launch instant projects as a vertical
+          // spike in a 30 km cruise scene and reads worse as a first impression.
+          seekDataTime(Math.min(300, Math.max(0, tel.end - 1)));
+        })
+        .catch(() => undefined);
     }, 900);
     return () => window.clearTimeout(id);
   }, [ready]);

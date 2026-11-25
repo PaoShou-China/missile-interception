@@ -52,7 +52,7 @@ export function TelemetryPanel() {
           <>
             <dt>{t("fins")}</dt>
             <dd>
-              {deg(fins.up)} / {deg(fins.down)} / {deg(fins.left)} / {deg(fins.right)}°
+              {deg(fins.up)}/{deg(fins.down)}/{deg(fins.left)}/{deg(fins.right)}°
             </dd>
           </>
         )}

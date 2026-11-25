@@ -4,6 +4,7 @@ import {
   formatMissionTime,
   loadTelemetry,
   phaseAt,
+  sampleAt,
   seekDataTime,
   type Phase,
   type FlightEvent,
@@ -60,6 +61,27 @@ export function MissionPanel() {
   }
 
   const m = telemetry.metrics;
+  const lastM = telemetry.samples[telemetry.samples.length - 1];
+  const lastT = telemetry.targetSamples[telemetry.targetSamples.length - 1];
+  // Closing speed at the recorded closest approach, derived from the two
+  // entities rather than a hard-coded figure.
+  const closingKms =
+    lastM && lastT
+      ? Math.hypot(
+          lastM.velocity.x - lastT.velocity.x,
+          lastM.velocity.y - lastT.velocity.y,
+          lastM.velocity.z - lastT.velocity.z,
+        ) / 1000
+      : null;
+  const lockEvent = telemetry.events.find((e) => e.kind === "lock");
+  const lockSample = lockEvent ? sampleAt(lockEvent.t) : null;
+  const interceptAltKm = lastM ? lastM.altM / 1000 : null;
+  const withTenths = (t: number) => {
+    const total = Math.max(0, t);
+    const mm = Math.floor(total / 60);
+    const ss = (total % 60).toFixed(1).padStart(4, "0");
+    return `T+${String(mm).padStart(2, "0")}:${ss}`;
+  };
 
   return (
     <>
@@ -75,16 +97,45 @@ export function MissionPanel() {
           <b>{formatMissionTime(dataTime)}</b>
           <span>/ {formatMissionTime(telemetry.end)}</span>
         </div>
-        <dl className="kv kv--compact">
-          <dt>{t("apogee")}</dt>
-          <dd>{metric((m.maxAltitudeM ?? 0) / 1000, 1)} km</dd>
-          <dt>{t("maxSpeed")}</dt>
-          <dd>{metric(m.maxSpeedMS, 0)} m/s</dd>
-          <dt>{t("missDistance")}</dt>
-          <dd>{metric(m.missDistanceM, 1)} m</dd>
-          <dt>{t("duration")}</dt>
-          <dd>{formatMissionTime(m.flightDurationS ?? telemetry.end)}</dd>
-        </dl>
+
+        {/* Headline engagement result: this is the number the demo exists to
+            show, so it gets its own display-size treatment. */}
+        <div className="kpi-hero">
+          <span className="kpi-hero__label">{t("missShort")}</span>
+          <div className="kpi-hero__value">
+            {metric(m.missDistanceM, 1)}
+            <em>m</em>
+          </div>
+          <span className="kpi-hero__tag">{t("nearMiss")}</span>
+        </div>
+        <div className="kpi-grid">
+          <div className="kpi">
+            <span>{t("interceptTime")}</span>
+            <b>{withTenths(m.interceptTimeS ?? telemetry.end)}</b>
+          </div>
+          <div className="kpi">
+            <span>{t("closingSpeed")}</span>
+            <b>
+              {metric(closingKms, 2)} <i>km/s</i>
+            </b>
+          </div>
+          <div className="kpi">
+            <span>{t("lockRange")}</span>
+            <b>
+              {metric(lockSample ? lockSample.rangeM / 1000 : null, 1)} <i>km</i>
+            </b>
+          </div>
+          <div className="kpi">
+            <span>{t("interceptAlt")}</span>
+            <b>
+              {metric(interceptAltKm, 2)} <i>km</i>
+            </b>
+          </div>
+        </div>
+        <div className="kpi-foot">
+          {t("downrange")} {metric(m.downrangeKM, 0)} km · {t("apogee")}{" "}
+          {metric((m.maxAltitudeM ?? 0) / 1000, 1)} km · {t("maxSpeed")} {metric(m.maxSpeedMS, 0)} m/s
+        </div>
       </section>
 
       <section className="group">

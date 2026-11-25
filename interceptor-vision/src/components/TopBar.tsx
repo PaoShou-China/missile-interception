@@ -33,6 +33,7 @@ export function TopBar() {
         : `${Math.round(downrange)} km downrange · ${(apogee / 1000).toFixed(1)} km apogee`
       : t("scenario");
   const scenarioId = typeof downrange === "number" ? `IV-${Math.round(downrange)}` : "IV-2000";
+  const miss = telemetry?.metrics?.missDistanceM;
 
   return (
     <header className="topbar">
@@ -53,6 +54,12 @@ export function TopBar() {
       <div className="topbar__scenario">
         <span className="topbar__id">{scenarioId}</span>
         <span className="topbar__title">{scenarioTitle}</span>
+        {typeof miss === "number" && (
+          <span className="topbar__kpi" title={t("nearMiss")}>
+            <span>{t("missShort")}</span>
+            <b>{miss.toFixed(1)} m</b>
+          </span>
+        )}
         <span className="status-pill status-pill--ok">
           <span className="status-pill__dot" />
           CYCLES · GLB · PBR

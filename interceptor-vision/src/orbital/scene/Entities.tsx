@@ -1,9 +1,10 @@
-import { useMemo, useRef, type RefObject } from "react";
+import { useMemo, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
-import { Html } from "@react-three/drei";
+import { Html, useGLTF } from "@react-three/drei";
 import { simClock, useAppStore } from "../state/store";
-import { KM, COLORS, EARTH_A_KM, WGS84_E2_KM } from "./constants";
+import { MISSILE_LODS } from "../../scene/assets";
+import { KM, EARTH_A_KM, WGS84_E2_KM } from "./constants";
 
 /** Radial glow sprite texture, generated once on a canvas. */
 function useGlowTexture(inner: string, outer: string) {
@@ -24,235 +25,42 @@ function useGlowTexture(inner: string, outer: string) {
   }, [inner, outer]);
 }
 
-/** Body-axis triad drawn in the vehicle body frame (x forward, y right, z down). */
-function BodyAxes({ groupRef }: { groupRef: RefObject<THREE.Group | null> }) {
-  const axes: { dir: [number, number, number]; rot: [number, number, number]; color: string }[] = [
-    { dir: [1, 0, 0], rot: [0, 0, -Math.PI / 2], color: "#ff7a59" },
-    { dir: [0, 1, 0], rot: [0, 0, 0], color: "#63e6ff" },
-    { dir: [0, 0, 1], rot: [Math.PI / 2, 0, 0], color: "#7fe0a8" },
-  ];
-  const L = 0.0042;
-  return (
-    <group ref={groupRef} visible={false}>
-      {axes.map((a) => (
-        <group key={a.color}>
-          <mesh position={[a.dir[0] * L * 0.5, a.dir[1] * L * 0.5, a.dir[2] * L * 0.5]} rotation={a.rot}>
-            <cylinderGeometry args={[0.000007, 0.000007, L, 8]} />
-            <meshBasicMaterial color={a.color} />
-          </mesh>
-          <mesh position={[a.dir[0] * L, a.dir[1] * L, a.dir[2] * L]} rotation={a.rot}>
-            <coneGeometry args={[0.000022, 0.00010, 10]} />
-            <meshBasicMaterial color={a.color} />
-          </mesh>
-        </group>
-      ))}
-    </group>
-  );
-}
-
-/** Procedural high-fidelity interceptor, 6.5 m long, body +x forward, +z down. */
+/** Same SM-3-style GLB used by the live scene, placed in the ECEF kilometre frame. */
 function MissileBody() {
+  const { scene } = useGLTF(MISSILE_LODS[0]);
   const plume = useRef<THREE.Group>(null);
-  const nozzleGlow = useRef<THREE.Mesh>(null);
-  const finUp = useRef<THREE.Group>(null);
-  const finDown = useRef<THREE.Group>(null);
-  const finLeft = useRef<THREE.Group>(null);
-  const finRight = useRef<THREE.Group>(null);
-  const axes = useRef<THREE.Group>(null);
-
-  // Smooth ogive/boattail body produced by a lathe profile, plus a tapered
-  // extruded fin shared by all four tail surfaces.
-  const { bodyGeo, finGeo, strakeGeo } = useMemo(() => {
-    const profile: [number, number][] = [
-      [0.000105, -0.00300],
-      [0.000145, -0.00286],
-      [0.000170, -0.00240],
-      [0.000170, 0.00160],
-      [0.000168, 0.00200],
-      [0.000160, 0.00230],
-      [0.000138, 0.00265],
-      [0.000104, 0.00295],
-      [0.000060, 0.00325],
-      [0.000018, 0.00350],
-    ];
-    const body = new THREE.LatheGeometry(
-      profile.map(([r, y]) => new THREE.Vector2(r, y)),
-      64,
-    );
-    body.rotateZ(-Math.PI / 2); // +Y -> +X
-    body.computeVertexNormals();
-
-    // Slender, tapered tail fin: ~0.48 m chord, ~0.30 m semi-span.
-    const shape = new THREE.Shape();
-    shape.moveTo(0, 0);
-    shape.lineTo(-0.00048, 0.000045);
-    shape.lineTo(-0.00043, 0.00027);
-    shape.lineTo(-0.00003, 0.00030);
-    shape.closePath();
-    const fin = new THREE.ExtrudeGeometry(shape, {
-      depth: 0.000022,
-      bevelEnabled: true,
-      bevelThickness: 0.000004,
-      bevelSize: 0.000004,
-      bevelSegments: 2,
-      curveSegments: 2,
-    });
-    fin.translate(0, 0, -0.000011);
-    fin.computeVertexNormals();
-
-    // Long, slender leading-edge strake wing (边条翼), blended into the body
-    // and swept back from the forward fuselage to the wing root.
-    const strake = new THREE.Shape();
-    strake.moveTo(0.00235, 0.000155);
-    strake.lineTo(-0.00195, 0.000155);
-    strake.lineTo(-0.00135, 0.000305);
-    strake.lineTo(0.00045, 0.000475);
-    strake.closePath();
-    const strakeGeo = new THREE.ExtrudeGeometry(strake, {
-      depth: 0.000014,
-      bevelEnabled: true,
-      bevelThickness: 0.000003,
-      bevelSize: 0.000003,
-      bevelSegments: 1,
-      curveSegments: 2,
-    });
-    strakeGeo.translate(0, 0, -0.000007);
-    strakeGeo.computeVertexNormals();
-
-    return { bodyGeo: body, finGeo: fin, strakeGeo };
-  }, []);
-
-  const finAngles: { key: string; angle: number; ref: RefObject<THREE.Group | null> }[] = [
-    { key: "right", angle: 0, ref: finRight },
-    { key: "up", angle: -Math.PI / 2, ref: finUp },
-    { key: "left", angle: Math.PI, ref: finLeft },
-    { key: "down", angle: Math.PI / 2, ref: finDown },
-  ];
 
   useFrame(({ clock }) => {
-    const rt = useAppStore.getState().runtime;
-    const boostEnd = rt?.manifest.phases.find((p) => p.phase === "boost")?.endT ?? 20;
-    const powered = simClock.time <= boostEnd;
-    if (plume.current) {
-      plume.current.visible = powered;
-      const flicker = 1 + 0.07 * Math.sin(clock.elapsedTime * 47);
-      plume.current.scale.set(flicker, flicker, flicker);
-    }
-    if (nozzleGlow.current) nozzleGlow.current.visible = powered;
-
-    if (rt) {
-      const s = rt.missileSampler.sampleAt(simClock.time);
-      const f = s.finDeflectionsRad;
-      const clamp = (v: number) => Math.max(-0.55, Math.min(0.55, v));
-      if (finUp.current) finUp.current.rotation.y = clamp(f.up);
-      if (finDown.current) finDown.current.rotation.y = clamp(f.down);
-      if (finLeft.current) finLeft.current.rotation.y = clamp(f.left);
-      if (finRight.current) finRight.current.rotation.y = clamp(f.right);
-    }
-    if (axes.current) {
-      const mode = useAppStore.getState().cameraMode;
-      axes.current.visible = mode === "closeup";
-    }
+    if (!plume.current) return;
+    const f = 1 + 0.06 * Math.sin(clock.elapsedTime * 47);
+    plume.current.scale.set(f, f, f);
   });
 
   return (
     <group>
-      {/* Monocoque body with ogive radome and boat-tail. */}
-      <mesh geometry={bodyGeo}>
-        <meshPhysicalMaterial
-          color="#e9eff6"
-          metalness={0.42}
-          roughness={0.34}
-          clearcoat={0.65}
-          clearcoatRoughness={0.28}
-          emissive="#1a2733"
-          emissiveIntensity={0.18}
-        />
-      </mesh>
-
-      {/* Seeker radome window. */}
-      <mesh position={[0.00334, 0, 0]} rotation={[0, 0, -Math.PI / 2]}>
-        <coneGeometry args={[0.000055, 0.00020, 24, 1, true]} />
-        <meshPhysicalMaterial
-          color="#10283d"
-          metalness={0.25}
-          roughness={0.12}
-          clearcoat={1}
-          emissive={COLORS.cyan}
-          emissiveIntensity={0.55}
-          side={THREE.DoubleSide}
-        />
-      </mesh>
-
-      {/* Panel rings / interfaces. */}
-      {[0.00125, 0.00174, -0.00055].map((x) => (
-        <mesh key={x} position={[x, 0, 0]} rotation={[0, Math.PI / 2, 0]}>
-          <torusGeometry args={[0.000171, 0.000004, 8, 48]} />
-          <meshStandardMaterial color="#8b99a8" metalness={0.75} roughness={0.35} />
-        </mesh>
-      ))}
-      {/* Service band and accent stripe. */}
-      <mesh position={[-0.00115, 0, 0]} rotation={[0, 0, -Math.PI / 2]}>
-        <cylinderGeometry args={[0.000173, 0.000173, 0.000035, 48]} />
-        <meshStandardMaterial color="#26313d" metalness={0.6} roughness={0.45} />
-      </mesh>
-      <mesh position={[0.00195, 0, 0]} rotation={[0, 0, -Math.PI / 2]}>
-        <cylinderGeometry args={[0.000171, 0.000171, 0.000028, 48]} />
-        <meshStandardMaterial color={COLORS.accent} emissive={COLORS.accent} emissiveIntensity={0.35} metalness={0.5} roughness={0.3} />
-      </mesh>
-
-      {/* Leading-edge strake wings, one per side. */}
-      {[1, -1].map((side) => (
-        <mesh key={`strake${side}`} geometry={strakeGeo} scale={[1, side, 1]}>
-          <meshStandardMaterial color="#8a929c" metalness={0.62} roughness={0.42} side={THREE.DoubleSide} />
-        </mesh>
-      ))}
-
-      {/* Forward canards. */}
-      {[0, Math.PI / 2, Math.PI, (3 * Math.PI) / 2].map((a) => (
-        <group key={`c${a}`} position={[0.00164, 0, 0]} rotation={[a, 0, 0]}>
-          <mesh geometry={finGeo} position={[0, 0.000165, 0]} scale={[0.36, 0.36, 0.36]}>
-            <meshStandardMaterial color="#5d6874" metalness={0.65} roughness={0.42} />
-          </mesh>
-        </group>
-      ))}
-
-      {/* Cruciform tail fins. Inner group rotation is driven by recorded fin data. */}
-      {finAngles.map(({ key, angle, ref }) => (
-        <group key={key} position={[-0.00242, 0, 0]} rotation={[angle, 0, 0]}>
-          <group ref={ref}>
-            <mesh geometry={finGeo} position={[0, 0.000166, 0]}>
-              <meshStandardMaterial color="#9aa6b2" metalness={0.7} roughness={0.38} side={THREE.DoubleSide} />
-            </mesh>
-          </group>
-        </group>
-      ))}
-
-      {/* Nozzle bell and throat glow. */}
-      <mesh position={[-0.00302, 0, 0]} rotation={[0, 0, -Math.PI / 2]}>
-        <cylinderGeometry args={[0.00012, 0.00016, 0.00022, 32, 1, true]} />
-        <meshStandardMaterial color="#3a3f47" metalness={0.92} roughness={0.28} side={THREE.DoubleSide} />
-      </mesh>
-      <mesh ref={nozzleGlow} position={[-0.00313, 0, 0]} rotation={[0, -Math.PI / 2, 0]}>
-        <circleGeometry args={[0.000105, 28]} />
-        <meshBasicMaterial color="#ffc078" transparent opacity={0.9} blending={THREE.AdditiveBlending} depthWrite={false} side={THREE.DoubleSide} />
-      </mesh>
-
-      {/* Layered exhaust plume. */}
-      <group ref={plume} position={[-0.00318, 0, 0]}>
+      {/* glTF is +X nose / +Y up; the body frame is +X forward / +Z down. */}
+      <group rotation={[-Math.PI / 2, 0, 0]} scale={0.001}>
+        <primitive object={scene} />
+      </group>
+      <group ref={plume} position={[-0.00340, 0, 0]}>
         {[
           { len: 0.00055, r: 0.000085, color: "#fff6dc", opacity: 1 },
           { len: 0.00095, r: 0.000110, color: "#ffb35c", opacity: 0.6 },
           { len: 0.00145, r: 0.000150, color: "#6fd4ff", opacity: 0.26 },
         ].map((p) => (
-          <mesh key={p.len} position={[0, 0, 0]} rotation={[0, 0, Math.PI / 2]}>
+          <mesh key={p.len} rotation={[0, 0, Math.PI / 2]}>
             <coneGeometry args={[p.r, p.len, 20, 1, true]} />
-            <meshBasicMaterial color={p.color} transparent opacity={p.opacity} blending={THREE.AdditiveBlending} depthWrite={false} side={THREE.DoubleSide} />
+            <meshBasicMaterial
+              color={p.color}
+              transparent
+              opacity={p.opacity}
+              blending={THREE.AdditiveBlending}
+              depthWrite={false}
+              side={THREE.DoubleSide}
+            />
           </mesh>
         ))}
       </group>
-
-      <BodyAxes groupRef={axes} />
     </group>
   );
 }

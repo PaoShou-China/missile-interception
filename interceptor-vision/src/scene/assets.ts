@@ -7,7 +7,7 @@ export const ASSET_BASE = `${import.meta.env.BASE_URL}assets/`;
  * Cache-busting version for the long-lived asset filenames. Bump it whenever
  * the Blender pipeline rewrites a GLB, HDRI or texture in place.
  */
-export const ASSET_VERSION = "4";
+export const ASSET_VERSION = "5";
 
 export const asset = (file: string) => `${ASSET_BASE}${file}?v=${ASSET_VERSION}`;
 

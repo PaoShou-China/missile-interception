@@ -31,7 +31,7 @@ export function CameraRig() {
   const mode = useApp((s) => s.cameraMode);
   const playing = useApp((s) => s.playing);
   const resetRequest = useApp((s) => s.resetViewRequest);
-  const { camera } = useThree();
+  const { camera, gl } = useThree();
   const posTarget = useRef(new THREE.Vector3(...CAMERA_POSES.meso.position));
   const lookTarget = useRef(new THREE.Vector3(...CAMERA_POSES.meso.target));
   const fovTarget = useRef(CAMERA_POSES.meso.fov);
@@ -39,6 +39,7 @@ export function CameraRig() {
   const cinematic = useMemo(() => curveFrom(CINEMATIC_PATH), []);
   const tmpPos = useMemo(() => new THREE.Vector3(), []);
   const tmpLook = useMemo(() => new THREE.Vector3(), []);
+  const orbit = useRef({ yaw: 0, pitch: 0, zoom: 1 });
 
   // Snap to a sensible pose on first mount.
   useEffect(() => {
@@ -55,7 +56,67 @@ export function CameraRig() {
     posTarget.current.set(...pose.position);
     lookTarget.current.set(...pose.target);
     fovTarget.current = pose.fov;
+    orbit.current.yaw = 0;
+    orbit.current.pitch = 0;
+    orbit.current.zoom = 1;
   }, [mode, resetRequest]);
+
+  // Manual orbit / zoom on every preset camera. The free camera is handled by
+  // OrbitControls, and the cinematic path stays author-controlled.
+  useEffect(() => {
+    const el = gl.domElement;
+    let dragging = false;
+    let lastX = 0;
+    let lastY = 0;
+    const interactive = () => {
+      const m = useApp.getState().cameraMode;
+      return m !== "cinematic" && m !== "free";
+    };
+    const onDown = (e: PointerEvent) => {
+      if (!interactive()) return;
+      dragging = true;
+      lastX = e.clientX;
+      lastY = e.clientY;
+      el.setPointerCapture?.(e.pointerId);
+    };
+    const onMove = (e: PointerEvent) => {
+      if (!dragging || !interactive()) return;
+      const dx = e.clientX - lastX;
+      const dy = e.clientY - lastY;
+      lastX = e.clientX;
+      lastY = e.clientY;
+      orbit.current.yaw -= dx * 0.005;
+      orbit.current.pitch = THREE.MathUtils.clamp(orbit.current.pitch - dy * 0.004, -1.1, 1.1);
+    };
+    const onUp = (e: PointerEvent) => {
+      dragging = false;
+      el.releasePointerCapture?.(e.pointerId);
+    };
+    const onWheel = (e: WheelEvent) => {
+      if (!interactive()) return;
+      e.preventDefault();
+      orbit.current.zoom = THREE.MathUtils.clamp(orbit.current.zoom * Math.exp(e.deltaY * 0.0011), 0.3, 5);
+    };
+    const onDouble = () => {
+      orbit.current.yaw = 0;
+      orbit.current.pitch = 0;
+      orbit.current.zoom = 1;
+    };
+    el.addEventListener("pointerdown", onDown);
+    el.addEventListener("pointermove", onMove);
+    el.addEventListener("pointerup", onUp);
+    el.addEventListener("pointercancel", onUp);
+    el.addEventListener("wheel", onWheel, { passive: false });
+    el.addEventListener("dblclick", onDouble);
+    return () => {
+      el.removeEventListener("pointerdown", onDown);
+      el.removeEventListener("pointermove", onMove);
+      el.removeEventListener("pointerup", onUp);
+      el.removeEventListener("pointercancel", onUp);
+      el.removeEventListener("wheel", onWheel);
+      el.removeEventListener("dblclick", onDouble);
+    };
+  }, [gl]);
 
   useEffect(() => {
     if (mode === "cinematic") {
@@ -90,7 +151,13 @@ export function CameraRig() {
       return;
     }
 
-    camera.position.lerp(posTarget.current, damp(2.6, delta));
+    const off = posTarget.current.clone().sub(lookTarget.current);
+    const sph = new THREE.Spherical().setFromVector3(off);
+    sph.theta += orbit.current.yaw;
+    sph.phi = THREE.MathUtils.clamp(sph.phi + orbit.current.pitch, 0.12, Math.PI - 0.12);
+    sph.radius *= orbit.current.zoom;
+    const desired = new THREE.Vector3().setFromSpherical(sph).add(lookTarget.current);
+    camera.position.lerp(desired, damp(2.6, delta));
     camera.lookAt(lookTarget.current);
     cam.fov += (fovTarget.current - cam.fov) * damp(2.8, delta);
     cam.updateProjectionMatrix();

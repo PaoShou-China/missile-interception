@@ -279,25 +279,25 @@ def extrude_shape(name: str, points: list[tuple[float, float]], depth: float, ma
 
 
 def build_strakes(mat: bpy.types.Material) -> list[bpy.types.Object]:
-    # Long, low-profile harness strakes, mirrored left and right.
-    points = [(1.55, 0.13), (-1.55, 0.13), (-1.15, 0.255), (0.55, 0.30)]
+    # Long harness strakes with a visible swept lifting surface.
+    points = [(1.60, 0.13), (-1.60, 0.13), (-1.20, 0.34), (0.55, 0.40)]
     out = []
     for side in (1, -1):
         pts = [(x, y * side) for x, y in points]
         if side < 0:  # keep the winding consistent so normals face outward
             pts = pts[::-1]
-        out.append(extrude_shape(f"Strake_{'L' if side > 0 else 'R'}", pts, 0.018, mat))
+        out.append(extrude_shape(f"Strake_{'L' if side > 0 else 'R'}", pts, 0.020, mat))
     return out
 
 
-TAIL_POINTS = [(0.0, 0.0), (-0.55, 0.05), (-0.50, 0.30), (-0.02, 0.33)]
+TAIL_POINTS = [(0.0, 0.0), (-0.62, 0.06), (-0.56, 0.40), (-0.02, 0.44)]
 
 
 def build_tail_fins(mat: bpy.types.Material) -> list[bpy.types.Object]:
     out = []
     for i, ang in enumerate((0.0, math.pi / 2, math.pi, 3 * math.pi / 2)):
         pts = [(x, y + 0.166) for x, y in TAIL_POINTS]
-        fin = extrude_shape(f"TailFin_{i}", pts, 0.024, mat)
+        fin = extrude_shape(f"TailFin_{i}", pts, 0.028, mat)
         fin.location = (-1.95, 0.0, 0.0)
         fin.rotation_euler[0] = -ang
         out.append(fin)

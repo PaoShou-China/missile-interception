@@ -17,7 +17,8 @@
 - **遥测图表**：8 组曲线（高度、速度、马赫、动压、过载、斜距、四路舵偏、三轴角速率），点击图表可跳转时间，Esc 关闭。
 - **多尺度视角**：宏观（地表与远景）、中观（整弹 + 卫星地面）、微观（尾舵/喷管/边条）、尾追、俯视、电影（预设相机动画）、自由（轨道控制）。
 - **真实环境**：HDRI 环境光照、大气霞光、太阳/月亮/星空、昼/昏/夜三套预设；近地背景为卫星影像与程序化远景的混合。
-- **三档画质**：Performance / Balanced / Cinematic，控制 DPR（上限 1.0 / 1.25 / 1.5 并自适应升降）、阴影刷新、云层数量与后期（Cinematic 才启用暗角与弱 Bloom）；面板不再使用实时背景模糊。
+- **三档画质**：Performance / Balanced / Cinematic，控制 DPR（上限 1.0 / 1.25 / 1.25 并自适应升降）、阴影刷新、云层数量与后期（Cinematic 才启用暗角与弱 Bloom）；面板不再使用实时背景模糊。
+- **窄屏可用**：≤900 px 时左右面板变为互斥抽屉（默认收起、带遮罩），相机按画面宽高比自动拉远，竖屏也能完整看到弹体。
 - **专业界面**：左侧场景与任务、右侧遥测与环境参数、底部数据时间线；面板折叠、高清截图、全屏、中英文切换、图表与离线影像。
 - **资产流水线**：全部模型/纹理/HDRI 由 Blender Python 脚本自动生成，可重复构建；GLB 提供三级 LOD。弹体外形参考公开的 SM-3 Block IB/IIA 三视图（尖锥头罩、收线边条、四片尾舵、MK72 式助推级）。
 
@@ -107,7 +108,7 @@ interceptor-vision/
 | --- | --- | --- | --- | --- | --- |
 | Performance | 1.0 | 关闭 | 无 | 64 | 关闭 |
 | Balanced | 1–1.25 | 1024 | 无 | 96 | 原生 MSAA |
-| Cinematic | 1–1.5 | 2048 | 1 层 | 128 | 暗角 + 弱 Bloom |
+| Cinematic | 1–1.25 | 2048 | 1 层 | 128 | 暗角 + 弱 Bloom |
 
 纹理压缩：GLB 纹理由 Blender 以 WebP（质量 90）嵌入；地形/云层使用 WebP 副本；HDRI 降为 512×256。几何使用三级 LOD（约 26 m / 160 m 距离切换），LOD1/LOD2 在首帧后预热，不阻塞首屏。如需进一步压缩可对 GLB 运行 `gltf-transform` 的 Draco/Meshopt 优化。
 
@@ -120,7 +121,7 @@ interceptor-vision/
 | 延迟加载 | LOD1 0.43 MB、LOD2 0.21 MB 在首帧后预热 |
 | 遥测数据 | `scenario.json` 1.0 MB（gzip 后约 0.2 MB），首帧后 0.9 s 后台加载，不阻塞画面 |
 | 卫星影像 | 按当前经纬度流式请求：8×8 张 z9 瓦片约 0.3–0.6 MB，按需缓存，Google 失败时自动切换 Esri |
-| 帧率（Intel UHD，1920×1080） | Performance 60.2 / Balanced 60.3 / Cinematic 53.8 FPS；20×/60× 连续播放无 >50 ms 长任务 |
+| 帧率（Intel UHD，1920×1080） | Performance 60.0 / Balanced 60.3 / Cinematic 52.8 FPS；20×/60× 连续播放无 >50 ms 长任务 |
 | 控制台错误 | 0 |
 
 详见 [docs/PERFORMANCE.md](docs/PERFORMANCE.md)。

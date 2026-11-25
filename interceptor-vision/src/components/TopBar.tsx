@@ -16,6 +16,7 @@ export function TopBar() {
   const lang = useApp((s) => s.lang);
   const setLang = useApp((s) => s.setLang);
   const setChartsOpen = useApp((s) => s.setChartsOpen);
+  const compact = useApp((s) => s.compact);
 
   const uiVisible = leftOpen || rightOpen;
   const fromSite = typeof window !== "undefined" && new URLSearchParams(window.location.search).get("from") === "site";
@@ -90,6 +91,12 @@ export function TopBar() {
           className={`icon-button ${uiVisible ? "is-active" : ""}`}
           title={uiVisible ? t("hideUi") : t("showUi")}
           onClick={() => {
+            if (compact) {
+              // One drawer at a time on phones; the handle is the way back.
+              if (uiVisible) useApp.setState({ leftOpen: false, rightOpen: false });
+              else toggleLeft();
+              return;
+            }
             if (uiVisible) {
               if (leftOpen) toggleLeft();
               if (rightOpen) toggleRight();

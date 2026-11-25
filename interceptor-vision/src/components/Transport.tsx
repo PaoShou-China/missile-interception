@@ -92,7 +92,13 @@ export function Transport() {
       </div>
       <div className="transport__right">
         {dataMode && (
-          <button type="button" className="ghost-btn ghost-btn--sm" onClick={() => cycleDataRate()}>
+          <button
+            type="button"
+            className="ghost-btn ghost-btn--sm"
+            onClick={() => cycleDataRate()}
+            title={t("rateHint")}
+            aria-label={t("rateHint")}
+          >
             {dataRate}×
           </button>
         )}

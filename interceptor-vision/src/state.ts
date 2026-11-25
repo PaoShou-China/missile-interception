@@ -53,6 +53,9 @@ interface AppState {
 
   leftOpen: boolean;
   rightOpen: boolean;
+  /** Narrow viewports turn the rails into mutually exclusive drawers. */
+  compact: boolean;
+  setCompact: (v: boolean) => void;
   toggleLeft: () => void;
   toggleRight: () => void;
 
@@ -135,8 +138,11 @@ export const useApp = create<AppState>((set) => ({
 
   leftOpen: true,
   rightOpen: true,
-  toggleLeft: () => set((s) => ({ leftOpen: !s.leftOpen })),
-  toggleRight: () => set((s) => ({ rightOpen: !s.rightOpen })),
+  compact: false,
+  setCompact: (compact) => set({ compact }),
+  // On phones the two rails overlap, so opening one closes the other.
+  toggleLeft: () => set((s) => (s.compact ? { leftOpen: !s.leftOpen, rightOpen: false } : { leftOpen: !s.leftOpen })),
+  toggleRight: () => set((s) => (s.compact ? { rightOpen: !s.rightOpen, leftOpen: false } : { rightOpen: !s.rightOpen })),
 
   playing: true,
   time: 0,

@@ -9,11 +9,14 @@ import { ChartsOverlay } from "./components/ChartsOverlay";
 import { LoadingOverlay } from "./components/LoadingOverlay";
 import { MapCredit } from "./components/MapCredit";
 import { useApp } from "./state";
+import { useT } from "./i18n";
 import { loadTelemetry, seekDataTime, toggleDataPlay } from "./data/telemetry";
 
 export function App() {
+  const t = useT();
   const leftOpen = useApp((s) => s.leftOpen);
   const rightOpen = useApp((s) => s.rightOpen);
+  const compact = useApp((s) => s.compact);
   const fullscreenRequest = useApp((s) => s.fullscreenRequest);
   const galleryOpen = useApp((s) => s.galleryOpen);
   const chartsOpen = useApp((s) => s.chartsOpen);
@@ -35,6 +38,19 @@ export function App() {
 
   useEffect(() => {
     document.documentElement.lang = useApp.getState().lang === "zh" ? "zh-CN" : "en";
+  }, []);
+
+  // Phones get the rails as drawers: start closed so the scene is visible, and
+  // keep the flag in sync when the window crosses the breakpoint.
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 900px)");
+    const apply = () => {
+      const next = mq.matches;
+      useApp.setState({ compact: next, leftOpen: !next, rightOpen: !next });
+    };
+    apply();
+    mq.addEventListener("change", apply);
+    return () => mq.removeEventListener("change", apply);
   }, []);
 
   useEffect(() => {
@@ -79,6 +95,14 @@ export function App() {
       </div>
       <div className="vignette" aria-hidden />
       <TopBar />
+      {compact && (leftOpen || rightOpen) && (
+        <button
+          type="button"
+          className="rail-backdrop"
+          aria-label={t("close")}
+          onClick={() => useApp.setState({ leftOpen: false, rightOpen: false })}
+        />
+      )}
       <LeftPanel />
       <RightPanel />
       <Transport />

@@ -98,7 +98,7 @@ export function CameraRig() {
     const onWheel = (e: WheelEvent) => {
       if (!interactive()) return;
       e.preventDefault();
-      orbit.current.zoom = THREE.MathUtils.clamp(orbit.current.zoom * Math.exp(e.deltaY * 0.0011), 0.3, 5);
+      orbit.current.zoom = THREE.MathUtils.clamp(orbit.current.zoom * Math.exp(e.deltaY * 0.0011), 0.55, 5);
     };
     const onDouble = () => {
       orbit.current.yaw = 0;
@@ -148,7 +148,10 @@ export function CameraRig() {
       const fov = cinematic.fov[i0] + (cinematic.fov[i1] - cinematic.fov[i0]) * (fi - i0);
       camera.position.lerp(tmpPos, damp(6, delta));
       lookTarget.current.lerp(tmpLook, damp(6, delta));
-      const nextFov = cam.fov + (fov - cam.fov) * damp(5, delta);
+      // The authored path cannot dolly back, so widen the lens instead when the
+      // viewport is taller than it is wide.
+      const portrait = THREE.MathUtils.clamp(1.2 / Math.max(0.35, cam.aspect), 1, 1.55);
+      const nextFov = cam.fov + (fov * portrait - cam.fov) * damp(5, delta);
       if (Math.abs(nextFov - cam.fov) > 1e-3) {
         cam.fov = nextFov;
         cam.updateProjectionMatrix();
@@ -161,7 +164,11 @@ export function CameraRig() {
     tmpSph.setFromVector3(tmpOff);
     tmpSph.theta += orbit.current.yaw;
     tmpSph.phi = THREE.MathUtils.clamp(tmpSph.phi + orbit.current.pitch, 0.12, Math.PI - 0.12);
-    tmpSph.radius *= orbit.current.zoom;
+    // Portrait screens have a much narrower horizontal field of view, so pull
+    // the preset cameras back until the 7 m airframe still fits across the
+    // screen. The 3.2 m floor keeps the wheel from parking inside the body.
+    const fit = THREE.MathUtils.clamp(1.7778 / Math.max(0.35, cam.aspect), 1, 3.4);
+    tmpSph.radius = Math.max(3.2, tmpSph.radius * Math.max(0.55, orbit.current.zoom) * fit);
     tmpDesired.setFromSpherical(tmpSph).add(lookTarget.current);
     camera.position.lerp(tmpDesired, damp(5, delta));
     camera.lookAt(lookTarget.current);

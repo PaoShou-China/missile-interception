@@ -77,6 +77,11 @@ export function TrajectoryOverlay() {
     const n = picks.length;
     const airLine = makeGlowLine(n, 0x8ff3ff, 3.4, 0.95);
     const groundLine = makeGlowLine(n, 0x45b9d6, 2.2, 0.65);
+    // Hundreds of kilometres away the 600 m lift is below the terrain's depth
+    // precision, which reads as a shredded dashed line. Draw it as a projection
+    // overlay instead of letting it fight the ground.
+    (groundLine.material as LineMaterial).depthTest = false;
+    groundLine.renderOrder = 2;
 
     const markerGeo = new THREE.BufferGeometry();
     markerGeo.setAttribute("position", new THREE.BufferAttribute(new Float32Array(9), 3));
@@ -103,12 +108,17 @@ export function TrajectoryOverlay() {
 
     const dotGeo = new THREE.BufferGeometry();
     dotGeo.setAttribute("position", new THREE.BufferAttribute(new Float32Array(DOT_COUNT * 3), 3));
+    // Additive blending lets us switch a distant pulse off by writing black:
+    // otherwise the whole 600 km arc collapses onto a few pixels in close-ups
+    // and the 36 pulses turn into a bright scribble.
+    dotGeo.setAttribute("color", new THREE.BufferAttribute(new Float32Array(DOT_COUNT * 3).fill(1), 3));
     const dots = new THREE.Points(
       dotGeo,
       new THREE.PointsMaterial({
         size: 12,
         sizeAttenuation: false,
         color: 0xe8fdff,
+        vertexColors: true,
         map: dotTex,
         transparent: true,
         opacity: 0.95,
@@ -148,6 +158,14 @@ export function TrajectoryOverlay() {
 
   useFrame(({ clock }) => {
     if (!data) return;
+    // From 6 m away the whole recorded path is a few degrees wide near the
+    // vanishing point, so the close-ups show only the airframe.
+    const mode = useApp.getState().cameraMode;
+    const closeUp = mode === "micro" || mode === "chase";
+    data.airLine.visible = !closeUp;
+    data.groundLine.visible = !closeUp;
+    data.markers.visible = !closeUp;
+    data.dots.visible = !closeUp;
     const cur = sampleAt(dataClock.t);
     if (!cur) return;
     const cos = Math.cos(cur.latDeg * (Math.PI / 180));
@@ -168,23 +186,24 @@ export function TrajectoryOverlay() {
       scratch[i * 3] = x;
       scratch[i * 3 + 1] = y;
       scratch[i * 3 + 2] = z;
+    }
+
+    for (let i = 0; i < n - 1; i++) {
       // Line2 interleaves start/end per segment in one buffer.
-      if (i < n - 1) {
-        airArr[i * 6] = x;
-        airArr[i * 6 + 1] = y;
-        airArr[i * 6 + 2] = z;
-        airArr[i * 6 + 3] = scratch[(i + 1) * 3];
-        airArr[i * 6 + 4] = scratch[(i + 1) * 3 + 1];
-        airArr[i * 6 + 5] = scratch[(i + 1) * 3 + 2];
-        groundArr[i * 6] = x;
-        // Lift the ground track slightly above the sphere to avoid z-fighting
-        // with the terrain, which reads as a flickering dashed line.
-        groundArr[i * 6 + 1] = -drop + 600;
-        groundArr[i * 6 + 2] = z;
-        groundArr[i * 6 + 3] = scratch[(i + 1) * 3];
-        groundArr[i * 6 + 4] = -((scratch[(i + 1) * 3] ** 2 + scratch[(i + 1) * 3 + 2] ** 2) / (2 * EARTH_R)) + 600;
-        groundArr[i * 6 + 5] = scratch[(i + 1) * 3 + 2];
-      }
+      airArr[i * 6] = scratch[i * 3];
+      airArr[i * 6 + 1] = scratch[i * 3 + 1];
+      airArr[i * 6 + 2] = scratch[i * 3 + 2];
+      airArr[i * 6 + 3] = scratch[(i + 1) * 3];
+      airArr[i * 6 + 4] = scratch[(i + 1) * 3 + 1];
+      airArr[i * 6 + 5] = scratch[(i + 1) * 3 + 2];
+      groundArr[i * 6] = scratch[i * 3];
+      // Lift the ground track slightly above the sphere to avoid z-fighting
+      // with the terrain, which reads as a flickering dashed line.
+      groundArr[i * 6 + 1] = -((scratch[i * 3] ** 2 + scratch[i * 3 + 2] ** 2) / (2 * EARTH_R)) + 600;
+      groundArr[i * 6 + 2] = scratch[i * 3 + 2];
+      groundArr[i * 6 + 3] = scratch[(i + 1) * 3];
+      groundArr[i * 6 + 4] = -((scratch[(i + 1) * 3] ** 2 + scratch[(i + 1) * 3 + 2] ** 2) / (2 * EARTH_R)) + 600;
+      groundArr[i * 6 + 5] = scratch[(i + 1) * 3 + 2];
     }
     air.data.needsUpdate = true;
     ground.data.needsUpdate = true;
@@ -199,8 +218,13 @@ export function TrajectoryOverlay() {
     setMarker(2, n - 1);
     mp.needsUpdate = true;
 
-    // Flowing pulses, evenly spaced along the sampled path.
+    // Flowing pulses, evenly spaced along the sampled path. The macro preset
+    // shows the whole arc, but in close-ups the far half compresses to a few
+    // pixels, so those pulses fade out instead of piling into a white scribble.
     const dp = data.dots.geometry.getAttribute("position") as THREE.BufferAttribute;
+    const dc = data.dots.geometry.getAttribute("color") as THREE.BufferAttribute;
+    const maxDotDist =
+      mode === "macro" || mode === "cinematic" ? Number.POSITIVE_INFINITY : mode === "meso" ? 260_000 : 55_000;
     const t = clock.elapsedTime * 0.12;
     for (let i = 0; i < DOT_COUNT; i++) {
       const u = (t + i / DOT_COUNT) % 1;
@@ -214,8 +238,12 @@ export function TrajectoryOverlay() {
         airArr[i0 * 6 + 2] + (airArr[i1 * 6 + 2] - airArr[i0 * 6 + 2]) * f,
       );
       dp.setXYZ(i, tmp.x, tmp.y, tmp.z);
+      const dist = tmp.length();
+      const k = THREE.MathUtils.clamp((maxDotDist - dist) / (maxDotDist * 0.25), 0, 1);
+      dc.setXYZ(i, k, k, k);
     }
     dp.needsUpdate = true;
+    dc.needsUpdate = true;
 
     // Keep the unused end attribute bound to the same buffer.
     void airEnd;

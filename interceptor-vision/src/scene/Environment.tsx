@@ -187,7 +187,7 @@ function Lights() {
         color="#93aee6"
       />
       <hemisphereLight
-        args={[preset.horizon, preset.ground, timeOfDay === "night" ? 0.12 : timeOfDay === "dusk" ? 0.28 : 0.42]}
+        args={[preset.horizon, preset.ground, timeOfDay === "night" ? 0.34 : timeOfDay === "dusk" ? 0.28 : 0.42]}
       />
       <CameraFillLight />
     </>
@@ -207,8 +207,9 @@ function CameraFillLight() {
   return (
     <pointLight
       ref={light}
-      intensity={timeOfDay === "night" ? 0.26 : 0.12}
-      distance={80}
+      // Night needs a readable body instead of a black silhouette.
+      intensity={timeOfDay === "night" ? 0.55 : 0.12}
+      distance={timeOfDay === "night" ? 140 : 80}
       decay={2}
       color="#c2d6f2"
     />
@@ -261,7 +262,10 @@ const EARTH_FRAG = /* glsl */ `
     vec3 base = mix(baseFar, baseNear, blend);
 
     float dl = max(dot(N, L), 0.0);
-    vec3 col = base * uTint * (0.26 + 0.9 * dl) * uSunColor;
+    // Sunlight is gone at night, so lift the ambient term instead of letting
+    // the whole globe collapse to black.
+    float amb = mix(0.26, 0.62, uNight);
+    vec3 col = base * uTint * (amb + 0.9 * dl) * uSunColor;
 
     vec3 V = normalize(cameraPosition - vWorld);
     float fres = pow(1.0 - max(dot(N, V), 0.0), 5.0);

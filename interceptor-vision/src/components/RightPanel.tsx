@@ -84,7 +84,7 @@ export function RightPanel() {
             <dt>QUALITY</dt>
             <dd>{quality}</dd>
             <dt>LOD</dt>
-            <dd>0 / 1 / 2</dd>
+            <dd>{t("lodReady")}</dd>
           </dl>
         </section>
 
@@ -95,7 +95,7 @@ export function RightPanel() {
       </aside>
 
       {!open && (
-        <button type="button" className="rail-handle rail-handle--right" onClick={toggle} title={t("environment")}>
+        <button type="button" className="rail-handle rail-handle--right" onClick={toggle} title={`${t("environment")} · ${t("expand")}`}>
           {t("environment")}
         </button>
       )}

@@ -146,7 +146,7 @@ export function LeftPanel() {
       </aside>
 
       {!open && (
-        <button type="button" className="rail-handle rail-handle--left" onClick={toggle} title={t("scene")}>
+        <button type="button" className="rail-handle rail-handle--left" onClick={toggle} title={`${t("scene")} · ${t("expand")}`}>
           {t("scene")}
         </button>
       )}

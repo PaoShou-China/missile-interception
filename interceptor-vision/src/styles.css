@@ -404,6 +404,17 @@ input[type="range"]::-moz-range-thumb {
 .rail-handle--left { left: 8px; }
 .rail-handle--right { right: 8px; }
 
+/* Scrim behind a phone drawer; desktop rails never use it. */
+.rail-backdrop {
+  position: absolute;
+  inset: 0;
+  z-index: 24;
+  border: 0;
+  padding: 0;
+  background: rgba(4, 12, 18, 0.55);
+  cursor: pointer;
+}
+
 .ghost-btn {
   border: 1px solid var(--border);
   background: rgba(255, 255, 255, 0.03);
@@ -805,10 +816,14 @@ input[type="range"]::-moz-range-thumb {
   .brand__sub { display: none; }
   .topbar__actions { gap: 6px; }
   .field--inline > span { display: none; }
-  .rail { top: 70px; bottom: 104px; width: min(280px, calc(100vw - 28px)); }
+  /* 124 px clears the taller mobile transport so a drawer never sits under it. */
+  .rail { top: 70px; bottom: 124px; width: min(320px, calc(100vw - 64px)); z-index: 30; }
   .rail--left { left: 14px; }
   .rail--right { right: 14px; }
-  .rail-handle { display: none; }
+  /* Keep the handles reachable: on phones they are the only way back in. */
+  .rail-handle { display: flex; top: 78px; transform: none; }
+  .rail-handle--left { left: 10px; }
+  .rail-handle--right { right: 10px; }
   .transport { grid-template-columns: 40px 1fr; padding: 10px 12px 8px; }
   .transport__right { grid-column: 1 / -1; justify-content: space-between; }
   .transport__hint { display: none; }
@@ -816,8 +831,12 @@ input[type="range"]::-moz-range-thumb {
   .gallery__grid { grid-template-columns: 1fr 1fr; }
 }
 @media (max-width: 620px) {
-  .brand__name { font-size: 11px; letter-spacing: 0.18em; }
+  /* The top bar has to fit in one 390 px row: drop the wordmark and the two
+     desktop-only actions (screenshot / fullscreen) before anything overflows. */
+  .brand__name { display: none; }
   .segmented button { padding: 6px 9px; font-size: 10.5px; }
   .icon-button { width: 29px; height: 29px; }
+  .topbar__actions .icon-button:nth-of-type(3),
+  .topbar__actions .icon-button:nth-of-type(4) { display: none; }
   .gallery__grid { grid-template-columns: 1fr; }
 }

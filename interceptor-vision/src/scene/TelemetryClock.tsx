@@ -2,7 +2,6 @@ import { useMemo, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import { dataClock, getTelemetry } from "../data/telemetry";
 import { useApp } from "../state";
-import { useAppStore as useOrbitalStore } from "../orbital/state/store";
 
 /** Advances the validated telemetry clock and mirrors it to the UI at ~12 Hz. */
 export function TelemetryClock() {
@@ -12,8 +11,6 @@ export function TelemetryClock() {
   useFrame((_, delta) => {
     const state = store.getState();
     if (state.dataStatus !== "ready" || state.cameraMode === "cinematic") return;
-    // The orbital three-minute film owns the clock while it runs.
-    if (state.sceneMode === "orbital" && useOrbitalStore.getState().presentation === "cinematic") return;
     const tel = getTelemetry();
     if (!tel) return;
 

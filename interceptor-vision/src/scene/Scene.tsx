@@ -51,9 +51,6 @@ function RendererBridge() {
 
   useEffect(() => {
     if (screenshot === 0) return;
-    // In orbital mode this canvas is paused and hidden; capturing it would save
-    // the wrong scene.
-    if (useApp.getState().sceneMode !== "vision") return;
     // The drawing buffer is not preserved; render and read back in the same
     // task so no compositing can clear it in between.
     gl.render(scene, camera);

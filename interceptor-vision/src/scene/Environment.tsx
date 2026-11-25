@@ -3,6 +3,9 @@ import { useFrame, useLoader, useThree } from "@react-three/fiber";
 import * as THREE from "three";
 import { RGBELoader } from "three/examples/jsm/loaders/RGBELoader.js";
 import { SKY_PRESETS, asset } from "./assets";
+import { MapTileTexture } from "./MapTiles";
+import { dataClock } from "../data/dataClock";
+import { getTelemetry, sampleAt } from "../data/telemetry";
 import { useApp } from "../state";
 
 const R_EARTH = 6_371_000;
@@ -225,6 +228,11 @@ const EARTH_VERT = /* glsl */ `
 
 const EARTH_FRAG = /* glsl */ `
   uniform sampler2D uMap;
+  uniform sampler2D uTerrain;
+  uniform vec2 uOrigin;
+  uniform vec2 uFarOffset;
+  uniform float uSpan;
+  uniform float uHasMap;
   uniform vec3 uTint;
   uniform vec3 uSunDir;
   uniform vec3 uSunColor;
@@ -238,8 +246,17 @@ const EARTH_FRAG = /* glsl */ `
     vec3 L = normalize(uSunDir);
     // Planar projection across the visible cap avoids the extreme stretching a
     // lat/long map shows when a 2D terrain tile is wrapped onto the globe.
-    vec2 uv = vWorld.xz / 520000.0;
-    vec3 base = texture2D(uMap, uv).rgb;
+    vec2 uvFar = vWorld.xz / 520000.0 + uFarOffset;
+    vec3 baseFar = texture2D(uTerrain, uvFar).rgb;
+
+    // Live satellite tiles, recentred on the recorded position. Both layers
+    // scroll with the vehicle; the tile layer takes over close to the nadir.
+    vec2 uvNear = vWorld.xz / uSpan + uOrigin;
+    vec3 baseNear = texture2D(uMap, uvNear).rgb;
+    float r = length(vWorld.xz);
+    float blend = (1.0 - smoothstep(120000.0, 320000.0, r)) * uHasMap;
+    vec3 base = mix(baseFar, baseNear, blend);
+
     float dl = max(dot(N, L), 0.0);
     vec3 col = base * uTint * (0.26 + 0.9 * dl) * uSunColor;
 
@@ -248,7 +265,7 @@ const EARTH_FRAG = /* glsl */ `
     col += vec3(0.33, 0.58, 0.86) * fres * 0.28 * (1.0 - uNight * 0.85);
 
     float dist = length(vWorld - cameraPosition);
-    col = mix(col, uFog, smoothstep(120000.0, 900000.0, dist));
+    col = mix(col, uFog, smoothstep(180000.0, 900000.0, dist));
     gl_FragColor = vec4(col, 1.0);
     #include <tonemapping_fragment>
     #include <colorspace_fragment>
@@ -259,43 +276,73 @@ function Terrain() {
   const quality = useApp((s) => s.quality);
   const timeOfDay = useApp((s) => s.timeOfDay);
   const segments = quality === "cinematic" ? 128 : quality === "balanced" ? 96 : 64;
-  const color = useLoader(THREE.TextureLoader, asset("terrain-day.webp")) as THREE.Texture;
+  const terrain = useLoader(THREE.TextureLoader, asset("terrain-day.webp")) as THREE.Texture;
   const preset = SKY_PRESETS[timeOfDay];
+  const map = useMemo(() => new MapTileTexture(2048, 8, 9), []);
+  const mat = useRef<THREE.ShaderMaterial>(null);
+  const acc = useRef(0);
+
+  useEffect(() => () => map.dispose(), [map]);
 
   useEffect(() => {
-    color.wrapS = color.wrapT = THREE.RepeatWrapping;
-    color.anisotropy = 8;
-    color.needsUpdate = true;
-  }, [color]);
+    terrain.wrapS = terrain.wrapT = THREE.RepeatWrapping;
+    terrain.anisotropy = 8;
+    terrain.needsUpdate = true;
+  }, [terrain]);
 
   const uniforms = useMemo(
     () => ({
-      uMap: { value: color },
+      uMap: { value: map.texture },
+      uTerrain: { value: terrain },
+      uOrigin: { value: new THREE.Vector2() },
+      uFarOffset: { value: new THREE.Vector2() },
+      uSpan: { value: map.spanMeters },
+      uHasMap: { value: 0 },
       uTint: { value: new THREE.Color("#ffffff") },
       uSunDir: { value: preset.sunDir.clone() },
       uSunColor: { value: new THREE.Color(preset.sunColor) },
       uFog: { value: new THREE.Color(preset.hazeColor) },
       uNight: { value: 0 },
     }),
-    // Re-created per preset below through the effect.
-    [color, preset],
+    [terrain, preset, map],
   );
 
+  // ShaderMaterial keeps the uniform object it was built with, so write through
+  // the material reference rather than the memoised prop.
   useEffect(() => {
-    uniforms.uSunDir.value.copy(preset.sunDir);
-    uniforms.uSunColor.value.set(preset.sunColor);
-    uniforms.uFog.value.set(preset.hazeColor);
-    uniforms.uNight.value = timeOfDay === "night" ? 1 : 0;
-    uniforms.uTint.value.set(
-      timeOfDay === "night" ? "#5b6a80" : timeOfDay === "dusk" ? "#e8c4a8" : "#ffffff",
+    const u = mat.current?.uniforms;
+    if (!u) return;
+    u.uSunDir.value.copy(preset.sunDir);
+    u.uSunColor.value.set(preset.sunColor);
+    u.uFog.value.set(preset.hazeColor);
+    u.uNight.value = timeOfDay === "night" ? 1 : 0;
+    u.uTint.value.set(
+      timeOfDay === "night" ? "#7b8ca3" : timeOfDay === "dusk" ? "#e8c4a8" : "#ffffff",
     );
   }, [uniforms, preset, timeOfDay]);
+
+  // Re-centre the satellite tiles at 4 Hz; the recorded position does the rest.
+  useFrame((_, delta) => {
+    acc.current += delta;
+    if (acc.current < 0.25) return;
+    acc.current = 0;
+    const tel = getTelemetry();
+    const sample = tel ? sampleAt(dataClock.t) : null;
+    const frame = map.update(sample?.latDeg ?? 34, sample?.lonDeg ?? 118);
+    const u = mat.current?.uniforms;
+    if (!u) return;
+    u.uOrigin.value.set(frame.originU, frame.originV);
+    u.uFarOffset.value.set(frame.farU, frame.farV);
+    u.uSpan.value = frame.spanMeters;
+    u.uHasMap.value = frame.ready ? 1 : 0;
+  });
 
   const geometry = useMemo(() => new THREE.SphereGeometry(1, segments * 2, segments), [segments]);
 
   return (
     <mesh geometry={geometry} position={[0, -(R_EARTH + 30_000), 0]} scale={[R_EARTH, R_EARTH, R_EARTH]}>
       <shaderMaterial
+        ref={mat}
         vertexShader={EARTH_VERT}
         fragmentShader={EARTH_FRAG}
         uniforms={uniforms}
@@ -366,19 +413,11 @@ function Clouds() {
   const timeOfDay = useApp((s) => s.timeOfDay);
   const quality = useApp((s) => s.quality);
   const preset = SKY_PRESETS[timeOfDay];
-  const a = useLoader(THREE.TextureLoader, asset("cloud-a.webp")) as THREE.Texture;
   const b = useLoader(THREE.TextureLoader, asset("cloud-b.webp")) as THREE.Texture;
   const layers =
-    quality === "performance"
-      ? [{ y: -20_000, tex: a, repeat: 4, speed: 1800, size: 2_300_000 }]
-      : quality === "cinematic"
-        ? [
-            { y: -12_000, tex: a, repeat: 6, speed: 2600, size: 2_200_000 },
-            { y: -27_000, tex: b, repeat: 3, speed: 800, size: 3_200_000 },
-          ]
-        : [
-            { y: -18_000, tex: b, repeat: 4, speed: 1500, size: 2_700_000 },
-          ];
+    quality === "performance" || quality === "balanced"
+      ? []
+      : [{ y: -26_000, tex: b, repeat: 3, speed: 900, size: 2_400_000 }];
 
   return (
     <group>
@@ -389,7 +428,7 @@ function Clouds() {
           size={l.size}
           repeat={l.repeat}
           speed={l.speed}
-          opacity={Math.min(0.62, preset.cloudOpacity * (0.4 + density * 0.8))}
+          opacity={Math.min(0.3, preset.cloudOpacity * (0.2 + density * 0.3))}
           tint={preset.cloudTint}
           texture={l.tex}
         />

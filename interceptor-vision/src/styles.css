@@ -60,6 +60,21 @@ button, select, input { font-family: inherit; color: inherit; }
   pointer-events: none;
 }
 
+.map-credit {
+  position: absolute;
+  right: 12px;
+  bottom: 8px;
+  z-index: 15;
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: 0.06em;
+  color: rgba(226, 240, 250, 0.55);
+  background: rgba(4, 9, 15, 0.55);
+  padding: 3px 6px;
+  border-radius: 3px;
+  pointer-events: none;
+}
+
 .vignette {
   position: absolute;
   inset: 0;

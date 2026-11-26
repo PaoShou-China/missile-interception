@@ -49,6 +49,8 @@ export function CameraRig() {
   const tmpAxis = useMemo(() => new THREE.Vector3(), []);
   const tmpPerp = useMemo(() => new THREE.Vector3(), []);
   const tmpUp = useMemo(() => new THREE.Vector3(), []);
+  const tmpA = useMemo(() => new THREE.Vector3(), []);
+  const tmpB = useMemo(() => new THREE.Vector3(), []);
   const orbit = useRef({ yaw: 0, pitch: 0, zoom: 1 });
 
   // Snap to a sensible pose on first mount.
@@ -148,8 +150,9 @@ export function CameraRig() {
     if (mode === "free") return;
 
     // Tracking shot on the target airframe: unlike the missile-anchored presets
-    // this rides with the target, so the 7 m body stays readable from midcourse
-    // through the intercept and the incoming missile crosses the same frame.
+    // this rides with the target, so the 15.7 m body stays readable from
+    // midcourse through the intercept and the incoming missile crosses the same
+    // frame.
     if (mode === "target") {
       const s = targetLocalAt(dataClock.t, tmpTarget);
       if (s !== null && s > 0.5) {
@@ -158,24 +161,51 @@ export function CameraRig() {
         if (tmpPerp.lengthSq() < 1e-6) tmpPerp.set(1, 0, 0);
         tmpPerp.normalize();
         tmpUp.crossVectors(tmpAxis, tmpPerp).normalize();
-        // Hold a readable close-up on the target; only in the final metres does
-        // the lens recentre on the pair so the missile is in the same frame.
-        const windshield = THREE.MathUtils.clamp((70 - s) / 45, 0, 1);
-        tmpMid.copy(tmpTarget).multiplyScalar(0.5);
-        tmpLook.copy(tmpTarget).lerp(tmpMid, windshield);
-        const dist =
-          THREE.MathUtils.clamp(s * 0.4 + 16, 20, 52) *
-          THREE.MathUtils.clamp(orbit.current.zoom, 0.45, 5);
+        // A close-up on the target for most of the flight. At 2.6 km the camera
+        // cuts back behind the interceptor and looks forward down the line of
+        // sight: the missile reads in the foreground and the target grows ahead,
+        // instead of the jet filling the frame while the incoming round is still
+        // kilometres away. The hand-over is deliberately quick so the camera
+        // never lingers at a middle distance where both bodies are tiny; the
+        // clock ramps down across the same window.
+        const seek = THREE.MathUtils.clamp((2600 - s) / 200, 0, 1);
+        const close = 1 - seek;
+        tmpLook.copy(tmpTarget);
+        const closeDist = THREE.MathUtils.clamp(s * 0.4 + 16, 20, 52);
+        const back = THREE.MathUtils.clamp(20 + s * 0.012, 20, 40);
+        fovTarget.current = THREE.MathUtils.lerp(34, 32, seek);
+        // Offset of the close-up camera from the target.
         tmpDesired
           .copy(tmpPerp)
-          .multiplyScalar(0.88)
-          .addScaledVector(tmpUp, 0.24)
-          .addScaledVector(tmpAxis, 0.42)
+          .multiplyScalar(0.9)
+          .addScaledVector(tmpUp, 0.26)
+          .addScaledVector(tmpAxis, 0.42 * close)
           .normalize()
+          .multiplyScalar(closeDist);
+        // Offset of the chase camera from the target: sit behind the missile
+        // (which is always at the scene origin) and well off its axis, so the
+        // near round shows its length instead of collapsing into a dot.
+        tmpMid
+          .copy(tmpAxis)
+          .multiplyScalar(-back)
+          .addScaledVector(tmpUp, back * 0.18)
+          .addScaledVector(tmpPerp, back * 0.42)
+          .sub(tmpLook);
+        tmpDesired
+          .lerp(tmpMid, seek)
           .applyAxisAngle(tmpUp, orbit.current.yaw)
           .applyAxisAngle(tmpPerp, orbit.current.pitch)
-          .multiplyScalar(dist)
+          .multiplyScalar(THREE.MathUtils.clamp(orbit.current.zoom, 0.45, 5))
           .add(tmpLook);
+        if (seek > 0.001) {
+          // Aim at the angular bisector of the missile and the target so both
+          // stay in frame while the round sits off the flight line.
+          tmpA.copy(tmpDesired).multiplyScalar(-1).normalize();
+          tmpB.copy(tmpTarget).sub(tmpDesired).normalize();
+          tmpA.add(tmpB).normalize();
+          tmpB.copy(tmpDesired).addScaledVector(tmpA, 500);
+          tmpLook.lerp(tmpB, seek);
+        }
         if (camera.position.distanceToSquared(tmpDesired) > 600 * 600) {
           camera.position.copy(tmpDesired);
         } else {

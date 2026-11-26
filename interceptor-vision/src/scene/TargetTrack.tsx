@@ -142,14 +142,14 @@ function plateGeometry(points: [number, number][], thickness: number) {
  */
 function buildVehicle() {
   const skin = new THREE.MeshStandardMaterial({
-    color: 0x4e565e,
+    color: 0x6b747d,
     metalness: 0.22,
-    roughness: 0.78,
-    envMapIntensity: 0.34,
+    roughness: 0.7,
+    envMapIntensity: 0.42,
     side: THREE.DoubleSide,
   });
   const panel = new THREE.MeshStandardMaterial({
-    color: 0x474e56,
+    color: 0x565d65,
     metalness: 0.28,
     roughness: 0.7,
     envMapIntensity: 0.4,
@@ -188,18 +188,18 @@ function buildVehicle() {
   add(
     loftGeometry([
       { x: 7.7, w: 0.05, h: 0.05, y: 0.02 },
-      { x: 7.15, w: 0.26, h: 0.26, y: 0.02 },
-      { x: 6.3, w: 0.45, h: 0.42, y: 0.03 },
-      { x: 5.1, w: 0.62, h: 0.52, y: 0.05 },
-      { x: 3.8, w: 0.78, h: 0.58, y: 0.06 },
-      { x: 2.2, w: 0.92, h: 0.6, y: 0.06 },
-      { x: 0.6, w: 0.98, h: 0.59, y: 0.05 },
-      { x: -1.2, w: 0.97, h: 0.56, y: 0.03 },
-      { x: -3.0, w: 0.88, h: 0.52, y: 0.01 },
-      { x: -4.8, w: 0.76, h: 0.47, y: 0 },
-      { x: -6.2, w: 0.6, h: 0.43, y: 0 },
-      { x: -7.2, w: 0.48, h: 0.4, y: 0 },
-      { x: -7.75, w: 0.44, h: 0.38, y: 0 },
+      { x: 7.15, w: 0.27, h: 0.27, y: 0.02 },
+      { x: 6.3, w: 0.47, h: 0.46, y: 0.03 },
+      { x: 5.1, w: 0.66, h: 0.56, y: 0.05 },
+      { x: 3.8, w: 0.84, h: 0.64, y: 0.06 },
+      { x: 2.2, w: 1.0, h: 0.68, y: 0.06 },
+      { x: 0.6, w: 1.06, h: 0.68, y: 0.05 },
+      { x: -1.2, w: 1.05, h: 0.65, y: 0.03 },
+      { x: -3.0, w: 0.96, h: 0.6, y: 0.01 },
+      { x: -4.8, w: 0.82, h: 0.54, y: 0 },
+      { x: -6.2, w: 0.64, h: 0.48, y: 0 },
+      { x: -7.2, w: 0.5, h: 0.44, y: 0 },
+      { x: -7.75, w: 0.46, h: 0.42, y: 0 },
     ]),
     skin,
   );
@@ -207,25 +207,25 @@ function buildVehicle() {
   // Radome: slightly darker cap over the first two stations.
   const radome = loftGeometry([
     { x: 7.7, w: 0.052, h: 0.052, y: 0.02 },
-    { x: 7.15, w: 0.265, h: 0.265, y: 0.02 },
-    { x: 6.45, w: 0.43, h: 0.4, y: 0.03 },
+    { x: 7.15, w: 0.275, h: 0.275, y: 0.02 },
+    { x: 6.45, w: 0.45, h: 0.44, y: 0.03 },
   ]);
   radome.scale(1, 1.015, 1.015);
   add(radome, dark);
 
   // Bubble canopy, set slightly forward of the wing root.
-  const canopy = add(new THREE.SphereGeometry(1, 24, 16), glass, 3.6, 0.52, 0);
-  canopy.scale.set(2.05, 0.5, 0.55);
+  const canopy = add(new THREE.SphereGeometry(1, 24, 16), glass, 3.5, 0.58, 0);
+  canopy.scale.set(2.1, 0.55, 0.6);
 
-  // Clipped delta wing: 35 deg leading edge, 10.7 m span.
+  // Clipped delta wing: 35 deg leading edge, 10.7 m span, ~41 m2 reference area.
   const wing = planeGeometry(
     [
-      [1.8, 0.0],
-      [-1.2, 5.3],
-      [-2.4, 5.3],
-      [-3.0, 0.0],
+      [1.9, 0.0],
+      [-1.35, 5.35],
+      [-3.1, 5.35],
+      [-4.0, 0.0],
     ],
-    0.32,
+    0.34,
   );
   const wingR = add(wing, skin, 0, 0.03, 0);
   const wingL = add(wing.clone(), skin, 0, 0.03, 0);
@@ -235,65 +235,64 @@ function buildVehicle() {
   // Leading-edge flaps and the darker wing root fairing.
   const flap = planeGeometry(
     [
-      [0.4, 2.1],
-      [-1.2, 5.26],
-      [-1.75, 5.26],
-      [-0.35, 2.1],
+      [0.55, 2.1],
+      [-1.32, 5.32],
+      [-1.87, 5.32],
+      [-0.02, 2.1],
     ],
     0.06,
   );
-  add(flap, panel, 0, 0.15, 0);
-  const flapL = add(flap.clone(), panel, 0, 0.15, 0);
+  add(flap, panel, 0, 0.16, 0);
+  const flapL = add(flap.clone(), panel, 0, 0.16, 0);
   flapL.scale.z = -1;
 
-  // Canted twin vertical tails (25 deg outboard).
+  // Canted twin vertical tails (31 deg outboard), sized to the real 3.2 m
+  // airframe height rather than the first-pass 2.1 m stubs.
   const fin = plateGeometry(
     [
-      [-2.4, 0.0],
-      [-3.95, 2.15],
-      [-4.85, 2.15],
-      [-5.05, 0.0],
+      [-2.6, 0.0],
+      [-4.45, 2.7],
+      [-5.35, 2.7],
+      [-5.55, 0.0],
     ],
-    0.12,
+    0.13,
   );
-  const finR = add(fin, skin, 0, 0.34, 1.15);
+  const finR = add(fin, skin, 0, 0.32, 1.2);
   finR.rotation.x = -0.6;
-  const finL = add(fin.clone(), skin, 0, 0.34, -1.15);
+  const finL = add(fin.clone(), skin, 0, 0.32, -1.2);
   finL.rotation.x = 0.6;
 
-  // All-moving horizontal stabilators.
+  // All-moving horizontal stabilators, moved aft to clear the longer wing root.
   const stab = planeGeometry(
     [
-      [-3.55, 0.0],
-      [-4.75, 2.15],
-      [-5.35, 2.15],
-      [-5.5, 0.0],
+      [-4.15, 0.0],
+      [-5.35, 2.3],
+      [-6.0, 2.3],
+      [-6.15, 0.0],
     ],
-    0.14,
+    0.15,
   );
-  add(stab, skin, 0, -0.02, 0.5);
-  const stabL = add(stab.clone(), skin, 0, -0.02, -0.5);
+  add(stab, skin, 0, -0.04, 0.55);
+  const stabL = add(stab.clone(), skin, 0, -0.04, -0.55);
   stabL.scale.z = -1;
 
   // DSI inlets and their bumps, plus the chin sensor fairing.
   for (const side of [1, -1]) {
-    const inlet = add(new THREE.BoxGeometry(1.7, 0.5, 0.34), panel, 1.35, -0.3, side * 1.0);
+    const inlet = add(new THREE.BoxGeometry(1.8, 0.56, 0.36), panel, 1.3, -0.34, side * 1.1);
     inlet.rotation.y = side * 0.06;
-    const bump = add(new THREE.SphereGeometry(1, 12, 10), skin, 0.8, -0.2, side * 0.86);
-    bump.scale.set(0.5, 0.24, 0.22);
+    const bump = add(new THREE.SphereGeometry(1, 12, 10), skin, 0.75, -0.22, side * 0.96);
+    bump.scale.set(0.52, 0.26, 0.24);
   }
-  const chin = add(new THREE.SphereGeometry(1, 12, 10), dark, 5.4, -0.34, 0);
-  chin.scale.set(0.5, 0.18, 0.26);
+  const chin = add(new THREE.SphereGeometry(1, 12, 10), dark, 5.45, -0.4, 0);
+  chin.scale.set(0.5, 0.2, 0.28);
 
-  // Exhaust: nozzle ring and a dim afterburner disc, kept low-key so it does
-  // not read as a toy rocket from the tracking shot.
   // Exhaust: a recessed nozzle with a dim burner disc, kept small so it does
   // not read as a rocket engine from the tracking shot.
-  const nozzle = add(new THREE.CylinderGeometry(0.38, 0.44, 0.85, 20), panel, -7.6, 0, 0);
+  const nozzle = add(new THREE.CylinderGeometry(0.42, 0.46, 0.9, 20), panel, -7.55, 0, 0);
   nozzle.rotation.z = Math.PI / 2;
-  const nozzleLip = add(new THREE.TorusGeometry(0.4, 0.05, 8, 22), dark, -8.02, 0, 0);
+  const nozzleLip = add(new THREE.TorusGeometry(0.44, 0.05, 8, 22), dark, -8.0, 0, 0);
   nozzleLip.rotation.y = Math.PI / 2;
-  const flame = add(new THREE.CircleGeometry(0.16, 18), glow, -8.0, 0, 0);
+  const flame = add(new THREE.CircleGeometry(0.17, 18), glow, -7.98, 0, 0);
   flame.rotation.y = -Math.PI / 2;
 
   return { vehicle, materials: [skin, panel, dark, glass, glow] as THREE.Material[] };

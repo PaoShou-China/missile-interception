@@ -15,11 +15,15 @@ export function TelemetryClock() {
     if (!tel) return;
 
     if (dataClock.playing) {
-      // The last 3 s of data take ~7 km while closing at 2.8 km/s, so at 20x it
-      // is one frame. Cap the effective rate there so the target actually
-      // resolves before the flyby.
+      // The last 10 s of data cover ~28 km while closing at 2.8 km/s, so at 20x
+      // the whole endgame is one frame. Ramp the effective rate down with the
+      // time left so the terminal approach lasts ~14 s of wall time and the
+      // target actually resolves before the flyby.
       const remaining = tel.end - dataClock.t;
-      const effective = remaining < 3 ? Math.min(dataClock.rate, 1) : dataClock.rate;
+      const effective =
+        remaining < 10
+          ? Math.min(dataClock.rate, Math.max(0.12, remaining * 0.25))
+          : dataClock.rate;
       dataClock.t += Math.min(delta, 0.1) * effective;
       if (dataClock.t >= tel.end) {
         dataClock.t = tel.end;

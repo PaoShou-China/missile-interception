@@ -102,7 +102,7 @@ export function Transport() {
             {dataRate}×
           </button>
         )}
-        {dataMode && dataPlaying && telemetry && telemetry.end - dataTime < 3 && dataRate > 1 && (
+        {dataMode && dataPlaying && telemetry && telemetry.end - dataTime < 10 && dataRate > 1 && (
           <span className="chip chip--slow">{t("slowMo")}</span>
         )}
         <span className="fps">

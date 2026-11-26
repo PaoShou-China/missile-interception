@@ -181,8 +181,10 @@ export function MethodsOverlay() {
               Airframe attitude is the recorded BODY→ECEF quaternion re-expressed in that local frame. The BODY axes
               follow the source schema (x forward, y right, z down) and are mapped onto the y-up glTF model with a
               fixed −90° roll offset; without it the strakes render vertical. Both the interceptor model (Blender,
-              referenced to public SM-3 Block IB/IIA views) and the 15.7 m F-35-shaped target (procedural) are
-              illustrative shapes sized to the telemetry, not accurate hardware representations.
+              referenced to public SM-3 Block IB/IIA views) and the 15.7 m F-35A-shaped target (procedural:
+              10.7 m span, ~41 m² reference wing area, ~3.2 m airframe height) are illustrative shapes sized to the
+              telemetry, not accurate hardware representations. The terminal chase camera and the playback slow-down
+              in the last 10 s are presentation devices, not recorded events.
             </li>
             <li>
               The first-stage separation at T+13.0 s is a visual milestone derived from the payload mass curve: the

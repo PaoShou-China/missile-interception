@@ -164,7 +164,7 @@ export function CameraRig() {
         tmpMid.copy(tmpTarget).multiplyScalar(0.5);
         tmpLook.copy(tmpTarget).lerp(tmpMid, windshield);
         const dist =
-          THREE.MathUtils.clamp(s * 0.55 + 20, 24, 72) *
+          THREE.MathUtils.clamp(s * 0.4 + 16, 20, 52) *
           THREE.MathUtils.clamp(orbit.current.zoom, 0.45, 5);
         tmpDesired
           .copy(tmpPerp)

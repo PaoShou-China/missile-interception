@@ -57,13 +57,125 @@ function markerTexture(): THREE.CanvasTexture {
   return tex;
 }
 
-/** A 7 m target airframe: wing kit, twin tail and a lit nose for visibility. */
+/**
+ * Lofts an elliptical (superelliptic) fuselage through the given stations.
+ * Stations are ordered nose -> tail; x is the body axis, y the height centre,
+ * w/h the half width/height. Chined cross-sections are what give the F-35 its
+ * faceted forebody rather than a tube with a cone on the front.
+ */
+function loftGeometry(
+  stations: { x: number; w: number; h: number; y: number }[],
+  seg = 20,
+) {
+  const pos: number[] = [];
+  const idx: number[] = [];
+  const e = 2 / 3.1;
+  for (const st of stations) {
+    for (let i = 0; i < seg; i++) {
+      const a = (i / seg) * Math.PI * 2;
+      const c = Math.cos(a);
+      const s = Math.sin(a);
+      const sx = Math.sign(c) * Math.pow(Math.abs(c), e);
+      const sy = Math.sign(s) * Math.pow(Math.abs(s), e);
+      pos.push(st.x, st.y + st.h * sy, st.w * sx);
+    }
+  }
+  for (let r = 0; r < stations.length - 1; r++) {
+    for (let i = 0; i < seg; i++) {
+      const a = r * seg + i;
+      const b = r * seg + ((i + 1) % seg);
+      const c = (r + 1) * seg + i;
+      const d = (r + 1) * seg + ((i + 1) % seg);
+      idx.push(a, c, b, b, c, d);
+    }
+  }
+  const tip = pos.length / 3;
+  pos.push(stations[0].x - 0.03, stations[0].y, 0);
+  for (let i = 0; i < seg; i++) idx.push(tip, i, (i + 1) % seg);
+  const lastRing = (stations.length - 1) * seg;
+  const last = stations[stations.length - 1];
+  const end = pos.length / 3;
+  pos.push(last.x + 0.02, last.y, 0);
+  for (let i = 0; i < seg; i++) idx.push(end, lastRing + ((i + 1) % seg), lastRing + i);
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
+  geo.setIndex(idx);
+  geo.computeVertexNormals();
+  return geo;
+}
+
+/** Extrudes a planform defined in (x, span) into a thin lifting surface. */
+function planeGeometry(points: [number, number][], thickness: number) {
+  const shape = new THREE.Shape();
+  shape.moveTo(points[0][0], points[0][1]);
+  for (let i = 1; i < points.length; i++) shape.lineTo(points[i][0], points[i][1]);
+  shape.closePath();
+  const geo = new THREE.ExtrudeGeometry(shape, {
+    depth: thickness,
+    bevelEnabled: false,
+    curveSegments: 1,
+  });
+  geo.rotateX(-Math.PI / 2);
+  geo.translate(0, thickness / 2, 0);
+  return geo;
+}
+
+/** Extrudes a side profile (x, height) into a thin vertical surface. */
+function plateGeometry(points: [number, number][], thickness: number) {
+  const shape = new THREE.Shape();
+  shape.moveTo(points[0][0], points[0][1]);
+  for (let i = 1; i < points.length; i++) shape.lineTo(points[i][0], points[i][1]);
+  shape.closePath();
+  const geo = new THREE.ExtrudeGeometry(shape, {
+    depth: thickness,
+    bevelEnabled: false,
+    curveSegments: 1,
+  });
+  geo.translate(0, 0, -thickness / 2);
+  return geo;
+}
+
+/**
+ * A ~15.7 m F-35A silhouette: blended chined fuselage, clipped delta wing,
+ * canted twin vertical tails, all-moving horizontal stabs, DSI inlets and a
+ * bubble canopy. Origin is the airframe centre, nose along +x, up +y.
+ */
 function buildVehicle() {
-  const skin = new THREE.MeshStandardMaterial({ color: 0x9aa3ad, metalness: 0.4, roughness: 0.55 });
-  const dark = new THREE.MeshStandardMaterial({ color: 0x3d454e, metalness: 0.4, roughness: 0.55 });
-  const glow = new THREE.MeshStandardMaterial({ color: 0xffb25c, emissive: new THREE.Color("#ff7a2a"), emissiveIntensity: 2.2 });
+  const skin = new THREE.MeshStandardMaterial({
+    color: 0x4e565e,
+    metalness: 0.22,
+    roughness: 0.78,
+    envMapIntensity: 0.34,
+    side: THREE.DoubleSide,
+  });
+  const panel = new THREE.MeshStandardMaterial({
+    color: 0x474e56,
+    metalness: 0.28,
+    roughness: 0.7,
+    envMapIntensity: 0.4,
+    side: THREE.DoubleSide,
+  });
+  const dark = new THREE.MeshStandardMaterial({
+    color: 0x3a4046,
+    metalness: 0.45,
+    roughness: 0.55,
+    side: THREE.DoubleSide,
+  });
+  const glass = new THREE.MeshStandardMaterial({
+    color: 0x1c252e,
+    metalness: 0.85,
+    roughness: 0.18,
+    side: THREE.DoubleSide,
+  });
+  const glow = new THREE.MeshStandardMaterial({
+    color: 0xff9a4a,
+    emissive: new THREE.Color("#ff6a1e"),
+    emissiveIntensity: 0.9,
+    side: THREE.DoubleSide,
+  });
+
   const vehicle = new THREE.Group();
-  const add = (geo: THREE.BufferGeometry, mat: THREE.Material, x: number, y: number, z: number) => {
+  const add = (geo: THREE.BufferGeometry, mat: THREE.Material, x = 0, y = 0, z = 0) => {
     const mesh = new THREE.Mesh(geo, mat);
     mesh.position.set(x, y, z);
     mesh.castShadow = false;
@@ -71,29 +183,120 @@ function buildVehicle() {
     vehicle.add(mesh);
     return mesh;
   };
-  // Fuselage (nose along +x).
-  const body = new THREE.CylinderGeometry(0.44, 0.44, 5.2, 16);
-  body.rotateZ(-Math.PI / 2);
-  add(body, skin, -0.3, 0, 0);
-  const nose = new THREE.ConeGeometry(0.44, 1.7, 16);
-  nose.rotateZ(-Math.PI / 2);
-  add(nose, skin, 3.15, 0, 0);
-  const tail = new THREE.CylinderGeometry(0.44, 0.32, 0.9, 16);
-  tail.rotateZ(-Math.PI / 2);
-  add(tail, dark, -3.35, 0, 0);
-  // Main wings (6.6 m span) and tailplane.
-  add(new THREE.BoxGeometry(1.15, 0.07, 6.6), skin, 0.35, 0.02, 0);
-  add(new THREE.BoxGeometry(0.7, 0.05, 2.6), dark, -2.65, 0, 0);
-  // Twin canted fins.
-  const finL = new THREE.BoxGeometry(0.75, 1.05, 0.06);
-  const finR = finL.clone();
-  const a = add(finL, dark, -2.6, 0.5, 0.32);
-  a.rotation.x = -0.28;
-  const b = add(finR, dark, -2.6, 0.5, -0.32);
-  b.rotation.x = 0.28;
-  // Nav light at the nose so a distant target still reads as an object.
-  add(new THREE.SphereGeometry(0.12, 10, 8), glow, 3.9, 0, 0);
-  return { vehicle, materials: [skin, dark, glow] as THREE.Material[] };
+
+  // Fuselage: radome, chined forebody, broad mid-body, boat-tail.
+  add(
+    loftGeometry([
+      { x: 7.7, w: 0.05, h: 0.05, y: 0.02 },
+      { x: 7.15, w: 0.26, h: 0.26, y: 0.02 },
+      { x: 6.3, w: 0.45, h: 0.42, y: 0.03 },
+      { x: 5.1, w: 0.62, h: 0.52, y: 0.05 },
+      { x: 3.8, w: 0.78, h: 0.58, y: 0.06 },
+      { x: 2.2, w: 0.92, h: 0.6, y: 0.06 },
+      { x: 0.6, w: 0.98, h: 0.59, y: 0.05 },
+      { x: -1.2, w: 0.97, h: 0.56, y: 0.03 },
+      { x: -3.0, w: 0.88, h: 0.52, y: 0.01 },
+      { x: -4.8, w: 0.76, h: 0.47, y: 0 },
+      { x: -6.2, w: 0.6, h: 0.43, y: 0 },
+      { x: -7.2, w: 0.48, h: 0.4, y: 0 },
+      { x: -7.75, w: 0.44, h: 0.38, y: 0 },
+    ]),
+    skin,
+  );
+
+  // Radome: slightly darker cap over the first two stations.
+  const radome = loftGeometry([
+    { x: 7.7, w: 0.052, h: 0.052, y: 0.02 },
+    { x: 7.15, w: 0.265, h: 0.265, y: 0.02 },
+    { x: 6.45, w: 0.43, h: 0.4, y: 0.03 },
+  ]);
+  radome.scale(1, 1.015, 1.015);
+  add(radome, dark);
+
+  // Bubble canopy, set slightly forward of the wing root.
+  const canopy = add(new THREE.SphereGeometry(1, 24, 16), glass, 3.6, 0.52, 0);
+  canopy.scale.set(2.05, 0.5, 0.55);
+
+  // Clipped delta wing: 35 deg leading edge, 10.7 m span.
+  const wing = planeGeometry(
+    [
+      [1.8, 0.0],
+      [-1.2, 5.3],
+      [-2.4, 5.3],
+      [-3.0, 0.0],
+    ],
+    0.32,
+  );
+  const wingR = add(wing, skin, 0, 0.03, 0);
+  const wingL = add(wing.clone(), skin, 0, 0.03, 0);
+  wingL.scale.z = -1;
+  void wingR;
+
+  // Leading-edge flaps and the darker wing root fairing.
+  const flap = planeGeometry(
+    [
+      [0.4, 2.1],
+      [-1.2, 5.26],
+      [-1.75, 5.26],
+      [-0.35, 2.1],
+    ],
+    0.06,
+  );
+  add(flap, panel, 0, 0.15, 0);
+  const flapL = add(flap.clone(), panel, 0, 0.15, 0);
+  flapL.scale.z = -1;
+
+  // Canted twin vertical tails (25 deg outboard).
+  const fin = plateGeometry(
+    [
+      [-2.4, 0.0],
+      [-3.95, 2.15],
+      [-4.85, 2.15],
+      [-5.05, 0.0],
+    ],
+    0.12,
+  );
+  const finR = add(fin, skin, 0, 0.34, 1.15);
+  finR.rotation.x = -0.6;
+  const finL = add(fin.clone(), skin, 0, 0.34, -1.15);
+  finL.rotation.x = 0.6;
+
+  // All-moving horizontal stabilators.
+  const stab = planeGeometry(
+    [
+      [-3.55, 0.0],
+      [-4.75, 2.15],
+      [-5.35, 2.15],
+      [-5.5, 0.0],
+    ],
+    0.14,
+  );
+  add(stab, skin, 0, -0.02, 0.5);
+  const stabL = add(stab.clone(), skin, 0, -0.02, -0.5);
+  stabL.scale.z = -1;
+
+  // DSI inlets and their bumps, plus the chin sensor fairing.
+  for (const side of [1, -1]) {
+    const inlet = add(new THREE.BoxGeometry(1.7, 0.5, 0.34), panel, 1.35, -0.3, side * 1.0);
+    inlet.rotation.y = side * 0.06;
+    const bump = add(new THREE.SphereGeometry(1, 12, 10), skin, 0.8, -0.2, side * 0.86);
+    bump.scale.set(0.5, 0.24, 0.22);
+  }
+  const chin = add(new THREE.SphereGeometry(1, 12, 10), dark, 5.4, -0.34, 0);
+  chin.scale.set(0.5, 0.18, 0.26);
+
+  // Exhaust: nozzle ring and a dim afterburner disc, kept low-key so it does
+  // not read as a toy rocket from the tracking shot.
+  // Exhaust: a recessed nozzle with a dim burner disc, kept small so it does
+  // not read as a rocket engine from the tracking shot.
+  const nozzle = add(new THREE.CylinderGeometry(0.38, 0.44, 0.85, 20), panel, -7.6, 0, 0);
+  nozzle.rotation.z = Math.PI / 2;
+  const nozzleLip = add(new THREE.TorusGeometry(0.4, 0.05, 8, 22), dark, -8.02, 0, 0);
+  nozzleLip.rotation.y = Math.PI / 2;
+  const flame = add(new THREE.CircleGeometry(0.16, 18), glow, -8.0, 0, 0);
+  flame.rotation.y = -Math.PI / 2;
+
+  return { vehicle, materials: [skin, panel, dark, glass, glow] as THREE.Material[] };
 }
 
 export function TargetTrack() {

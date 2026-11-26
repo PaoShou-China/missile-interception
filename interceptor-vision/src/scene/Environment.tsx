@@ -85,9 +85,10 @@ const SKY_FRAG = /* glsl */ `
     col = mix(uHaze, col, smoothstep(-0.22, 0.02, d.y));
 
     // Thin atmosphere limb just above the horizon: at 30 km the planet edge
-    // should read blue, not as a white paper cut-out.
+    // should read blue by day. The limb is a daylight effect, so scale it with
+    // the sun rather than lighting the night horizon like a false dawn.
     float limb = exp(-abs(d.y) * 26.0) * smoothstep(-0.02, 0.02, d.y);
-    col += vec3(0.2, 0.45, 0.82) * limb * 0.12 * (1.0 - smoothstep(0.25, 0.55, uSunPower));
+    col += vec3(0.2, 0.45, 0.82) * limb * 0.12 * smoothstep(-0.02, 0.2, uSunPower);
 
     col += uSunColor * pow(sun, 1400.0) * 3.2;
     col += uSunColor * pow(sun, 120.0) * 0.42 * uSunPower;
@@ -131,6 +132,11 @@ const SKY_FRAG = /* glsl */ `
     // Dither the smooth gradients so 8-bit output does not band.
     col += (hash2(gl_FragCoord.xy) - 0.5) / 255.0;
     gl_FragColor = vec4(col, 1.0);
+    // The sky bypasses tone mapping, but it still has to land in the same
+    // output colour space as the ground; without this encode the dome renders
+    // linear values and the horizon sits noticeably darker than the haze the
+    // terrain fades into.
+    #include <colorspace_fragment>
   }
 `;
 
@@ -334,6 +340,32 @@ const EARTH_FRAG = /* glsl */ `
   varying vec3 vWorld;
   varying vec3 vNormal;
 
+  float hash2(vec2 p) {
+    return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
+  }
+
+  float vnoise(vec2 p) {
+    vec2 i = floor(p);
+    vec2 f = fract(p);
+    f = f * f * (3.0 - 2.0 * f);
+    return mix(
+      mix(hash2(i), hash2(i + vec2(1.0, 0.0)), f.x),
+      mix(hash2(i + vec2(0.0, 1.0)), hash2(i + vec2(1.0, 1.0)), f.x),
+      f.y
+    );
+  }
+
+  float fbm2(vec2 p) {
+    float v = 0.0;
+    float a = 0.55;
+    for (int i = 0; i < 3; i++) {
+      v += a * vnoise(p);
+      p *= 2.03;
+      a *= 0.5;
+    }
+    return v;
+  }
+
   void main() {
     vec3 N = normalize(vNormal);
     vec3 L = normalize(uSunDir);
@@ -342,17 +374,33 @@ const EARTH_FRAG = /* glsl */ `
     // lat/long map shows when a 2D terrain tile is wrapped onto the globe.
     vec2 uvFar = vWorld.xz / 520000.0 + uFarOffset;
     vec3 baseFar = texture2D(uTerrain, uvFar).rgb;
+    // The procedural far layer is a low-contrast backdrop, not a map: pull it
+    // towards the haze so the horizon reads as atmosphere instead of a band of
+    // bright land sitting on the sea.
+    baseFar = mix(baseFar, uFog, 0.62);
 
     // Live satellite tiles, recentred on the recorded position. Both layers
     // scroll with the vehicle; the tile layer takes over close to the nadir.
     vec2 uvNear = vWorld.xz / uSpan + uOrigin;
     vec3 baseNear = texture2D(uMap, uvNear).rgb;
     float r = length(vWorld.xz);
-    // Keep the satellite layer inside the tile block (span 626 km => +-313 km).
-    // Sampling past the block edge clamps to the border texels and smears into
-    // flickering streaks, so hand over to the procedural layer well inside it.
-    float blend = (1.0 - smoothstep(80000.0, 235000.0, r)) * uHasMap;
+    // Hand over to the procedural layer inside the tile block: sampling past
+    // the block edge clamps to the border texels and smears into streaks.
+    float blockR = uSpan * 0.5;
+    float blend = (1.0 - smoothstep(blockR * 0.6, blockR * 0.95, r)) * uHasMap;
     vec3 base = mix(baseFar, baseNear, blend);
+
+    // Surface detail below the imagery resolution: a kilometre-scale tonal
+    // drift plus a finer grain. Without this a 30 km-altitude view reads as a
+    // smooth decal. Both octaves fade out with distance so they never alias.
+    float dist = length(vWorld - cameraPosition);
+    float nearFade = 1.0 - smoothstep(35000.0, 150000.0, dist);
+    if (nearFade > 0.002) {
+      float d1 = fbm2(vWorld.xz * 0.00085);
+      float d2 = vnoise(vWorld.xz * 0.0042);
+      float grain = (d1 - 0.5) * 0.26 + (d2 - 0.5) * 0.12;
+      base *= 1.0 + grain * nearFade * blend;
+    }
 
     float dl = max(dot(N, L), 0.0);
     // Sunlight is gone at night, so lift the ambient term instead of letting
@@ -366,7 +414,7 @@ const EARTH_FRAG = /* glsl */ `
 
     // Sun glitter on open water: the imagery is bluish there, so a tight
     // half-vector highlight lifts the sea without turning land into plastic.
-    float water = smoothstep(0.02, 0.16, base.b - base.r);
+    float water = smoothstep(0.045, 0.16, base.b - base.r);
     vec3 H = normalize(L + V);
     float spec = pow(max(dot(N, H), 0.0), 140.0);
     float sparkle = 0.55 + 0.65 * base.g;
@@ -378,10 +426,10 @@ const EARTH_FRAG = /* glsl */ `
     float far = smoothstep(60000.0, 520000.0, length(vWorld - cameraPosition));
     col += uSunColor * pow(toSun, 7.0) * far * 0.14 * sunPower;
 
-    float dist = length(vWorld - cameraPosition);
-    // The planar far layer stretches badly near the horizon; haze it out before
-    // the stretch becomes visible so the horizon reads as a clean gradient.
-    col = mix(col, uFog, smoothstep(180000.0, 600000.0, dist));
+    // Aerial perspective: at altitude the ground fades into the same haze the
+    // sky dome uses, starting well before the geometric horizon so the tile
+    // block boundary is never visible as a tonal step.
+    col = mix(col, uFog, smoothstep(70000.0, 320000.0, dist));
     col += (fract(sin(dot(gl_FragCoord.xy, vec2(12.9898, 78.233))) * 43758.5453) - 0.5) / 255.0;
     gl_FragColor = vec4(col, 1.0);
     #include <tonemapping_fragment>
@@ -395,7 +443,7 @@ function Terrain() {
   const segments = quality === "cinematic" ? 128 : quality === "balanced" ? 96 : 64;
   const terrain = useLoader(THREE.TextureLoader, asset("terrain-day.webp")) as THREE.Texture;
   const preset = SKY_PRESETS[timeOfDay];
-  const map = useMemo(() => new MapTileTexture(2048, 8, 9), []);
+  const map = useMemo(() => new MapTileTexture(2048, 8, 10), []);
   const mat = useRef<THREE.ShaderMaterial>(null);
   const ground = useRef<THREE.Mesh>(null);
   const acc = useRef(0);

@@ -73,8 +73,9 @@ export class MapTileTexture {
     this.texture.generateMipmaps = true;
     this.texture.minFilter = THREE.LinearMipmapLinearFilter;
     this.texture.magFilter = THREE.LinearFilter;
-    // Grazing views of a 626 km tile block need anisotropic filtering, otherwise
-    // the ground smears into horizontal streaks that shimmer while scrolling.
+    // Grazing views of a ~313 km tile block need anisotropic filtering,
+    // otherwise the ground smears into horizontal streaks that shimmer while
+    // scrolling.
     this.texture.anisotropy = 8;
   }
 

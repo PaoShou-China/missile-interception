@@ -5,6 +5,7 @@ import { sampleAt, formatMissionTime, seekDataTime, type FlightEvent } from "../
 const EVENT_KEY: Record<string, StringKey> = {
   launch: "eventLaunch",
   phase: "eventPhase",
+  stage: "eventSeparation",
   peak: "eventPeak",
   lock: "eventLock",
   handover: "eventHandover",

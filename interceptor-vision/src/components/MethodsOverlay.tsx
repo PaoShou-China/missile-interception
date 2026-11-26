@@ -181,8 +181,13 @@ export function MethodsOverlay() {
               Airframe attitude is the recorded BODY→ECEF quaternion re-expressed in that local frame. The BODY axes
               follow the source schema (x forward, y right, z down) and are mapped onto the y-up glTF model with a
               fixed −90° roll offset; without it the strakes render vertical. Both the interceptor model (Blender,
-              referenced to public SM-3 Block IB/IIA views) and the 7 m target vehicle (procedural) are illustrative
-              shapes sized to the telemetry, not accurate hardware representations.
+              referenced to public SM-3 Block IB/IIA views) and the 15.7 m F-35-shaped target (procedural) are
+              illustrative shapes sized to the telemetry, not accurate hardware representations.
+            </li>
+            <li>
+              The first-stage separation at T+13.0 s is a visual milestone derived from the payload mass curve: the
+              booster burn ends there, but the source records no discrete stage state, and the released booster uses
+              a simplified relative-motion model (no six-degree-of-freedom separation dynamics).
             </li>
             <li>
               The source samples the attitude every 0.45 s. In the fast-roll segments the roll advances more than
@@ -193,8 +198,8 @@ export function MethodsOverlay() {
             </li>
             <li>
               Satellite ground imagery is streamed as Web-Mercator tiles (Esri World Imagery by default, Google as a
-              fallback) at ~305 m/px for the 626 km tile block; anything beyond ~235 km is a procedural stand-in.
-              Imagery © Esri / Google.
+              fallback) at ~153 m/px for the 313 km tile block; anything beyond ~150 km blends into a procedural
+              backdrop with aerial perspective. Imagery © Esri / Google.
             </li>
             <li>
               Dispersion values below are configuration inputs from the source project. This payload is the nominal

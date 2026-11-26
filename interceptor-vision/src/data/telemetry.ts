@@ -93,6 +93,32 @@ export interface Telemetry {
 }
 
 let cache: Telemetry | null = null;
+let boosterSepT: number | null = null;
+
+/**
+ * First-stage burnout time, derived from the payload mass curve: the booster
+ * burns hard for the first seconds, then the mass slope collapses to the
+ * sustainer's. The payload has no discrete stage event, so this milestone is a
+ * derived visual cue rather than a recorded state transition.
+ */
+export function boosterSeparationTime(): number | null {
+  const tel = cache;
+  if (!tel || tel.samples.length < 3) return null;
+  if (boosterSepT !== null) return boosterSepT;
+  const s = tel.samples;
+  for (let i = 1; i < s.length - 1; i++) {
+    const dtPrev = s[i].t - s[i - 1].t;
+    const dtNext = s[i + 1].t - s[i].t;
+    if (dtPrev <= 0 || dtNext <= 0 || s[i].t < 2) continue;
+    const burnPrev = (s[i - 1].massKg - s[i].massKg) / dtPrev;
+    const burnNext = (s[i].massKg - s[i + 1].massKg) / dtNext;
+    if (burnPrev > 20 && burnNext < 5) {
+      boosterSepT = s[i].t;
+      break;
+    }
+  }
+  return boosterSepT;
+}
 
 /** Linear / slerp sampler over the validated 1504-sample telemetry payload. */
 export function sampleAt(time: number): Sample | null {
@@ -186,6 +212,8 @@ export async function loadTelemetry(): Promise<Telemetry> {
     const raw = await res.json();
     const missile = raw.entities.find((e: { kind: string }) => e.kind === "missile");
     const target = raw.entities.find((e: { kind: string }) => e.kind === "target");
+    cache = null;
+    boosterSepT = null;
     const tel: Telemetry = {
       title: raw.title,
       subtitle: raw.subtitle,
@@ -201,6 +229,22 @@ export async function loadTelemetry(): Promise<Telemetry> {
       manifest: raw,
     };
     cache = tel;
+    // Surface the derived burnout as a first-stage separation milestone.
+    const sepT = boosterSeparationTime();
+    if (sepT !== null && !tel.events.some((e) => e.kind === "stage")) {
+      tel.events = [
+        ...tel.events,
+        {
+          id: "booster-sep",
+          t: sepT,
+          label: "BOOSTER SEP",
+          description:
+            "First-stage burnout and separation. Derived from the payload mass curve; the source does not record a discrete stage event.",
+          kind: "stage",
+          severity: "major",
+        },
+      ].sort((a, b) => a.t - b.t);
+    }
     dataClock.t = tel.start;
     dataClock.playing = false;
     dataClock.rate = 20;

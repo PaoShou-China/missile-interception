@@ -1,12 +1,20 @@
-import { Suspense, useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, useEffect, useMemo, useRef, useState, type RefObject } from "react";
 import { useFrame } from "@react-three/fiber";
 import { Detailed, useGLTF } from "@react-three/drei";
 import * as THREE from "three";
 import { LIVERY, MISSILE_LODS } from "./assets";
-import { sampleAt } from "../data/telemetry";
+import { boosterSeparationTime, sampleAt } from "../data/telemetry";
 import { attitudeToScene, levelFromNose } from "./attitude";
 import { dataClock } from "../data/dataClock";
 import { useApp } from "../state";
+
+/**
+ * Body-axis cut used to drop the booster after burnout. The GLB is a single
+ * merged mesh, so the first stage cannot simply be hidden; every airframe
+ * material discards fragments aft of this station instead. -999 disables it.
+ */
+const BOOSTER_CUT_X = -2.285;
+const bodyCut = { value: -999 };
 
 function tuneMaterials(root: THREE.Object3D, opts: { accent: string; paint: string; night: boolean }) {
   root.traverse((o) => {
@@ -80,6 +88,21 @@ function tuneMaterials(root: THREE.Object3D, opts: { accent: string; paint: stri
         default:
           break;
       }
+      // Booster jettison: clip the merged mesh along the body axis once the
+      // first stage has burned out.
+      m.onBeforeCompile = (shader) => {
+        shader.uniforms.uCutX = bodyCut;
+        shader.vertexShader = shader.vertexShader
+          .replace("#include <common>", "#include <common>\nvarying float vBodyX;")
+          .replace("#include <begin_vertex>", "#include <begin_vertex>\nvBodyX = position.x;");
+        shader.fragmentShader = shader.fragmentShader
+          .replace(
+            "#include <common>",
+            "#include <common>\nvarying float vBodyX;\nuniform float uCutX;",
+          )
+          .replace("void main() {", "void main() {\n  if (vBodyX < uCutX) discard;");
+      };
+      m.customProgramCacheKey = () => "iv-body-cut";
       m.needsUpdate = true;
     }
   });
@@ -162,7 +185,7 @@ function Plume() {
   ];
 
   return (
-    <group ref={group} position={[-3.34, 0, 0]}>
+    <group ref={group}>
       {layers.map((l) => (
         <group key={l.len} position={[-l.len / 2, 0, 0]}>
           {[0, Math.PI / 2].map((rot) => (
@@ -221,14 +244,175 @@ function LodsPreloader({ onReady }: { onReady: () => void }) {
   return null;
 }
 
+const BOOSTER_CENTER = -2.75;
+
+/**
+ * Procedural first stage (MK72-style): olive booster barrel with clamp bands,
+ * separation ring and a nozzle bell. Geometry is laid out around its own centre
+ * so it tumbles about itself once released.
+ */
+function BoosterStage({
+  stageRef,
+  flameRef,
+}: {
+  stageRef: RefObject<THREE.Group | null>;
+  flameRef: RefObject<THREE.Mesh | null>;
+}) {
+  const olive = useMemo(
+    () =>
+      new THREE.MeshStandardMaterial({
+        color: 0x8a8766,
+        metalness: 0.3,
+        roughness: 0.52,
+        envMapIntensity: 1.1,
+      }),
+    [],
+  );
+  const ring = useMemo(
+    () =>
+      new THREE.MeshStandardMaterial({
+        color: 0x8f959c,
+        metalness: 0.75,
+        roughness: 0.3,
+        envMapIntensity: 1.4,
+      }),
+    [],
+  );
+  const band = useMemo(
+    () =>
+      new THREE.MeshStandardMaterial({
+        color: 0x3f444a,
+        metalness: 0.35,
+        roughness: 0.55,
+      }),
+    [],
+  );
+  const bell = useMemo(
+    () =>
+      new THREE.MeshStandardMaterial({
+        color: 0x4a4f55,
+        metalness: 0.7,
+        roughness: 0.35,
+        envMapIntensity: 1.3,
+      }),
+    [],
+  );
+  const flame = useMemo(
+    () =>
+      new THREE.MeshStandardMaterial({
+        color: 0xffb878,
+        emissive: new THREE.Color("#ff8a3c"),
+        emissiveIntensity: 7,
+        side: THREE.DoubleSide,
+      }),
+    [],
+  );
+
+  useEffect(
+    () => () => {
+      olive.dispose();
+      ring.dispose();
+      band.dispose();
+      bell.dispose();
+      flame.dispose();
+    },
+    [olive, ring, band, bell, flame],
+  );
+
+  // Cylinders are authored along +y; rotating -90 deg about z puts +y along the
+  // nose (+x). radiusTop is therefore the forward radius.
+  const shell = (front: number, rear: number, len: number, x: number) => {
+    const geo = new THREE.CylinderGeometry(front, rear, len, 32);
+    geo.rotateZ(-Math.PI / 2);
+    geo.translate(x, 0, 0);
+    return geo;
+  };
+
+  const parts = useMemo(
+    () => ({
+      adapter: shell(0.17, 0.205, 0.12, 0.43),
+      barrel: shell(0.205, 0.205, 0.7, 0.02),
+      tail: shell(0.205, 0.17, 0.16, -0.41),
+      nozzle: shell(0.176, 0.11, 0.18, -0.56),
+      bandA: new THREE.TorusGeometry(0.207, 0.008, 8, 32),
+      bandB: new THREE.TorusGeometry(0.207, 0.008, 8, 32),
+      sepRing: new THREE.TorusGeometry(0.198, 0.012, 8, 32),
+      flame: new THREE.CircleGeometry(0.085, 20),
+    }),
+    [],
+  );
+
+  useEffect(
+    () => () => {
+      Object.values(parts).forEach((g) => g.dispose());
+    },
+    [parts],
+  );
+
+  return (
+    <group ref={stageRef}>
+      <mesh geometry={parts.adapter} material={olive} />
+      <mesh geometry={parts.barrel} material={olive} />
+      <mesh geometry={parts.tail} material={olive} />
+      <mesh geometry={parts.nozzle} material={bell} />
+      <mesh geometry={parts.bandA} material={band} position={[0.2, 0, 0]} rotation={[0, Math.PI / 2, 0]} />
+      <mesh geometry={parts.bandB} material={band} position={[-0.17, 0, 0]} rotation={[0, Math.PI / 2, 0]} />
+      <mesh geometry={parts.sepRing} material={ring} position={[0.45, 0, 0]} rotation={[0, Math.PI / 2, 0]} />
+      <mesh ref={flameRef} geometry={parts.flame} material={flame} position={[-0.648, 0, 0]} rotation={[0, -Math.PI / 2, 0]} />
+    </group>
+  );
+}
+
+/** Aft hardware of the upper stage, exposed once the booster falls away. */
+function UpperStageAft({ aftRef }: { aftRef: RefObject<THREE.Group | null> }) {
+  const cap = useMemo(() => new THREE.CircleGeometry(0.172, 28), []);
+  const bell = useMemo(() => {
+    const geo = new THREE.CylinderGeometry(0.17, 0.125, 0.16, 28);
+    geo.rotateZ(-Math.PI / 2);
+    return geo;
+  }, []);
+  const metal = useMemo(
+    () =>
+      new THREE.MeshStandardMaterial({
+        color: 0x5a6067,
+        metalness: 0.7,
+        roughness: 0.36,
+        side: THREE.DoubleSide,
+      }),
+    [],
+  );
+  useEffect(
+    () => () => {
+      cap.dispose();
+      bell.dispose();
+      metal.dispose();
+    },
+    [cap, bell, metal],
+  );
+  return (
+    <group ref={aftRef} visible={false}>
+      <mesh geometry={cap} material={metal} position={[-2.286, 0, 0]} rotation={[0, -Math.PI / 2, 0]} />
+      <mesh geometry={bell} material={metal} position={[-2.37, 0, 0]} />
+    </group>
+  );
+}
+
 export function Missile() {
   const group = useRef<THREE.Group>(null);
+  const plumeRef = useRef<THREE.Group>(null);
+  const boosterRef = useRef<THREE.Group>(null);
+  const boosterFlameRef = useRef<THREE.Mesh>(null);
+  const aftRef = useRef<THREE.Group>(null);
+  const mixRef = useRef(0);
   const ready = useApp((s) => s.ready);
   const quality = useApp((s) => s.quality);
   const [tiered, setTiered] = useState(false);
   const [warm, setWarm] = useState(false);
   const targetQuat = useMemo(() => new THREE.Quaternion(), []);
   const nose = useMemo(() => new THREE.Vector3(), []);
+  const tmpV = useMemo(() => new THREE.Vector3(), []);
+  const tmpQ = useMemo(() => new THREE.Quaternion(), []);
+  const tmpE = useMemo(() => new THREE.Euler(), []);
 
   // Let the near LOD and the HDRI finish first, then upgrade to the full LOD
   // chain. The performance tier keeps the single near LOD on purpose.
@@ -255,24 +439,72 @@ export function Missile() {
     group.current.quaternion.slerp(targetQuat, k);
   });
 
+  // First-stage separation. The payload has no discrete stage state, so burnout
+  // is derived from the mass curve; the released booster is a visual cue that
+  // tumbles away from the sustainer.
+  useFrame((_, delta) => {
+    if (!group.current) return;
+    const sepT = boosterSeparationTime();
+    const separated = sepT !== null && dataClock.t >= sepT;
+    const goal = separated ? 1 : 0;
+    mixRef.current += (goal - mixRef.current) * (1 - Math.exp(-14 * Math.min(delta, 0.1)));
+    const mix = mixRef.current;
+    bodyCut.value = mix > 0.55 ? BOOSTER_CUT_X : -999;
+    if (aftRef.current) aftRef.current.visible = mix > 0.55;
+    if (plumeRef.current) {
+      // The sustainer nozzle sits well forward of the booster bell.
+      plumeRef.current.position.x = THREE.MathUtils.lerp(-3.34, -2.37, mix);
+      plumeRef.current.scale.setScalar(THREE.MathUtils.lerp(1, 0.64, mix));
+    }
+    const booster = boosterRef.current;
+    if (!booster) return;
+    const q = group.current.quaternion;
+    const flameMat = boosterFlameRef.current?.material as THREE.MeshStandardMaterial | undefined;
+    if (flameMat) flameMat.emissiveIntensity = separated ? 0 : 7;
+    if (!separated) {
+      booster.visible = true;
+      tmpV.set(BOOSTER_CENTER, 0, 0).applyQuaternion(q);
+      booster.position.copy(tmpV);
+      booster.quaternion.copy(q);
+      return;
+    }
+    const tau = Math.max(0, dataClock.t - (sepT ?? 0));
+    booster.visible = tau < 9;
+    if (!booster.visible) return;
+    // Relative motion: the spent stage decelerates away and drops slightly.
+    const back = 9 * tau + 1.1 * tau * tau;
+    const down = 2.2 * tau + 2.6 * tau * tau;
+    tmpV.set(BOOSTER_CENTER - back, -down, 0).applyQuaternion(q);
+    booster.position.copy(tmpV);
+    tmpE.set(0.45 * tau, 0.1 * tau, 0.75 * tau);
+    tmpQ.setFromEuler(tmpE);
+    booster.quaternion.copy(q).multiply(tmpQ);
+  });
+
   return (
-    <group ref={group}>
-      {tiered ? (
-        <Detailed distances={[0, 26, 160]}>
+    <>
+      <group ref={group}>
+        {tiered ? (
+          <Detailed distances={[0, 26, 160]}>
+            <Model url={MISSILE_LODS[0]} />
+            <Model url={MISSILE_LODS[1]} />
+            <Model url={MISSILE_LODS[2]} />
+          </Detailed>
+        ) : (
           <Model url={MISSILE_LODS[0]} />
-          <Model url={MISSILE_LODS[1]} />
-          <Model url={MISSILE_LODS[2]} />
-        </Detailed>
-      ) : (
-        <Model url={MISSILE_LODS[0]} />
-      )}
-      {warm && !tiered && (
-        <Suspense fallback={null}>
-          <LodsPreloader onReady={() => setTiered(true)} />
-        </Suspense>
-      )}
-      <Plume />
-    </group>
+        )}
+        {warm && !tiered && (
+          <Suspense fallback={null}>
+            <LodsPreloader onReady={() => setTiered(true)} />
+          </Suspense>
+        )}
+        <UpperStageAft aftRef={aftRef} />
+        <group ref={plumeRef} position={[-3.34, 0, 0]}>
+          <Plume />
+        </group>
+      </group>
+      <BoosterStage stageRef={boosterRef} flameRef={boosterFlameRef} />
+    </>
   );
 }
 

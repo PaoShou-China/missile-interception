@@ -315,7 +315,8 @@ button, select, input { font-family: inherit; color: inherit; }
 .sim-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .segmented--sm { padding: 2px; gap: 2px; }
 .segmented--sm button { padding: 4px 9px; font-size: 11px; letter-spacing: 0.04em; }
-.sim-grid { display: grid; gap: 9px; }
+.sim-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 12px; }
+.sim-row--wide { grid-column: 1 / -1; }
 .sim-row {
   display: grid;
   grid-template-columns: 1fr auto;

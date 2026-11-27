@@ -210,7 +210,7 @@ export function solveTerminal(base: Telemetry, p: SimParams): Telemetry {
   let weaveSign = 1;
   let lastWeave = t0;
 
-  let nextOut = t0;
+  let nextOut = t0 + SLOT;
 
   while (t < tEnd) {
     rRel.copy(targetPos).sub(pos);
@@ -415,6 +415,9 @@ export function solveTerminal(base: Telemetry, p: SimParams): Telemetry {
 
   const maxAlt = Math.max(...solvedSamples.map((s) => s.altM), base.metrics.maxAltitudeM ?? 0);
   const maxSpeed = Math.max(...solvedSamples.map((s) => s.speedMS), base.metrics.maxSpeedMS ?? 0);
+  const merged = [...prefix, ...solvedSamples];
+  const maxMach = Math.max(...merged.map((s) => s.mach));
+  const maxQ = Math.max(...merged.map((s) => s.qPa));
   const last = solvedSamples[solvedSamples.length - 1];
   const first = base.samples[0];
   const downrangeKm =
@@ -445,6 +448,8 @@ export function solveTerminal(base: Telemetry, p: SimParams): Telemetry {
       interceptTimeS: +tMin.toFixed(2),
       maxAltitudeM: +maxAlt.toFixed(1),
       maxSpeedMS: +maxSpeed.toFixed(1),
+      maxMach: +maxMach.toFixed(4),
+      maxDynamicPressurePa: +maxQ.toFixed(1),
       maxLoadG: +maxLoad.toFixed(2),
       downrangeKM: +downrangeKm.toFixed(1),
       flightDurationS: +solveEnd.toFixed(2),

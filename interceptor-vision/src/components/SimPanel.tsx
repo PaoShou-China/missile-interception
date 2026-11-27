@@ -129,7 +129,7 @@ export function SimPanel() {
               unit="°"
               onChange={(headingDeg) => setParams({ headingDeg })}
             />
-            <div className="sim-row">
+            <div className="sim-row sim-row--wide">
               <span>{t("simManeuver")}</span>
               <div className="sim-chips">
                 {(["none", "turn", "weave"] as const).map((m) => (
@@ -167,11 +167,8 @@ export function SimPanel() {
               onChange={(navConst) => setParams({ navConst })}
             />
           </div>
-          <p className="sim-note">
-            {busy ? t("simSolving") : `${t("simMs")} ${ms} ms`}
-          </p>
-          <p className="sim-note">
-            {t("simAero")} ·{" "}
+          <p className="sim-note sim-row--wide">
+            {busy ? t("simSolving") : `${t("simMs")} ${ms} ms`} · {t("simAero")} ·{" "}
             <a
               className="sim-link"
               href={`${import.meta.env.BASE_URL}data/aero-interceptor.json`}

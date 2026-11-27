@@ -310,6 +310,42 @@ button, select, input { font-family: inherit; color: inherit; }
 }
 
 .chip-row { display: flex; gap: 6px; flex-wrap: wrap; }
+
+/* Terminal re-solve controls */
+.sim-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.segmented--sm { padding: 2px; gap: 2px; }
+.segmented--sm button { padding: 4px 9px; font-size: 11px; letter-spacing: 0.04em; }
+.sim-grid { display: grid; gap: 9px; }
+.sim-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 3px 8px;
+  font-size: 11.5px;
+  color: var(--muted);
+}
+.sim-row output { font-family: var(--mono); font-size: 11.5px; color: var(--text); }
+.sim-row output i { font-style: normal; color: var(--muted-2); }
+.sim-row input[type="range"] {
+  grid-column: 1 / -1;
+  width: 100%;
+  height: 3px;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+.sim-chips { display: flex; gap: 4px; grid-column: 1 / -1; }
+.sim-chip {
+  flex: 1;
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--muted);
+  font-size: 11px;
+  padding: 4px 6px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+.sim-chip.is-active { color: #031018; background: linear-gradient(180deg, #55c9e4, #2fa9c6); border-color: transparent; font-weight: 600; }
+.sim-note { margin: 2px 0 0; font-family: var(--mono); font-size: 11px; color: var(--muted-2); }
 .chip {
   flex: 1;
   min-width: 62px;

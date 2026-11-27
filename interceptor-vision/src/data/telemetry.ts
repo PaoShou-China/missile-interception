@@ -192,6 +192,17 @@ export function getTelemetry(): Telemetry | null {
   return cache;
 }
 
+/**
+ * Swap the active telemetry source (recorded payload <-> solved engagement).
+ * `sampleAt` and friends read `cache`, so both the module cache and the store
+ * have to be replaced together.
+ */
+export function replaceTelemetry(tel: Telemetry | null): void {
+  cache = tel;
+  boosterSepT = null;
+  useApp.getState().setTelemetry(tel);
+}
+
 export function phaseAt(time: number): PhaseSegment | null {
   const tel = cache;
   if (!tel) return null;

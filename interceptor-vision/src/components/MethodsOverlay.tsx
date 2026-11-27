@@ -192,6 +192,13 @@ export function MethodsOverlay() {
               a simplified relative-motion model (no six-degree-of-freedom separation dynamics).
             </li>
             <li>
+              “Trajectory solve” re-integrates the terminal leg live from the recorded hand-over state. It is a
+              representative model — 6-DoF body attitude with a finite turn rate and bank, 3-DoF point-mass
+              translation, proportional navigation, quadratic drag and spherical gravity with generic coefficients —
+              not a validated 6-DoF aero/control simulation. Solved numbers are labelled as such and never replace
+              the recorded payload, which can be restored at any time.
+            </li>
+            <li>
               The source samples the attitude every 0.45 s. In the fast-roll segments the roll advances more than
               30° between records (up to ~180°), so it cannot be reconstructed. The viewer keeps the recorded nose
               direction and draws the airframe wings-level in those windows; the roll is replayed verbatim where the

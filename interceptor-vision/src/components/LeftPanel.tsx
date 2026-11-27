@@ -1,6 +1,7 @@
 import { useApp, type CameraMode, type TimeOfDay } from "../state";
 import { useT } from "../i18n";
 import { MissionPanel } from "./MissionPanel";
+import { SimPanel } from "./SimPanel";
 
 const TIMES: { key: TimeOfDay; label: "day" | "dusk" | "night" }[] = [
   { key: "day", label: "day" },
@@ -41,6 +42,8 @@ export function LeftPanel() {
         </div>
 
         <MissionPanel />
+
+        <SimPanel />
 
         <>
         <section className="group">

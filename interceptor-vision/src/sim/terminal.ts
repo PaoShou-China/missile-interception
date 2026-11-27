@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import type { PhaseSegment, Sample, Telemetry } from "../data/telemetry";
+import { aeroAt, AERO_REF } from "./aero";
 
 /**
  * Terminal-phase engagement solver.
@@ -41,8 +42,7 @@ const R_EARTH = 6_371_000;
 const MU = 3.986_004_418e14;
 const RHO0 = 1.225;
 const H_SCALE = 8_500;
-const MISSILE_S = 0.0908; // 0.34 m body
-const MISSILE_CD = 0.28;
+const S_REF = AERO_REF.referenceAreaM2;
 const SUSTAIN_N = 4_000;
 const SLOT = 0.05;
 
@@ -220,21 +220,33 @@ export function solveTerminal(base: Telemetry, p: SimParams): Telemetry {
     uLos.copy(rRel).divideScalar(range);
     omega.crossVectors(rRel, vRel).divideScalar(range * range);
 
-    // Proportional navigation, capped by the load limit.
+    // Proportional navigation. The structural/divert limit caps the command;
+    // the aero table supplies drag at the implied angle of attack (an exo-
+    // atmospheric kill vehicle manoeuvres with divert thrusters, not fins, so
+    // aerodynamic lift is not the binding constraint here).
     accel.crossVectors(omega, uLos).multiplyScalar(p.navConst * closing);
-    const aeroLimit = 42 * 9.81;
-    const cap = Math.min(p.maxLoadG * 9.81, aeroLimit);
+    const altM = pos.length() - R_EARTH;
+    const atm = atmosphere(altM);
+    const speed = vel.length();
+    const qbar = 0.5 * atm.rho * speed * speed;
+    const mach = speed / atm.speedOfSound;
+    const cap = p.maxLoadG * 9.81;
     if (accel.length() > cap) accel.setLength(cap);
     const loadG = accel.length() / 9.81;
+    // Angle of attack needed for the command, then drag from the table.
+    const cnSlope = Math.max(1.4, aeroAt(mach, 5).cn / Math.sin((5 * Math.PI) / 180));
+    const alphaDeg =
+      qbar > 1
+        ? THREE.MathUtils.clamp(((accel.length() * mass) / (qbar * S_REF * cnSlope)) * (180 / Math.PI), 0, 18)
+        : 0;
+    const ca = aeroAt(mach, alphaDeg).ca;
 
     // Spherical gravity, drag and the sustainer.
     grav.copy(pos).normalize().multiplyScalar(-MU / pos.lengthSq());
-    const { rho } = atmosphere(pos.length() - R_EARTH);
-    const speed = vel.length();
     drag
       .copy(vel)
       .normalize()
-      .multiplyScalar((-0.5 * rho * speed * speed * MISSILE_CD * MISSILE_S) / Math.max(1, mass));
+      .multiplyScalar((-qbar * ca * S_REF) / Math.max(1, mass));
     const thrust = SUSTAIN_N / Math.max(1, mass);
     tmp.copy(nose).multiplyScalar(thrust);
 

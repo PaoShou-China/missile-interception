@@ -346,6 +346,7 @@ button, select, input { font-family: inherit; color: inherit; }
 }
 .sim-chip.is-active { color: #031018; background: linear-gradient(180deg, #55c9e4, #2fa9c6); border-color: transparent; font-weight: 600; }
 .sim-note { margin: 2px 0 0; font-family: var(--mono); font-size: 11px; color: var(--muted-2); }
+.sim-link { color: var(--accent-soft); text-decoration: none; border-bottom: 1px dotted currentColor; }
 .chip {
   flex: 1;
   min-width: 62px;

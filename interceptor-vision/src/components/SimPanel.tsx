@@ -170,6 +170,16 @@ export function SimPanel() {
           <p className="sim-note">
             {busy ? t("simSolving") : `${t("simMs")} ${ms} ms`}
           </p>
+          <p className="sim-note">
+            {t("simAero")} ·{" "}
+            <a
+              className="sim-link"
+              href={`${import.meta.env.BASE_URL}data/aero-interceptor.json`}
+              download
+            >
+              {t("download")} JSON
+            </a>
+          </p>
         </>
       )}
     </section>

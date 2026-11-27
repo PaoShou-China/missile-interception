@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import type { PhaseSegment, Sample, Telemetry } from "../data/telemetry";
 import { aeroAt, AERO_REF } from "./aero";
+import { integrateSixDof } from "./sixdof";
 
 /**
  * Terminal-phase engagement solver.
@@ -21,6 +22,8 @@ import { aeroAt, AERO_REF } from "./aero";
  * as recorded telemetry.
  */
 export interface SimParams {
+  /** Integration model: kinematic point mass or the rigid-body closed loop. */
+  model: "point" | "sixdof";
   /** Slant range to the target at the hand-over instant, km. */
   rangeKm: number;
   /** Bearing of the target from the missile, deg from north. */
@@ -104,6 +107,7 @@ function nearestSample(samples: Sample[], t: number) {
 /** Defaults derived from the recorded hand-over state. */
 export function defaultSimParams(base: Telemetry | null): SimParams {
   const fallback: SimParams = {
+    model: "sixdof",
     rangeKm: 25,
     bearingDeg: 0,
     altKm: 14,
@@ -151,6 +155,11 @@ interface SolverSample {
   fovDeg: number;
   range: number;
   locked: boolean;
+  fin?: { up: number; down: number; left: number; right: number };
+  rates?: { p: number; q: number; r: number };
+  alphaDeg?: number;
+  betaDeg?: number;
+  divertG?: number;
 }
 
 /** Re-solves the terminal leg and returns a merged telemetry object. */
@@ -194,6 +203,50 @@ export function solveTerminal(base: Telemetry, p: SimParams): Telemetry {
   let tMin = t0;
   let maxLoad = 0;
 
+  if (p.model === "sixdof") {
+    const att0 = new THREE.Quaternion(
+      m0.attitude.x,
+      m0.attitude.y,
+      m0.attitude.z,
+      m0.attitude.w,
+    ).normalize();
+    const r = integrateSixDof({
+      t0,
+      pos: pos.clone(),
+      vel: vel.clone(),
+      att: att0,
+      mass: m0.massKg,
+      targetPos: targetPos.clone(),
+      targetVel: targetVel.clone(),
+      navConst: p.navConst,
+      maxLoadG: p.maxLoadG,
+      maneuver: p.maneuver,
+      maneuverG: p.maneuverG,
+      targetSpeed: p.speedMS,
+    });
+    for (const s of r.samples) {
+      out.push({
+        t: s.t,
+        pos: s.pos,
+        vel: s.vel,
+        att: s.att,
+        mass: s.mass,
+        loadG: s.loadG,
+        fovDeg: s.fovDeg,
+        range: s.range,
+        locked: s.locked,
+        fin: s.fin,
+        rates: s.rates,
+        alphaDeg: s.alphaDeg,
+        betaDeg: s.betaDeg,
+        divertG: s.divertG,
+      });
+    }
+    targetOut.push(...r.targets);
+    minRange = r.minRange;
+    tMin = r.tMin;
+    maxLoad = r.maxLoad;
+  } else {
   const rRel = new THREE.Vector3();
   const vRel = new THREE.Vector3();
   const omega = new THREE.Vector3();
@@ -321,6 +374,7 @@ export function solveTerminal(base: Telemetry, p: SimParams): Telemetry {
     if (pos.length() - R_EARTH < 0) break;
     t += dt;
   }
+  }
 
   if (!out.length) return base;
 
@@ -352,13 +406,18 @@ export function solveTerminal(base: Telemetry, p: SimParams): Telemetry {
       phase: "terminal",
       seekerLock: s.locked,
       handover: true,
-      finDeflectionsRad: {
-        up: Math.sin(s.loadG * 0.4) * 0.09,
-        down: Math.sin(s.loadG * 0.4) * 0.09,
-        left: Math.cos(s.loadG * 0.3) * 0.07,
-        right: Math.cos(s.loadG * 0.3) * 0.07,
-      },
-      bodyRatesRadS: { p: 0.05, q: 0.02, r: -0.03 },
+      finDeflectionsRad:
+        s.fin ??
+        {
+          up: Math.sin(s.loadG * 0.4) * 0.09,
+          down: Math.sin(s.loadG * 0.4) * 0.09,
+          left: Math.cos(s.loadG * 0.3) * 0.07,
+          right: Math.cos(s.loadG * 0.3) * 0.07,
+        },
+      bodyRatesRadS: s.rates ?? { p: 0.05, q: 0.02, r: -0.03 },
+      alphaDeg: s.alphaDeg,
+      betaDeg: s.betaDeg,
+      divertG: s.divertG,
       attitudeAliased: false,
     };
   });

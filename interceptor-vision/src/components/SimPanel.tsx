@@ -92,6 +92,21 @@ export function SimPanel() {
       {active && (
         <>
           <div className="sim-grid">
+            <div className="sim-row sim-row--wide">
+              <span>{t("simModel")}</span>
+              <div className="sim-chips">
+                {(["sixdof", "point"] as const).map((m) => (
+                  <button
+                    key={m}
+                    type="button"
+                    className={`sim-chip ${params.model === m ? "is-active" : ""}`}
+                    onClick={() => setParams({ model: m })}
+                  >
+                    {t(m === "sixdof" ? "simModel6" : "simModelPoint")}
+                  </button>
+                ))}
+              </div>
+            </div>
             <Row
               label={t("simRange")}
               value={params.rangeKm}

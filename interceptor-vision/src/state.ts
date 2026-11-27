@@ -187,6 +187,7 @@ export const useApp = create<AppState>((set) => ({
   setChartsOpen: (chartsOpen) => set({ chartsOpen }),
 
   simParams: {
+    model: "sixdof",
     rangeKm: 25,
     bearingDeg: 0,
     altKm: 14,

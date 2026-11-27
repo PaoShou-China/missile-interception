@@ -52,6 +52,10 @@ export interface Sample {
   handover: boolean;
   finDeflectionsRad?: FinDeflections;
   bodyRatesRadS?: BodyRates;
+  /** Rigid-body (6-DoF) solve only. */
+  alphaDeg?: number;
+  betaDeg?: number;
+  divertG?: number;
   /**
    * True when the roll between the neighbouring records is larger than the
    * 0.45 s cadence can resolve, i.e. the recorded roll channel is aliased.
@@ -185,6 +189,9 @@ export function sampleAt(time: number): Sample | null {
           r: lerp(a.bodyRatesRadS.r, b.bodyRatesRadS.r),
         }
       : a.bodyRatesRadS,
+    alphaDeg: a.alphaDeg !== undefined && b.alphaDeg !== undefined ? lerp(a.alphaDeg, b.alphaDeg) : a.alphaDeg,
+    betaDeg: a.betaDeg !== undefined && b.betaDeg !== undefined ? lerp(a.betaDeg, b.betaDeg) : a.betaDeg,
+    divertG: a.divertG !== undefined && b.divertG !== undefined ? lerp(a.divertG, b.divertG) : a.divertG,
   };
 }
 

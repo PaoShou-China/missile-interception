@@ -5,12 +5,13 @@ Two automated harnesses cover the generated aero data and the live solver. Both 
 ```bash
 node scripts/build_aero.mjs       # regenerate the tables
 node scripts/validate_aero.mjs    # 28 structural / physical checks
+node scripts/validate_6dof.mjs    # 11 rigid-body / convergence checks
 npm run build
 npm run preview -- --port 4183 &
 node scripts/validate_app.mjs     # 24 end-to-end checks + parameter sweep
 ```
 
-Latest run: aero **28/28**, app **24/24**, 0 console errors.
+Latest run: aero **28/28**, 6-DoF **11/11**, app **24/24**, 0 console errors.
 
 ## 1. Aero dataset (`aero-interceptor.json`)
 
@@ -38,18 +39,38 @@ Representative values:
 
 The dataset is an engineering estimate from public geometry, not validated wind-tunnel or flight data. Method and disclaimer are embedded in the JSON.
 
-## 2. Terminal solver and integration
+## 2. Terminal solver — 6-DoF rigid body
 
-Structural checks on the solved telemetry: samples strictly increasing (merge boundary fixed), all fields finite, `end` equals the last sample, intercept event present, events and phases sorted, target track covers the solved window, solved metrics finite and consistent with the samples (max Mach and max dynamic pressure are recomputed from the merged stream rather than inherited from the payload).
+The default model integrates a rigid body (RK4, 1 ms) from the recorded seeker-lock state: quaternion kinematics, Euler's equations, aero force/moment from the engineering tables, first-order fin servos (15° / 200 °·s⁻¹ / 10 Hz), a skid-to-turn autopilot, and DACS divert thrusters. A simplified 3-DoF point-mass model remains selectable in the panel.
 
-Behaviour checks:
+### 2.1 Rigid-body checks (`scripts/validate_6dof.mjs`)
+
+Run against the compiled `src/sim/sixdof.ts` (the shipped module, not a copy) on the recorded hand-over geometry:
 
 | Check | Result |
 | --- | --- |
-| Solve time | 0–4 ms per solve (≈800 steps at dt=0.01 s) |
-| Range → intercept time | 5 km → 666.24 s, 45 km → 679.51 s (monotonic) |
-| Target speed changes geometry | 500 m/s → 672.65 s, 3000 m/s → 669.75 s |
-| Navigation ratio | N=2 → 1.88 m miss, N=6 → 2.61 m |
+| dt 1 ms vs 0.5 ms terminal position | 0.000 % (gate < 0.5 %) |
+| dt 1 ms vs 0.5 ms miss distance | 1.00 vs 1.00 m |
+| Intercept | 1.0 m at t = 672.71 s (lock 664.54 s) |
+| Body rates | max 0.78 rad/s |
+| Angle of attack | max 7.4° |
+| Sideslip | max 10.5° |
+| Fin travel | max 13.9° (limit 15°) |
+| Sustained fin saturation | 0 % of samples |
+| Commanded load | max 17.2 g (cap 40 g) |
+| Divert impulse | 620 m/s used |
+
+### 2.2 End-to-end checks (`scripts/validate_app.mjs`)
+
+Structural: samples strictly increasing (merge boundary), all fields finite, `end` equals the last sample, intercept event present, events and phases sorted, target track covers the window, and max Mach / max dynamic pressure are recomputed from the merged stream rather than inherited from the payload.
+
+| Check | Result |
+| --- | --- |
+| Default solve | 1 m miss, intercept 672.73 s, 16.6 g, max Mach 9.4475 |
+| Solve time | 9–40 ms per solve (≈8 k steps at 1 ms) |
+| Range → intercept time | 5 km → 666.23 s, 45 km → 679.41 s (monotonic) |
+| Target speed changes geometry | 500 m/s → 672.59 s, 3000 m/s → 669.47 s |
+| Navigation ratio | N=2 → 206 m miss, N=6 → 4.3 m |
 | Load limit | every case ≤ its cap; 10 g case saturates exactly at 10.00 g |
 | Restore | returns the 1504-sample payload, miss 26.7263 m, time 0 |
 | Mobile | top bar overflow 0 px at 390×844 |
@@ -59,35 +80,34 @@ Parameter sweep (default 25.1 km / 138.4° / 14.8 km / 434 m/s unless changed):
 
 | Case | Miss (m) | Intercept (s) | Max load (g) |
 | --- | --- | --- | --- |
-| range 5 km | 121.3 | 666.24 | 40.00 |
-| range 15 km | 6.1 | 669.43 | 15.47 |
-| range 45 km | 2.5 | 679.51 | 9.69 |
-| range 60 km | 13.3 | 684.70 | 7.72 |
-| alt 5 km | 1.0 | 674.00 | 38.76 |
-| alt 30 km | 1.1 | 678.06 | 40.00 |
-| alt 40 km | 2.5 | 693.33 | 40.00 |
-| speed 500 | 13.9 | 672.65 | 15.17 |
-| speed 2000 | 7.1 | 670.62 | 40.00 |
-| speed 3000 | 4368.8 | 669.75 | 40.00 |
-| heading 0 | 1.0 | 675.60 | 12.80 |
-| heading −90 | 6.2 | 673.86 | 29.61 |
-| heading 180 | 8.4 | 672.50 | 15.50 |
-| turn 3 g | 1.4 | 673.38 | 17.06 |
-| weave 3 g | 13.2 | 673.71 | 17.06 |
-| N = 2 | 1.9 | 673.86 | 14.68 |
-| N = 6 | 2.6 | 673.78 | 25.59 |
-| max load 10 g | 5.2 | 673.83 | 10.00 |
+| range 5 km | 220.0 | 666.23 | 40.00 |
+| range 15 km | 1.0 | 669.42 | 16.33 |
+| range 45 km | 10.1 | 679.41 | 40.00 |
+| range 60 km | 5.4 | 684.63 | 40.00 |
+| alt 5 km | 681.5 | 674.04 | 40.00 |
+| alt 30 km | 6841.2 | 674.56 | 40.00 |
+| alt 40 km | 20134.6 | 674.84 | 40.00 |
+| speed 500 | 1.2 | 672.59 | 16.55 |
+| speed 2000 | 2185.6 | 670.58 | 40.00 |
+| speed 3000 | 5662.2 | 669.47 | 40.00 |
+| heading 0 | 1.0 | 675.69 | 40.00 |
+| heading −90 | 1455.0 | 673.29 | 40.00 |
+| heading 180 | 1.0 | 672.51 | 15.50 |
+| turn 3 g | 1.1 | 673.31 | 17.06 |
+| weave 3 g | 1.0 | 673.63 | 17.66 |
+| N = 2 | 206.0 | 673.76 | 40.00 |
+| N = 6 | 4.3 | 673.72 | 40.00 |
+| max load 10 g | 2123.4 | 673.70 | 10.00 |
 
 ### Findings
 
-- **5 km hand-over is inside the minimum-turn basket**: at 25 km altitude the geometry demands more than 40 g, so the solve saturates and misses by 121 m. Physically consistent (too late to correct), and visible in the max-load column.
-- **A 3000 m/s target is not catchable** from this hand-over state: the recorded closing speed is about 3.0 km/s but the target now recedes at 3.0 km/s, so the miss grows to 4.37 km. The solver reports it instead of forcing an intercept.
-- **Lower load cap does not always mean a larger miss** (10 g gave 5.2 m vs 7.1 m at 40 g): the 40 g run over-corrects slightly on this geometry. Not a defect, but it means miss distance alone is a poor tuning signal.
-- **Payload metrics are not sample-consistent**: the recorded `maxMach` (9.4806) and `maxDynamicPressurePa` (872 728) are higher than the maximum over the 0.45 s samples (9.445 / 632 358), so the payload metrics came from a finer integration. Solved metrics are recomputed from the merged samples and therefore match what the UI plots.
-- **Attitude is representative, not aerodynamic**: body attitude is steered toward the velocity vector with finite rate/bank; the pitch/yaw moments and damping derivatives in the dataset are exported for external use but are not integrated in the current translation model.
+- **The airframe is lift-limited; the endgame is divert-limited.** At ~16 km and Mach 9.4 the fins can trim only a few degrees of AoA, giving ~5 g. The recorded homing needs ~10–17 g, so the DACS divert thrusters (30 g cap, impulse budget reported) supply the difference. This is consistent with the SM-3 kinetic warhead's divert-and-attitude-control system, not a fin-only vehicle.
+- **Yaw must be modelled with a moment derivative, not `Cn_delta`.** The aero table's `cnDelta` (≈1.3) is a fin normal-*force* derivative; using it as a yawing moment made the yaw loop ~8× too weak and diverged. Pitch and yaw are now symmetric: static terms use the tabulated `Cm` curve, fin moments use `|Cm_delta|`, and the yaw rate command carries the opposite sign of the pitch one (β̇ ≈ −r).
+- **Hard geometries are reported, not forced.** Late hand-over (5 km), very high/low altitude, a receding 3000 m/s target, and a −90° crossing all saturate the load cap and miss by hundreds of metres to tens of kilometres. The solver reports these rather than bending the trajectory.
+- **Payload metrics are not sample-consistent**: the recorded `maxMach` (9.4806) and `maxDynamicPressurePa` (872 728) exceed the 0.45 s sample maxima (9.445 / 632 358), so the payload metrics came from a finer integration. Solved metrics are recomputed from the merged samples and match what the UI plots.
 
 ### Limits
 
 - Terminal leg only (from seeker lock); boost and midcourse remain the recorded payload.
-- Translation is 3-DoF point mass with PN; aero enters through CA drag and the derivative table is informational.
-- No validated SM-3 aero data is public; coefficients are engineering estimates and are labelled as such in the UI and the JSON.
+- Inertia is a slender-body estimate (uniform-rod pitch/yaw, thin-tube roll); hinge moments, servo backlash/gap, and validated DACS thrust/Isp are not modelled. Aerodynamics remain an engineering estimate (F2 in the upgrade plan), not wind-tunnel data.
+- Divert is a body-frame acceleration allocation (residual after the aero trim), capped at 30 g; it is a representative DACS model, not a thruster-by-thruster simulation.

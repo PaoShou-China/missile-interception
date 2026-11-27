@@ -192,12 +192,14 @@ export function MethodsOverlay() {
               a simplified relative-motion model (no six-degree-of-freedom separation dynamics).
             </li>
             <li>
-              “Trajectory solve” re-integrates the terminal leg live from the recorded hand-over state. It is a
-              representative model — 6-DoF body attitude with a finite turn rate and bank, 3-DoF point-mass
-              translation, proportional navigation, spherical gravity, and drag/lift limits taken from a generated
-              engineering-estimate aero table (Mach 0.3–12, α −8…20°; download from the solve panel). It is not a
-              validated 6-DoF aero/control simulation. Solved numbers are labelled as such and never replace the
-              recorded payload, which can be restored at any time.
+              “Trajectory solve” re-integrates the terminal leg live from the recorded hand-over state. The default
+              model is a rigid body (RK4, 1 ms): quaternion kinematics, Euler’s equations, aero forces and moments
+              from the engineering aero table (Mach 0.3–12, α −8…20°), first-order fin servos (15°, 200 °/s, 10 Hz),
+              a skid-to-turn autopilot, and DACS divert thrusters that make up the load the fins cannot trim at this
+              altitude. A simplified 3-DoF point-mass model is also selectable. Inertia is a slender-body estimate;
+              hinge moments, servo backlash and validated DACS data are not modelled, so this is an engineering (F2)
+              rigid-body model, not a validated flight simulation. Solved numbers are labelled as such and never
+              replace the recorded payload, which can be restored at any time.
             </li>
             <li>
               The source samples the attitude every 0.45 s. In the fast-roll segments the roll advances more than

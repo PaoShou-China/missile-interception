@@ -131,6 +131,9 @@ export function ChartsOverlay() {
       "p_deg_s",
       "q_deg_s",
       "r_deg_s",
+      "alpha_deg",
+      "beta_deg",
+      "divert_g",
     ];
     const rows = telemetry.samples.map((s) =>
       [
@@ -149,6 +152,9 @@ export function ChartsOverlay() {
         ((s.bodyRatesRadS?.p ?? 0) * d).toFixed(4),
         ((s.bodyRatesRadS?.q ?? 0) * d).toFixed(4),
         ((s.bodyRatesRadS?.r ?? 0) * d).toFixed(4),
+        (s.alphaDeg ?? 0).toFixed(3),
+        (s.betaDeg ?? 0).toFixed(3),
+        (s.divertG ?? 0).toFixed(3),
       ].join(","),
     );
     const blob = new Blob([[head.join(","), ...rows].join("\n")], { type: "text/csv;charset=utf-8" });
@@ -196,6 +202,19 @@ export function ChartsOverlay() {
           { name: "q", color: "#ffb36b", points: rate("q") },
           { name: "r", color: "#9fe6a8", points: rate("r") },
         ],
+      },
+      {
+        title: t("aoaSideslip"),
+        unit: "deg",
+        series: [
+          { name: "α", color: "#6fd4ff", points: pick((s) => s!.alphaDeg ?? 0) },
+          { name: "β", color: "#ffb36b", points: pick((s) => s!.betaDeg ?? 0) },
+        ],
+      },
+      {
+        title: t("divert"),
+        unit: "g",
+        series: [{ name: "DACS", color: "#f27d7d", points: pick((s) => s!.divertG ?? 0) }],
       },
     ];
   }, [telemetry, t]);

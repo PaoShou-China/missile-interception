@@ -1393,3 +1393,266 @@ input[type="range"]::-moz-range-thumb {
 .story-btn--accent:hover {
   background: linear-gradient(135deg, #005bac, #37b9d8);
 }
+
+/* ------------------------------------------------------------------ */
+/* Multi-Window Draggable HUD (Space / Radar / IR / Live State Plots)  */
+/* ------------------------------------------------------------------ */
+.topbar__hud-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 4px;
+  border-radius: 7px;
+  border: 1px solid rgba(110, 175, 220, 0.2);
+  background: rgba(8, 18, 32, 0.55);
+}
+.topbar__hud-btn,
+.topbar__deck-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+  padding: 4px 7px !important;
+  font-size: 11px !important;
+  border-color: rgba(120, 180, 225, 0.25);
+  color: #cfe6fa;
+}
+.topbar__hud-btn.is-active,
+.topbar__hud-btn:hover {
+  border-color: rgba(96, 225, 255, 0.78);
+  background: rgba(24, 92, 138, 0.42);
+  color: #fff;
+}
+.topbar__deck-btn {
+  border-color: rgba(255, 194, 92, 0.42);
+  color: #ffe0a3;
+}
+.topbar__deck-btn.is-active,
+.topbar__deck-btn:hover {
+  border-color: rgba(255, 206, 112, 0.88);
+  background: rgba(145, 92, 18, 0.44);
+  color: #fff8e6;
+}
+.hud-windows {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 40;
+}
+.hud-win {
+  position: fixed;
+  pointer-events: auto;
+  display: flex;
+  flex-direction: column;
+  border-radius: 10px;
+  overflow: hidden;
+  background: rgba(5, 11, 20, 0.9);
+  backdrop-filter: blur(14px);
+  border: 1px solid rgba(102, 184, 232, 0.34);
+  box-shadow: 0 18px 42px rgba(0, 0, 0, 0.62);
+}
+.hud-win__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 8px 6px 10px;
+  background: rgba(12, 26, 46, 0.92);
+  border-bottom: 1px solid rgba(102, 184, 232, 0.2);
+  cursor: grab;
+  user-select: none;
+  touch-action: none;
+}
+.hud-win__head:active {
+  cursor: grabbing;
+}
+.hud-win__title {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: #e6f4ff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.hud-win__tools {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+.hud-win__btn {
+  width: 20px;
+  height: 20px;
+  border: 1px solid rgba(120, 175, 220, 0.26);
+  border-radius: 4px;
+  background: rgba(18, 36, 62, 0.72);
+  color: #cde6fa;
+  font-size: 10.5px;
+  line-height: 1;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.hud-win__btn:hover {
+  border-color: rgba(126, 228, 255, 0.75);
+  color: #fff;
+}
+.hud-win__seg {
+  display: inline-flex;
+  border: 1px solid rgba(120, 175, 220, 0.28);
+  border-radius: 4px;
+  overflow: hidden;
+}
+.hud-win__seg button {
+  border: 0;
+  background: transparent;
+  color: #9ec0dc;
+  font-family: var(--mono);
+  font-size: 9.5px;
+  padding: 2px 5px;
+  cursor: pointer;
+}
+.hud-win__seg button.is-active {
+  background: rgba(55, 185, 216, 0.35);
+  color: #fff;
+}
+.hud-win__body {
+  padding: 7px 8px 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.hud-win__canvas {
+  width: 100%;
+  display: block;
+  border-radius: 6px;
+  border: 1px solid rgba(110, 170, 210, 0.18);
+}
+.hud-win__tabs {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+.hud-win__tabs button {
+  flex: 1 1 auto;
+  border: 1px solid rgba(120, 175, 220, 0.22);
+  background: rgba(14, 28, 48, 0.65);
+  color: #adcbe4;
+  border-radius: 4px;
+  padding: 3px 5px;
+  font-size: 10.5px;
+  cursor: pointer;
+}
+.hud-win__tabs button.is-active {
+  background: rgba(55, 185, 216, 0.3);
+  border-color: rgba(126, 228, 255, 0.72);
+  color: #fff;
+}
+.hud-win__svg {
+  width: 100%;
+  height: 132px;
+  display: block;
+  border-radius: 6px;
+  background: #060e19;
+  border: 1px solid rgba(110, 170, 210, 0.18);
+  cursor: crosshair;
+}
+.hud-win__legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  font-family: var(--mono);
+  font-size: 9.5px;
+}
+.hud-win__foot {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: #9dd4f5;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+@media (max-width: 1320px) {
+  .topbar__hud-label {
+    display: none;
+  }
+}
+@media (max-width: 900px) {
+  .topbar__hud-btn,
+  .topbar__xray-btn,
+  .topbar__seeker-btn {
+    display: none;
+  }
+  .hud-windows {
+    top: 64px;
+    bottom: 120px;
+    left: 10px;
+    right: 10px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    pointer-events: auto;
+  }
+  .hud-win {
+    position: static !important;
+    width: 100% !important;
+  }
+}
+
+
+/* SimPanel result banner & collapsible advanced toggle */
+.sim-result {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 10px;
+  margin-bottom: 10px;
+  border-radius: 8px;
+  border: 1px solid rgba(132, 170, 206, 0.2);
+  background: rgba(255, 255, 255, 0.04);
+  font-family: var(--mono);
+}
+.sim-result--hit {
+  border-color: rgba(87, 227, 160, 0.35);
+  background: rgba(16, 185, 129, 0.1);
+}
+.sim-result--miss {
+  border-color: rgba(255, 178, 87, 0.35);
+  background: rgba(245, 158, 11, 0.1);
+}
+.sim-result__badge {
+  font-size: 10.5px;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.12);
+}
+.sim-result--hit .sim-result__badge { color: #6ee7b7; }
+.sim-result--miss .sim-result__badge { color: #fcd34d; }
+.sim-result strong { font-size: 14px; color: #fff; }
+.sim-result__ms { font-size: 10.5px; color: var(--muted); }
+.sim-adv-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 7px 10px;
+  margin-top: 2px;
+  border-radius: 6px;
+  border: 1px dashed rgba(132, 170, 206, 0.25);
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--muted);
+  font-size: 11px;
+  cursor: pointer;
+}
+.sim-adv-toggle:hover {
+  color: #eaf3fc;
+  border-color: rgba(126, 228, 255, 0.45);
+}

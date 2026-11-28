@@ -181,13 +181,22 @@ Y_MAC = (WING_SPAN / 3.0) * (ROOT_CHORD + 2.0 * TIP_CHORD) / (
 SWEEP = math.atan((ROOT_CHORD - TIP_CHORD) / (WING_SPAN + 0.5 * DIAMETER))
 FIN_LEVER = ((LENGTH - ROOT_CHORD) + Y_MAC * math.tan(SWEEP)
              + 0.25 * MAC - CG_FULL)
-AP_OMEGA_Q = 22.0              # Pitch-rate loop crossover rad/s (best of 14/18/22/25)
-GAIN_SCALE_MIN, GAIN_SCALE_MAX = 0.30, 3.0
+AP_OMEGA_Q = 24.0              # Pitch-rate loop crossover rad/s
+AP_OMEGA_R = 14.0              # Yaw-rate loop independent crossover rad/s
+AP_OMEGA_P = 8.0               # Roll-rate loop independent crossover rad/s (phase-safe at 10 ms step)
+AP_TRIM_FF_GAIN = 0.72         # Model pitch-trim feed-forward authority (using hypersonic margin)
+AP_TRIM_FF_TAU = 0.03          # Trim feed-forward smoothing time constant s
+GAIN_SCALE_MIN, GAIN_SCALE_MAX = 0.30, 2.2
 
 # ============================================================
 # 4. Propulsion (solid booster + supersonic ramjet)
 # ============================================================
 BOOST_BURN_TIME = 13.0       # Solid burn time s
+BOOST_SEP_TIME = 13.0        # Discrete Stage-1 booster casing separation time s
+STAGE1_DRY_MASS = 95.0       # kg, jettisoned solid booster casing/interstage dry mass
+STAGE1_CG_SHIFT = 0.14       # m, aft CG offset while Stage-1 casing is attached
+STAGE1_IXX_DROP = 14.0       # kg*m^2, roll inertia step drop at booster separation
+STAGE1_IYY_DROP = 480.0      # kg*m^2, pitch/yaw inertia step drop at booster separation
 BOOST_FUEL = 800.0           # Solid propellant kg
 BOOST_THRUST_SL = 130000.0   # Sea-level thrust N at curve scale 1.0 (T/W ~ 5.2)
 BOOST_ISP = 215.0            # Solid specific impulse s
@@ -227,7 +236,11 @@ BOOST_TURN_MARGIN = 0.85         # fraction of feasible normal acceleration used
 # limiting and no command re-budgeting.
 BOOST_FIXED_PITCH_RATE = 3.5 * DEG   # constant pitch-programme rate rad/s
 
-RAMJET_ISP = 1500.0          # Ramjet reference specific impulse s
+RAMJET_ISP = 1500.0          # Ramjet reference specific impulse at M <= 3.5 s
+RAMJET_ISP_MIN = 1220.0      # High-Mach hydrocarbon (JP-10) scramjet Isp floor at M=10 s
+RAMJET_F_STOICH = 0.068      # Stoichiometric JP-10 hydrocarbon fuel-air mass ratio
+RAMJET_PHI_MAX = 1.15        # Rich equivalence-ratio / thermal-choking ceiling
+RAMJET_CAPTURE_GAIN = 1.50   # Forebody oblique-shock pre-compression streamtube capture factor
 RAMJET_COEFF = 6.0           # Thrust = coeff * q * A_inlet * eta(M, h, alpha)
 RAMJET_A_INLET = 0.22        # Inlet capture area m^2
 RAMJET_MACH_MIN = 1.6        # Ramjet light-off Mach
@@ -243,6 +256,18 @@ RAMJET_ALT_CUTOFF = 32000.0  # Zero ramjet thrust above this altitude m
 RAMJET_MACH_REF = 3.0        # Mach where the high-Mach efficiency roll-off starts
 RAMJET_MACH_DECAY = 0.05     # Efficiency loss per unit Mach above RAMJET_MACH_REF
 RAMJET_ETA_MIN = 0.55        # Lower efficiency floor near RAMJET_MACH_MAX
+# Scramjet inlet total-pressure recovery, unstart hysteresis & spillage drag.
+INLET_UNSTART_ALPHA_ON = 10.0 * DEG   # rad, total incidence triggering inlet unstart
+INLET_UNSTART_ALPHA_OFF = 7.0 * DEG   # rad, hysteresis recovery incidence
+INLET_UNSTART_THRUST_FRAC = 0.15      # residual thrust fraction during inlet unstart buzz
+CD_INLET_SPILL_COAST = 0.015          # cold-flow additive inlet drag while coasting
+CD_INLET_UNSTART = 0.120              # detached normal-shock spillage drag during unstart
+
+# Joint dynamic-pressure & aerothermal corridor constraints (midcourse/dive).
+CORRIDOR_Q_SOFT = 180000.0       # Pa, throttle pullback & corridor loft onset
+CORRIDOR_Q_MAX = 320000.0        # Pa, hard ramjet throttle cutoff ceiling
+CORRIDOR_QDOT_SOFT = 3.8         # MW/m^2, thermal throttle pullback onset
+CORRIDOR_QDOT_MAX = 5.5          # MW/m^2, thermal throttle cutoff ceiling
 
 # ---- Ramjet thrust control (discrete Mach-hold P law at guidance rate)
 # The solid booster is not throttleable; only the ramjet fuel flow is
@@ -318,6 +343,10 @@ CD_BASE_PLUME = 0.020          # CD0 relief while thrust is on
 # ---- Fin aerodynamics nonlinearity
 FIN_EFF_DROP = 0.25            # effectiveness loss at full deflection
 FIN_CD_QUAD = 0.50             # quadratic part of fin drag vs deflection
+FIN_LIFT_FRAC = 0.25           # tail-fin direct normal-force share of (CN_a - CN_body)
+AERO_HYP_CP_SHIFT_MAX = 0.16   # hypersonic (M 5->10) aerodynamic-centre forward shift m
+CL_ALPHA_BETA = -0.20          # cruciform alpha-beta induced roll coupling derivative
+IMU_STATION = 3.0              # IMU mounting station from nose tip m (for lever-arm effect)
 
 # ---- Real-gas correction in Newtonian branch
 GAMMA_HYP_DROP = 0.04          # gamma 1.40 -> 1.36 by M = 10
@@ -366,10 +395,10 @@ AP_PREFILTER_HZ = 10.0       # Autopilot command pre-filter bandwidth Hz
 #   Faster pre-filter (15/20 Hz) or higher KP_RATE (0.16/0.18) worsened the
 #   tail (max miss 27-48 m), so the command filter and rate gain stay at the
 #   values below.  The compiled fastcore path takes the bandwidth at run time.
-AP_KP_ANGLE = 6.0            # Outer alpha loop gain
+AP_KP_ANGLE = 7.0            # Outer alpha loop gain
 AP_KP_RATE = 0.14            # Pitch rate loop gain / low-q schedule floor
-AP_REF_RATE_MAX = 4.0        # Reference body-rate cap at AP_REF_Q rad/s
-AP_ROLL_ANGLE_GAIN = 4.0     # Lift-vector/roll-angle alignment gain 1/s
+AP_REF_RATE_MAX = 6.0        # Reference body-rate cap at AP_REF_Q rad/s
+AP_ROLL_ANGLE_GAIN = 4.5     # Lift-vector/roll-angle alignment gain 1/s
 AP_ROLL_RATE_MAX = 6.0       # Roll-rate command limit rad/s
 AP_REF_Q = 20000.0           # Reference dynamic pressure for the schedules Pa
 AP_PREFILTER_HZ_MIN = 1.0    # Low-q floor of the scheduled pre-filter Hz
@@ -416,8 +445,8 @@ AP_ALPHA_ENV = 20.0 * DEG    # Angle-of-attack envelope (reference recovery abov
 # The rejected variants (q/mass gain schedule, actuator-lag inversion) were
 # removed: both helped alone but never stacked with the lead term.
 AP_NZ_LOOP = 1               # 1 = enable n_z PI loop rad/s per g
-AP_KP_NZ = 0.02              # n_z proportional gain rad/s per g
-AP_KI_NZ = 0.004             # n_z integral gain rad/s per (g*s)
+AP_KP_NZ = 0.060             # n_z proportional gain rad/s per g (q-scheduled)
+AP_KI_NZ = 0.014             # n_z integral gain rad/s per (g*s) (q-scheduled)
 # Lead compensation on the measured load factor: the PI only reacts to the
 # present error, while a first-order high-pass term anticipates where n_z is
 # heading and adds phase near the loop crossover.
@@ -487,7 +516,7 @@ MIDCOURSE_FREEZE_RANGE = 150000.0   # Freeze the Bezier path inside this range m
 # Energy-optimal cruise: holding q near 75 kPa puts the missile at ~30 km and
 # alpha ~ 6 deg, near the best L/D of the corrected polar.  q error maps to a
 # flight-path-angle command; the vertical-velocity term damps the phugoid.
-MIDCOURSE_Q_CRUISE = 75000.0    # Cruise dynamic pressure Pa (~30 km, alpha ~6 deg)
+MIDCOURSE_Q_CRUISE = 70000.0    # Cruise dynamic pressure Pa (~30.3 km, best L/D)
 MIDCOURSE_Q_GAMMA_GAIN = 0.45   # gamma command per relative q error
 MIDCOURSE_GAMMA_LIMIT = 0.08    # |gamma| limit in cruise rad
 MIDCOURSE_GAMMA_DAMP = 0.22     # vertical-velocity damping 1/s
@@ -497,8 +526,8 @@ MIDCOURSE_GAMMA_DAMP = 0.22     # vertical-velocity damping 1/s
 # gradient.  Using the current advantage (not a fixed hold value) makes the
 # entry range adapt to low targets, which cruise much higher above the target
 # than the fixed 14 km band.  The q-hold term is disabled in the descent.
-MIDCOURSE_DESCENT_GAMMA = 9.0 * DEG   # max descent flight-path angle rad
-MIDCOURSE_DESCENT_ACC_MAX = 2.5 * G0  # vertical acceleration budget in the dive m/s^2
+MIDCOURSE_DESCENT_GAMMA = 14.0 * DEG  # max descent flight-path angle rad (handles low targets)
+MIDCOURSE_DESCENT_ACC_MAX = 3.0 * G0  # vertical acceleration budget in the dive m/s^2
 MIDCOURSE_DESCENT_DH_TARGET = 800.0   # small positive look-down aimed for at handover m
 # Handover look-down: a positive advantage keeps the target below the velocity
 # vector at handover, and the shaped dive's terminal slope is aligned with that
@@ -547,6 +576,7 @@ MIDCOURSE_FEASIBILITY_LEAD = 0.75     # fraction of HANDOVER_ANGLE_MAX allowed
 # with a 0.05 deg handover azimuth mismatch.
 MIDCOURSE_COPLANAR_GAIN = 0.8         # Cross-plane terminal-loop scale
 MIDCOURSE_COPLANAR_RANGE = 2100000.0  # Range where the coplanar ramp starts m
+MIDCOURSE_COPLANAR_FREEZE_RANGE = 85000.0  # Freeze target plane before 60 km defensive turn m
 MIDCOURSE_COPLANAR_TGO_MIN = 8.0      # Time-to-go floor for the 1/t_go^2 term s
 MIDCOURSE_COPLANAR_ACC_MAX = 3.0 * G0 # Cross-plane authority cap m/s^2
 MIDCOURSE_PN_GAIN = 2.0               # Tuned PN baseline gain (a_I analogue)
@@ -581,8 +611,12 @@ TERMINAL_AT_TAU = 0.25        # first-order smoothing time constant s
 TERMINAL_FOV_PREDICT = 0.50   # s
 TERMINAL_FOV_RATE_MAX = 0.05  # rad/s cap on the LOS rate used for prediction
 TERMINAL_FOV_ACC_MAX = 4.0 * G0  # cap on the soft FOV-guard acceleration
-# Aim point offset from the target centre along -v_t (engine/heat source).
-TERMINAL_AIMPOINT_OFFSET = 3.0  # m
+# Aim point offset from the target centre along -v_t (0 = target centre).
+TERMINAL_AIMPOINT_OFFSET = 0.0  # m
+# Autopilot equivalent time constant used by finite-horizon OGL lag compensation.
+TERMINAL_TAU_AP = 0.10          # s
+# Final coasting window where 1/t_go^2 glint amplification is frozen.
+TERMINAL_GLINT_FREEZE_TGO = 0.28  # s
 # Cross-check of seeker-derived relative geometry against the tracker; a
 # disagreement larger than this fraction of range falls back to the tracker.
 TERMINAL_SEEKER_CONSISTENCY = 0.20
@@ -596,26 +630,29 @@ HANDOVER_BLEND_TIME = 0.5    # Midcourse->terminal weight blend time s
 HANDOVER_LOS_CONSISTENCY = 5.0 * DEG
 HANDOVER_RANGE_CONSISTENCY = 0.25   # |seeker range - tracker range| / R
 
-SEEKER_FOV = 20.0 * DEG      # Seeker field of view +/-20 deg
+SEEKER_FOV = 30.0 * DEG      # Gimballed AESA + MWIR dual-mode seeker field of view +/-30 deg
 SEEKER_BLIND_RANGE = 120.0   # Seeker blind range m (shorter coast to impact)
 # Monopulse angle noise.  Public AIM-120-class data gives < 1 mrad at 10 nmi
 # and SNR ~ 15 dB; a fixed 1 mrad is the conservative mid-range value.
 SEEKER_SIGMA_ANGLE = 1.0e-3  # Angle white noise rad (1 sigma)
 SEEKER_GLINT_K = 0.30        # Glint coefficient (DTIC: L=15 m, beam=0.72 deg)
+SEEKER_GLINT_TAU = 0.05      # Colored Markov glint correlation time s
+SEEKER_RADOME_SLOPE = 0.012  # Radome refraction slope error (1.2 %)
 TARGET_LENGTH = 15.7         # F-35A overall length, glint scale m
 SEEKER_RANGE_SIGMA = 5.0     # Range measurement noise m (1 sigma)
 SEEKER_RANGE_RATE_SIGMA = 2.0  # Range-rate noise m/s (1 sigma)
 
 # ---- Target-state tracker
-# 9-state constant-acceleration Kalman filter used by guidance instead of the
-# target truth.  The filter carries [r, v, a]; the acceleration state feeds
-# the terminal APN forward term.  The cue covariance models pre-launch track
-# quality; the white-jerk spectral density covers the target's manoeuvre
-# onset (same order as the validated C baseline's kf9d jerk density).
+# 9-state Singer correlated-acceleration Kalman filter used by guidance instead
+# of the target truth.  The filter carries [r, v, a]; the acceleration state
+# decays with time constant TGT_TRACK_MANEUVER_TAU so reversals do not lag/overshoot.
 TGT_TRACK_CUE_POS_SIGMA = 3000.0   # m
 TGT_TRACK_CUE_VEL_SIGMA = 30.0     # m/s
-TGT_TRACK_CUE_ACC_SIGMA = 100.0    # m/s^2, initial acceleration uncertainty
-TGT_TRACK_JERK_PSD = 100.0         # m^2/s^5, white-jerk spectral density
+TGT_TRACK_CUE_ACC_SIGMA = 40.0     # m/s^2, initial acceleration uncertainty
+TGT_TRACK_JERK_PSD = 100.0         # m^2/s^5, fallback white-jerk PSD
+TGT_TRACK_MANEUVER_TAU = 2.2       # s, Singer target maneuver correlation time
+TGT_TRACK_SIGMA_A = 14.0           # m/s^2, Singer maneuver acceleration std (low-noise)
+TGT_TRACK_GATE_CHI2 = 36.0         # Mahalanobis gating threshold for outlier rejection
 # Covariance floor: with sensor noise disabled the filter covariance collapses
 # to zero and the next (noise-free) update solves a singular system.
 TGT_TRACK_COV_FLOOR = 1.0e-6       # m^2 / (m/s)^2
@@ -685,10 +722,30 @@ WIND_SEED = 17                     # stream offset added to nav_seed
 # to ~8 km head-on.  Shaping does not reduce the airframe/plume IR signature,
 # so the passive IIR channel keeps acquisition at ~25 km in a clear sky and
 # the seeker locks at the larger of the two ranges.
-TARGET_RCS = 0.005           # m^2, F-35 frontal aspect (mid estimate)
+TARGET_RCS = 0.005           # m^2, F-35 frontal aspect (mid estimate, -23 dBsm)
+TARGET_RCS_FRONT = 0.005     # m^2, head-on (0 deg aspect, -23.0 dBsm)
+TARGET_RCS_SIDE = 0.18       # m^2, broadside specular peak (90 deg, -7.4 dBsm)
+TARGET_RCS_REAR = 0.06       # m^2, rear nozzle/cavity (180 deg, -12.2 dBsm)
 SEEKER_REF_RCS = 5.0         # m^2, conventional fighter reference
 SEEKER_LOCK_RANGE_REF = 45000.0  # m, radar lock range at SEEKER_REF_RCS
-SEEKER_IR_LOCK_RANGE = 25000.0   # m, IIR backup acquisition (RCS-independent)
+SEEKER_IR_LOCK_RANGE = 25000.0   # m, IIR backup acquisition (head-on high-alt ref)
+SEEKER_RADAR_FREQ_GHZ = 10.0     # X-band active radar carrier frequency (lambda = 0.03 m)
+SEEKER_SNR_DETECT_DB = 13.0      # CFAR detection threshold (Pd~0.9, Pfa~1e-6)
+SEEKER_IR_EXTINCTION_SL = 0.075  # 1/km, MWIR (3.7-4.8 um) sea-level atmospheric extinction
+SEEKER_DOPPLER_NOTCH_MS = 35.0   # m/s, pulse-Doppler mainlobe clutter notch half-width
+
+# Hypersonic aerothermal & 1D transient thermal protection (TPS) parameters.
+NOSE_RADIUS = 0.04               # m, blunted C-SiC / sapphire nose-cap radius
+SUTTON_GRAVES_K = 1.7415e-4      # W / (m^(3/2) * (kg/m^3)^(1/2) * (m/s)^3), Earth air
+TPS_EMISSIVITY = 0.85            # surface radiative emissivity (C-SiC TPS)
+STEFAN_BOLTZMANN = 5.670374419e-8  # W / (m^2 * K^4)
+RECOVERY_FACTOR = 0.89           # turbulent boundary-layer recovery factor (Pr^(1/3))
+DOME_TEMP_LIMIT_K = 2200.0       # K, C-SiC nose cap thermal design ceiling
+TPS_RHO = 2600.0                 # kg/m^3, C-SiC thermal protection shell density
+TPS_CP = 1100.0                  # J/(kg*K), C-SiC specific heat capacity
+TPS_THICKNESS = 0.006            # m, effective thin-wall thermal shell thickness (6 mm)
+DOME_WINDOW_TAU0 = 0.88          # cold sapphire MWIR optical transmittance
+DOME_WINDOW_T_DEGRADE = 850.0    # K, sapphire window thermal transmittance knee
 # Swerling-I fluctuation: the RCS seen on each scan is exponentially
 # distributed about its mean, so the radar lock range flickers scan to scan.
 # Seeker dropouts and false detections are Poisson events given as rates.
@@ -720,6 +777,44 @@ IMU_BIAS_TAU = 1000.0        # s bias correlation time
 # otherwise the estimate drifts.
 NAV_PROCESS_ACC = 0.50       # m/s^2
 
+# Fin actuator dynamics (second-order electromechanical servo + high-q hinge torque).
+FIN_OMEGA_N = 2.0 * math.pi * 32.0   # rad/s, natural frequency (~32 Hz hypersonic EMA)
+FIN_ZETA = 0.70                      # damping ratio
+FIN_HINGE_Q_REF = 400000.0           # Pa, hinge-moment authority roll-off threshold
+FIN_HINGE_EXP = 0.30                 # hinge-moment deflection roll-off exponent
+FIN_HINGE_MIN_SCALE = 0.68           # minimum effective deflection fraction at extreme q
+
+# Optional first elastic body bending mode + notch filter (SimConfig.enable_flex_mode).
+FLEX_FREQ_HZ = 22.0                  # Hz, 1st fuselage free-free bending mode
+FLEX_ZETA = 0.03                     # structural damping ratio
+FLEX_GAIN = 0.008                    # rad/s per (rad fin * q/q_ref) excitation coupling
+FLEX_NOTCH_BW_HZ = 4.0               # Hz, autopilot notch filter -3 dB bandwidth
+
+# Terminal target countermeasures (IR flares & radar chaff).
+DECOY_DEPLOY_RANGE = 14000.0         # m, range inside which evading target pops decoys
+DECOY_SALVO_INTERVAL = 2.5           # s, interval between flare/chaff salvos
+DECOY_LIFETIME = 2.1                 # s, active burn / bloom duration per salvo
+DECOY_DRAG_RATE = 0.65               # 1/s, exponential aerodynamic deceleration rate
+DECOY_EJECT_SPEED = 28.0             # m/s, lateral dispenser ejection velocity
+DECOY_IR_RATIO = 1.6                 # initial flare-to-target MWIR intensity ratio
+DECOY_RCS_M2 = 0.8                   # peak chaff cloud X-band RCS m^2
+DECOY_DOPPLER_GATE_MS = 35.0         # m/s, pulse-Doppler radial velocity rejection gate
+DECOY_DUAL_GATE_MS = 12.0            # m/s, dual-mode (Radar+IIR) cross-band rejection gate
+
+# Tail-fin non-minimum-phase (NMP) predictive compensation in terminal guidance.
+TERMINAL_NMP_TAU = 0.032             # s, effective tail-fin NMP zero delay
+TERMINAL_NMP_GAIN = 0.30             # lead-compensation weight in endgame window
+
+# Directed fragmentation warhead & radio/laser proximity fuze parameters.
+FUZE_FRAG_SPEED = 2200.0             # m/s, radial fragment ejection velocity
+FUZE_SPRAY_HALF_ANGLE = 12.0 * DEG   # rad, annular fragment beam half-angle
+FUZE_N_FRAGS = 1000                  # preformed tungsten-alloy fragments
+FUZE_VULN_AREA = 3.5                 # m^2, F-35A lethal vulnerable presented area
+FUZE_SINGLE_HIT_PK = 0.08            # single-fragment kill probability
+FUZE_DRAG_DECAY_M = 22.0             # m, fragment lethality range-decay scale
+FUZE_DELAY_MIN = 0.002               # s, minimum proximity fuze lead time (2 ms)
+FUZE_DELAY_MAX = 0.005               # s, maximum proximity fuze lead time (5 ms)
+
 # ============================================================
 # 8. Numerics and tests
 # ============================================================
@@ -738,7 +833,8 @@ MAX_LOAD_G = 20.0            # g, navigation/structural limit for boost/midcours
 MAX_LOAD_TERMINAL_G = 40.0   # g
 
 DEFAULT_MAX_STEP = 0.005     # Outer integration step s (boost / terminal)
-DEFAULT_MIDCOURSE_MAX_STEP = 0.010  # Midcourse step s (quasi-steady cruise)
+DEFAULT_MIDCOURSE_MAX_STEP = 0.010  # Midcourse maneuver / pre-handover step s
+DEFAULT_MIDCOURSE_CRUISE_STEP = 0.020  # Adaptive cruise outer step s (gentle level midcourse)
 DEFAULT_T_END = 1200.0       # Latest simulation stop time s
 # Closest-approach event is armed only after the range has closed inside this
 # radius; a hard value gate would jump on the boundary and can fake a miss.
@@ -774,9 +870,20 @@ class SeekerMeasurement:
     los_angle: np.ndarray    # (3,) ECI LOS unit vector toward target
     los_rate: np.ndarray     # (3,) ECI LOS rate vector rad/s
     range: float             # Slant range to target m
-    range_rate: float        # Range-rate (positive = closing) m/s
+    range_rate: float        # Range-rate dR/dt (negative = closing) m/s
     is_locked: bool          # True while target is in FOV and outside blind range
     fov_angle: float = 0.0   # LOS off-boresight angle rad
+    aspect_deg: float = 0.0  # Target aspect angle seen from missile deg (0=head-on, 90=beam, 180=tail)
+    target_rcs: float = TARGET_RCS  # Aspect-dependent target RCS m^2
+    radar_snr_db: float = -60.0     # X-band pulse-Doppler radar SNR dB
+    ir_snr_db: float = -60.0        # MWIR imaging-IR channel SNR dB
+    az_body: float = 0.0     # Measured LOS azimuth in body frame rad (+right/+Y)
+    el_body: float = 0.0     # Measured LOS elevation in body frame rad (+up/-Z)
+    active_mode: int = 0     # 0=none, 1=IIR, 2=Radar, 3=Dual (Radar+IIR)
+    decoy_active: bool = False    # True while target flare/chaff cloud is active in FOV
+    decoy_rejected: bool = False  # True when kinematic/dual-band gate rejected the decoy
+    decoy_az_body: float = 0.0    # Decoy azimuth in body frame rad
+    decoy_el_body: float = 0.0    # Decoy elevation in body frame rad
 
 
 @dataclass
@@ -826,6 +933,8 @@ class SimConfig:
     """Simulation run configuration (injected by main.py / tests)."""
     max_step: float = DEFAULT_MAX_STEP
     midcourse_max_step: float = DEFAULT_MIDCOURSE_MAX_STEP
+    midcourse_cruise_step: float = DEFAULT_MIDCOURSE_CRUISE_STEP
+    adaptive_midcourse_step: bool = True  # Relax step to 25 ms in gentle midcourse cruise
     # Guidance-law selection for controlled comparisons.  Defaults reproduce
     # the reference design; the experiment driver flips one stage at a time.
     boost_law: str = "feasible"       # "feasible" | "fixed_rate"
@@ -843,7 +952,7 @@ class SimConfig:
     max_steps: int = 200000              # Telemetry buffer capacity
     max_integration_steps: int = 2000000  # Integrator step guard
     sensor_noise_scale: float = 1.0      # 0 disables nav/seeker noise
-    telemetry_profile: str = "full"      # "full" or "basic" (Monte-Carlo)
+    telemetry_profile: str = "full"      # "full" | "basic" | "none" (zero-alloc batch)
     datalink_period: float = DATALINK_PERIOD
     datalink_pos_sigma: float = DATALINK_POS_SIGMA
     datalink_vel_sigma: float = DATALINK_VEL_SIGMA
@@ -854,6 +963,7 @@ class SimConfig:
     ideal_attitude: bool = False     # True = autopilot/seeker use truth q, omega
     enable_attitude_aid: bool = True # star tracker + GNSS heading correction
     enable_wind: bool = True         # False = still air
+    enable_flex_mode: bool = False   # True = add 22 Hz 1st bending mode + notch filter
     seeker_swerling: bool = True     # False = constant RCS / lock range
     seeker_dropout_rate: float = SEEKER_DROPOUT_RATE
     seeker_false_lock_rate: float = SEEKER_FALSE_LOCK_RATE
@@ -946,6 +1056,17 @@ TELEMETRY_COLUMNS = [
     "seeker_los_rate_x", "seeker_los_rate_y", "seeker_los_rate_z",
     # Spherical gravity acceleration in ECI.
     "g_x", "g_y", "g_z",
+    # Hypersonic aerothermal environment & dual-mode seeker observables.
+    "heat_flux_mw", "wall_temp_k",
+    "aspect_deg", "target_rcs",
+    "radar_snr_db", "ir_snr_db",
+    "seeker_az_deg", "seeker_el_deg",
+    # Phase 1 extended physics: steady-eq wall temp, inlet unstart, stage sep, CG/CP.
+    "wall_temp_eq_k", "unstart_flag", "stage_sep", "cg_pos", "cp_pos",
+    # Phase 2 adversarial physics: terminal decoys, IMM mode probs, proximity fuze Pk.
+    "decoy_active", "decoy_az_deg", "decoy_el_deg",
+    "imm_p_cv", "imm_p_ca", "imm_p_ct",
+    "fuze_pk",
 ]
 
 # Lightweight column set for Monte-Carlo / validation runs: the extended rows

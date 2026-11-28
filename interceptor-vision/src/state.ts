@@ -73,12 +73,16 @@ interface AppState {
   dataPlaying: boolean;
   dataRate: number;
   chartsOpen: boolean;
+  seekerOpen: boolean;
+  xrayOpen: boolean;
   setTelemetry: (t: Telemetry | null) => void;
   setDataStatus: (s: "idle" | "loading" | "ready" | "error") => void;
   setDataTime: (t: number) => void;
   setDataPlaying: (p: boolean) => void;
   setDataRate: (r: number) => void;
   setChartsOpen: (v: boolean) => void;
+  setSeekerOpen: (v: boolean) => void;
+  setXrayOpen: (v: boolean) => void;
 
   /** Terminal re-solve ("what if") driven by the left-panel controls. */
   simParams: SimParams;
@@ -170,6 +174,8 @@ export const useApp = create<AppState>((set) => ({
   dataPlaying: false,
   dataRate: 20,
   chartsOpen: false,
+  seekerOpen: false,
+  xrayOpen: false,
   setTelemetry: (telemetry) => set({ telemetry }),
   setDataStatus: (dataStatus) => set({ dataStatus }),
   setDataTime: (dataTime) => {
@@ -185,6 +191,8 @@ export const useApp = create<AppState>((set) => ({
     set({ dataRate });
   },
   setChartsOpen: (chartsOpen) => set({ chartsOpen }),
+  setSeekerOpen: (seekerOpen) => set({ seekerOpen }),
+  setXrayOpen: (xrayOpen) => set({ xrayOpen }),
 
   simParams: {
     model: "sixdof",

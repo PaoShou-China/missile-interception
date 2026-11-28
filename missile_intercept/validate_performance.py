@@ -37,7 +37,7 @@ import math
 import os
 import sys
 import time
-from concurrent.futures import ProcessPoolExecutor, as_completed
+from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field, replace
 
 # Pin BLAS/OpenMP to one thread before numpy is imported.  The terminal
@@ -211,7 +211,8 @@ def _make_payloads(suites, default_seeds, base_seed, case_cfg):
 
 def run_validation(suites=None, workers=None, seeds=2, base_seed=2026,
                    threshold=15.0, min_rate=0.8, cfg=None,
-                   output_dir=None, plot=True, quiet=False):
+                   output_dir=None, plot=True, quiet=False,
+                   use_threads=False):
     """Run every suite in parallel, aggregate and persist the statistics."""
     suites = suites if suites is not None else build_suites()
     if not suites:
@@ -224,16 +225,17 @@ def run_validation(suites=None, workers=None, seeds=2, base_seed=2026,
         cfg,
         verbose=False,
         enable_plot=False,
-        telemetry_profile="basic",
-        max_steps=max(int(round(cfg.t_end / max(cfg.dt_log, 1e-6))) + 1000, 1000),
+        telemetry_profile="none",
+        max_steps=1,
     )
     payloads, meta = _make_payloads(suites, seeds, base_seed, case_cfg)
     workers = max(1, min(workers, len(payloads)))
 
     if not quiet:
-        print("Performance validation: %d suites | %d cases | workers %d | "
+        mode = "threads" if (use_threads and workers > 1) else "processes"
+        print("Performance validation: %d suites | %d cases | workers %d (%s) | "
               "criterion miss distance <= %.1f m"
-              % (len(suites), len(payloads), workers, threshold))
+              % (len(suites), len(payloads), workers, mode, threshold))
 
     t_wall = time.time()
     results = []
@@ -243,7 +245,8 @@ def run_validation(suites=None, workers=None, seeds=2, base_seed=2026,
             if not quiet:
                 _print_progress(k, len(payloads), results[-1], meta)
     else:
-        with ProcessPoolExecutor(max_workers=workers) as pool:
+        pool_cls = ThreadPoolExecutor if use_threads else ProcessPoolExecutor
+        with pool_cls(max_workers=workers) as pool:
             futures = {pool.submit(batch.run_case, p): p[0] for p in payloads}
             done = 0
             for fut in as_completed(futures):
@@ -478,6 +481,8 @@ def main(argv=None):
                         help="Output directory for results")
     parser.add_argument("--no-plot", action="store_true",
                         help="Do not plot the summary figure")
+    parser.add_argument("--threads", action="store_true",
+                        help="Use ThreadPoolExecutor (nogil Numba, no process spawn cost)")
     args = parser.parse_args(argv)
 
     suites = build_suites()
@@ -502,7 +507,7 @@ def main(argv=None):
         base_seed=args.seed, threshold=args.threshold,
         min_rate=args.min_rate, cfg=cfg,
         output_dir=args.out or os.path.join(cfg.output_dir, "validation"),
-        plot=cfg.enable_plot)
+        plot=cfg.enable_plot, use_threads=args.threads)
     return 0 if summary["passed"] else 1
 
 

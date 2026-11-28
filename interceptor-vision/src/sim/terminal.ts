@@ -78,18 +78,36 @@ function atmosphere(altM: number) {
   return { rho, speedOfSound };
 }
 
-function nearestTargetSample(samples: Sample[], t: number) {
+/**
+ * Target state at an arbitrary time. The target track is sparse (~2.8 s), so a
+ * nearest-sample lookup puts the reconstructed aim point up to ~1 km off the
+ * true collision course. Interpolate (and extrapolate at the edges) instead.
+ */
+function targetAt(samples: Sample[], t: number) {
   if (!samples.length) return null;
-  let best = samples[0];
-  let bestD = Math.abs(best.t - t);
-  for (const s of samples) {
-    const d = Math.abs(s.t - t);
-    if (d < bestD) {
-      best = s;
-      bestD = d;
-    }
-  }
-  return best;
+  if (samples.length === 1) return samples[0];
+  let i = 0;
+  while (i < samples.length - 2 && samples[i + 1].t < t) i++;
+  const a = samples[i];
+  const b = samples[i + 1];
+  const span = b.t - a.t || 1;
+  const k = (t - a.t) / span;
+  const lerp = (p: number, q: number) => p + (q - p) * k;
+  return {
+    ...a,
+    t,
+    position: {
+      x: lerp(a.position.x, b.position.x),
+      y: lerp(a.position.y, b.position.y),
+      z: lerp(a.position.z, b.position.z),
+    },
+    velocity: {
+      x: lerp(a.velocity.x, b.velocity.x),
+      y: lerp(a.velocity.y, b.velocity.y),
+      z: lerp(a.velocity.z, b.velocity.z),
+    },
+    altM: lerp(a.altM, b.altM),
+  };
 }
 
 function nearestSample(samples: Sample[], t: number) {
@@ -123,7 +141,7 @@ export function defaultSimParams(base: Telemetry | null): SimParams {
   const lock = base.events.find((e) => e.kind === "lock");
   const t = lock?.t ?? base.end * 0.94;
   const m = nearestSample(base.samples, t);
-  const tg = nearestTargetSample(base.targetSamples, t);
+  const tg = targetAt(base.targetSamples, t);
   if (!m || !tg) return fallback;
   const mPos = new THREE.Vector3(m.position.x, m.position.y, m.position.z);
   const tPos = new THREE.Vector3(tg.position.x, tg.position.y, tg.position.z);
@@ -136,11 +154,11 @@ export function defaultSimParams(base: Telemetry | null): SimParams {
   const heading = (Math.atan2(vEast, vNorth) * 180) / Math.PI - bearing;
   return {
     ...fallback,
-    rangeKm: +rangeKm.toFixed(1),
-    bearingDeg: +bearing.toFixed(1),
-    altKm: +(tg.altM / 1000).toFixed(1),
-    speedMS: +Math.hypot(tg.velocity.x, tg.velocity.y, tg.velocity.z).toFixed(0),
-    headingDeg: +(((heading + 540) % 360) - 180).toFixed(0),
+    rangeKm: +rangeKm.toFixed(2),
+    bearingDeg: +bearing.toFixed(2),
+    altKm: +(tg.altM / 1000).toFixed(2),
+    speedMS: +Math.hypot(tg.velocity.x, tg.velocity.y, tg.velocity.z).toFixed(1),
+    headingDeg: +(((heading + 540) % 360) - 180).toFixed(1),
     lockRangeKm: Math.max(5, Math.round(rangeKm / 5) * 5),
   };
 }
@@ -223,6 +241,7 @@ export function solveTerminal(base: Telemetry, p: SimParams): Telemetry {
       maneuver: p.maneuver,
       maneuverG: p.maneuverG,
       targetSpeed: p.speedMS,
+      initialRates: m0.bodyRatesRadS,
     });
     for (const s of r.samples) {
       out.push({

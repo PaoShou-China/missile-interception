@@ -84,6 +84,46 @@ export interface TrajectorySample {
   finDeflectionsRad?: FinDeflectionsRad;
   /** Recorded body angular rates (rad/s). Absent on static target samples. */
   bodyRatesRadS?: BodyRatesRadS;
+  /** Sutton-Graves cold-wall stagnation heat flux (MW/m^2). */
+  heatFluxMWm2?: number;
+  /** Hot-wall radiative equilibrium nose temperature (K). */
+  wallTempK?: number;
+  /** Target aspect angle seen from missile (deg, 0=nose, 90=beam, 180=tail). */
+  aspectDeg?: number;
+  /** Aspect-dependent target monostatic X-band RCS (m^2). */
+  targetRcsM2?: number;
+  /** X-band pulse-Doppler radar SNR (dB). */
+  radarSnrDb?: number;
+  /** MWIR imaging-IR channel SNR (dB). */
+  irSnrDb?: number;
+  /** Seeker LOS azimuth in missile body frame (deg, +right). */
+  seekerAzDeg?: number;
+  /** Seeker LOS elevation in missile body frame (deg, +up). */
+  seekerElDeg?: number;
+  /** Steady-state radiative equilibrium wall temperature (K) for lag comparison. */
+  wallTempEqK?: number;
+  /** Scramjet inlet unstart hysteresis flag (0 or 1). */
+  unstartFlag?: number;
+  /** Stage-1 discrete separation flag (0 or 1). */
+  stageSep?: number;
+  /** Instantaneous CG station from nose (m). */
+  cgPos?: number;
+  /** Instantaneous aerodynamic centre CP station from nose (m). */
+  cpPos?: number;
+  /** Body-axis aerodynamic + thrust forces (N). */
+  bodyForceX?: number;
+  bodyForceY?: number;
+  bodyForceZ?: number;
+  /** Terminal countermeasure decoy active flag and seeker body angles. */
+  decoyActive?: number;
+  decoyAzDeg?: number;
+  decoyElDeg?: number;
+  /** IMM mode probabilities (CV, CA, 3D CT). */
+  immPCv?: number;
+  immPCa?: number;
+  immPCt?: number;
+  /** Directed fragmentation proximity-fuze lethality estimate. */
+  fuzePk?: number;
 }
 
 /** Declared provenance of the experiment that produced the telemetry. */
@@ -134,7 +174,7 @@ export interface VisualizationEvent {
   t: number;
   label: string;
   description: string;
-  kind: "launch" | "phase" | "lock" | "handover" | "intercept" | "peak" | "custom";
+  kind: "launch" | "phase" | "lock" | "handover" | "intercept" | "peak" | "separation" | "anomaly" | "countermeasure" | "custom";
   severity: "info" | "major" | "critical";
 }
 
@@ -214,6 +254,14 @@ export interface ScenarioManifest {
     fuelUsedKg: number;
     handoverTimeS: number | null;
     flightDurationS: number;
+    killProbability?: number;
+    fuzePk?: number;
+    maxHeatFluxMWm2?: number;
+    maxWallTempK?: number;
+    missBudget?: {
+      source: string;
+      nominal: Record<string, number>;
+    };
   };
   launchSite: { latDeg: number; lonDeg: number; altM: number; label: string };
   targetSite: { latDeg: number; lonDeg: number; altM: number; label: string };

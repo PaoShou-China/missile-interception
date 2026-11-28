@@ -24,6 +24,7 @@ class Target:
         self.evade_g = float(evade_g)
         self.evade_phase = float(evade_phase)
         self.maneuver_dist = float(maneuver_dist)
+        self._decoy_t0 = None
         atm = get_atmosphere(alt)
         # Flight-envelope ceiling: the airframe cannot exceed TARGET_MACH_MAX,
         # so any higher commanded cruise Mach is clamped instead of silently
@@ -223,3 +224,67 @@ class Target:
         if not np.all(np.isfinite(out)):
             raise FloatingPointError("Target derivative contains NaN/Inf at t=%.4f" % t)
         return out
+
+    # --------------------------------------------------------
+    def decoy_state(self, t, r_t, v_t, missile_pos):
+        """Return active terminal countermeasure (IR flare + radar chaff) kinematics.
+
+        During terminal evasion (``dist < DECOY_DEPLOY_RANGE`` and ``evade_g >= 3``),
+        the target dispenses periodic flare/chaff salvos that decelerate rapidly
+        under aerodynamic drag and drift laterally/downward away from the aircraft.
+        This leaves the 6-state target ODE unchanged so Python/Numba dynamics
+        equivalence is preserved exactly.
+        """
+        r_t = MU.as_vec3(r_t)
+        v_t = MU.as_vec3(v_t)
+        r_m = MU.as_vec3(missile_pos)
+        dist = MU.norm3(r_m - r_t)
+        if self.evade_g < 3.0 or dist > C.DECOY_DEPLOY_RANGE:
+            return None
+
+        t = float(t)
+        if self._decoy_t0 is None or t < self._decoy_t0:
+            self._decoy_t0 = t
+        dt_since = max(t - self._decoy_t0, 0.0)
+        salvo_idx = int(dt_since // C.DECOY_SALVO_INTERVAL)
+        age = dt_since - salvo_idx * C.DECOY_SALVO_INTERVAL
+        if age > C.DECOY_LIFETIME:
+            return None
+
+        up = MU.local_up(r_t)
+        w_rot = np.array([0.0, 0.0, C.OMEGA_EARTH])
+        v_air = v_t - np.cross(w_rot, r_t)
+        v_spd = MU.norm3(v_air)
+        v_hat = MU.normalize(v_air, fallback=np.array([1.0, 0.0, 0.0]))
+        e_cross = MU.normalize(MU.cross3(up, v_hat),
+                               fallback=np.array([0.0, 1.0, 0.0]))
+        side = 1.0 if (salvo_idx % 2 == 0) else -1.0
+
+        # Exponential aerodynamic drag on lightweight flares & chaff dipoles.
+        kd = C.DECOY_DRAG_RATE
+        exp_d = math.exp(-kd * age)
+        dv_aft = v_spd * (1.0 - exp_d)
+        ds_aft = v_spd * (age - (1.0 - exp_d) / max(kd, 1e-6))
+
+        # Lateral dispenser ejection + aerodynamic lateral damping + gravity drop.
+        k_lat = 1.4
+        exp_l = math.exp(-k_lat * age)
+        dy_lat = side * C.DECOY_EJECT_SPEED * (1.0 - exp_l) / k_lat
+        vy_lat = side * C.DECOY_EJECT_SPEED * exp_l
+        dz_drop = -(8.0 * age + 0.20 * C.G0 * age * age)
+        vz_drop = -(8.0 + 0.40 * C.G0 * age)
+
+        r_dec = r_t - ds_aft * v_hat + dy_lat * e_cross + dz_drop * up
+        v_dec = v_t - dv_aft * v_hat + vy_lat * e_cross + vz_drop * up
+
+        ir_ratio = C.DECOY_IR_RATIO * math.exp(-0.35 * age)
+        rcs_m2 = C.DECOY_RCS_M2 * (1.0 - math.exp(-3.0 * age))
+        return {
+            "active": True,
+            "pos": r_dec,
+            "vel": v_dec,
+            "age": float(age),
+            "salvo_idx": salvo_idx,
+            "ir_ratio": float(ir_ratio),
+            "rcs_m2": float(rcs_m2),
+        }

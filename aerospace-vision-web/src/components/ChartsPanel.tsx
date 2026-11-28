@@ -284,5 +284,47 @@ export function buildChartSpecs(
         { name: t("series.propellant"), unit: "kg", color: "#7fe0a8", axis: 1, data: pairs(s, (x) => +(s[0].massKg - x.massKg).toFixed(1)) },
       ],
     },
+    ...(s.some((x) => x.radarSnrDb !== undefined)
+      ? [
+          {
+            id: "seeker-snr",
+            title: t("science.seekerSnr"),
+            unitA: "dB",
+            unitB: "m²",
+            series: [
+              { name: t("series.radarSnr"), unit: "dB", color: "#68f2a8", data: pairs(s, (x) => +(x.radarSnrDb ?? -60).toFixed(2)) },
+              { name: t("series.irSnr"), unit: "dB", color: "#ff9b66", data: pairs(s, (x) => +(x.irSnrDb ?? -60).toFixed(2)) },
+              { name: t("series.cfar"), unit: "dB", color: "#ffd86b", dashed: true, data: pairs(s, () => 13) },
+              { name: t("series.rcs"), unit: "m²", color: "#63e6ff", axis: 1 as const, dashed: true, data: pairs(s, (x) => +(x.targetRcsM2 ?? 0.005).toFixed(4)) },
+            ],
+          },
+          {
+            id: "aerothermal",
+            title: t("science.aerothermal"),
+            unitA: "MW/m²",
+            unitB: "K",
+            series: [
+              { name: t("series.heatFlux"), unit: "MW/m²", color: "#ff7266", data: pairs(s, (x) => +(x.heatFluxMWm2 ?? 0).toFixed(3)) },
+              { name: t("series.wallTemp"), unit: "K", color: "#ffcf7a", axis: 1 as const, data: pairs(s, (x) => +(x.wallTempK ?? 288).toFixed(1)) },
+              ...(s.some((x) => x.wallTempEqK !== undefined)
+                ? [{ name: "Teq (eq)", unit: "K", color: "#ffa8b6", axis: 1 as const, dashed: true, data: pairs(s, (x) => +(x.wallTempEqK ?? x.wallTempK ?? 288).toFixed(1)) }]
+                : []),
+            ],
+          },
+          ...(s.some((x) => x.immPCv !== undefined)
+            ? [{
+                id: "imm-modes",
+                title: "IMM 3-Model Filter (CV / CA / 3D-CT)",
+                unitA: "prob",
+                unitB: "",
+                series: [
+                  { name: "CV", unit: "", color: "#63e6ff", data: pairs(s, (x) => +(x.immPCv ?? 0.34).toFixed(3)) },
+                  { name: "CA / Singer", unit: "", color: "#ffb257", data: pairs(s, (x) => +(x.immPCa ?? 0.33).toFixed(3)) },
+                  { name: "3D-CT Turn", unit: "", color: "#7fe0a8", data: pairs(s, (x) => +(x.immPCt ?? 0.33).toFixed(3)) },
+                ],
+              }]
+            : []),
+        ]
+      : []),
   ];
 }

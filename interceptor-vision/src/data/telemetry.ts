@@ -56,6 +56,31 @@ export interface Sample {
   alphaDeg?: number;
   betaDeg?: number;
   divertG?: number;
+  /** Hypersonic aerothermal & dual-mode seeker observables (optional). */
+  heatFluxMWm2?: number;
+  wallTempK?: number;
+  aspectDeg?: number;
+  targetRcsM2?: number;
+  radarSnrDb?: number;
+  irSnrDb?: number;
+  seekerAzDeg?: number;
+  seekerElDeg?: number;
+  /** Phase 1 & 2 extended physics & countermeasure observables (optional). */
+  wallTempEqK?: number;
+  unstartFlag?: number;
+  stageSep?: number;
+  cgPos?: number;
+  cpPos?: number;
+  bodyForceX?: number;
+  bodyForceY?: number;
+  bodyForceZ?: number;
+  decoyActive?: number;
+  decoyAzDeg?: number;
+  decoyElDeg?: number;
+  immPCv?: number;
+  immPCa?: number;
+  immPCt?: number;
+  fuzePk?: number;
   /**
    * True when the roll between the neighbouring records is larger than the
    * 0.45 s cadence can resolve, i.e. the recorded roll channel is aliased.
@@ -192,6 +217,69 @@ export function sampleAt(time: number): Sample | null {
     alphaDeg: a.alphaDeg !== undefined && b.alphaDeg !== undefined ? lerp(a.alphaDeg, b.alphaDeg) : a.alphaDeg,
     betaDeg: a.betaDeg !== undefined && b.betaDeg !== undefined ? lerp(a.betaDeg, b.betaDeg) : a.betaDeg,
     divertG: a.divertG !== undefined && b.divertG !== undefined ? lerp(a.divertG, b.divertG) : a.divertG,
+    heatFluxMWm2: a.heatFluxMWm2 !== undefined && b.heatFluxMWm2 !== undefined ? lerp(a.heatFluxMWm2, b.heatFluxMWm2) : a.heatFluxMWm2,
+    wallTempK: a.wallTempK !== undefined && b.wallTempK !== undefined ? lerp(a.wallTempK, b.wallTempK) : a.wallTempK,
+    aspectDeg: a.aspectDeg !== undefined && b.aspectDeg !== undefined ? lerp(a.aspectDeg, b.aspectDeg) : a.aspectDeg,
+    targetRcsM2: a.targetRcsM2 !== undefined && b.targetRcsM2 !== undefined ? lerp(a.targetRcsM2, b.targetRcsM2) : a.targetRcsM2,
+    radarSnrDb: a.radarSnrDb !== undefined && b.radarSnrDb !== undefined ? lerp(a.radarSnrDb, b.radarSnrDb) : a.radarSnrDb,
+    irSnrDb: a.irSnrDb !== undefined && b.irSnrDb !== undefined ? lerp(a.irSnrDb, b.irSnrDb) : a.irSnrDb,
+    seekerAzDeg: a.seekerAzDeg !== undefined && b.seekerAzDeg !== undefined ? lerp(a.seekerAzDeg, b.seekerAzDeg) : a.seekerAzDeg,
+    seekerElDeg: a.seekerElDeg !== undefined && b.seekerElDeg !== undefined ? lerp(a.seekerElDeg, b.seekerElDeg) : a.seekerElDeg,
+    wallTempEqK: a.wallTempEqK !== undefined && b.wallTempEqK !== undefined ? lerp(a.wallTempEqK, b.wallTempEqK) : a.wallTempEqK,
+    unstartFlag: k < 0.5 ? a.unstartFlag : b.unstartFlag,
+    stageSep: k < 0.5 ? a.stageSep : b.stageSep,
+    cgPos: a.cgPos !== undefined && b.cgPos !== undefined ? lerp(a.cgPos, b.cgPos) : a.cgPos,
+    cpPos: a.cpPos !== undefined && b.cpPos !== undefined ? lerp(a.cpPos, b.cpPos) : a.cpPos,
+    bodyForceX: a.bodyForceX !== undefined && b.bodyForceX !== undefined ? lerp(a.bodyForceX, b.bodyForceX) : a.bodyForceX,
+    bodyForceY: a.bodyForceY !== undefined && b.bodyForceY !== undefined ? lerp(a.bodyForceY, b.bodyForceY) : a.bodyForceY,
+    bodyForceZ: a.bodyForceZ !== undefined && b.bodyForceZ !== undefined ? lerp(a.bodyForceZ, b.bodyForceZ) : a.bodyForceZ,
+    decoyActive: k < 0.5 ? a.decoyActive : b.decoyActive,
+    decoyAzDeg: a.decoyAzDeg !== undefined && b.decoyAzDeg !== undefined ? lerp(a.decoyAzDeg, b.decoyAzDeg) : a.decoyAzDeg,
+    decoyElDeg: a.decoyElDeg !== undefined && b.decoyElDeg !== undefined ? lerp(a.decoyElDeg, b.decoyElDeg) : a.decoyElDeg,
+    immPCv: a.immPCv !== undefined && b.immPCv !== undefined ? lerp(a.immPCv, b.immPCv) : a.immPCv,
+    immPCa: a.immPCa !== undefined && b.immPCa !== undefined ? lerp(a.immPCa, b.immPCa) : a.immPCa,
+    immPCt: a.immPCt !== undefined && b.immPCt !== undefined ? lerp(a.immPCt, b.immPCt) : a.immPCt,
+    fuzePk: a.fuzePk !== undefined && b.fuzePk !== undefined ? lerp(a.fuzePk, b.fuzePk) : a.fuzePk,
+  };
+}
+
+/** Linear sampler over the target trajectory samples. */
+export function targetSampleAt(time: number): Sample | null {
+  const tel = cache;
+  if (!tel || tel.targetSamples.length === 0) return null;
+  const arr = tel.targetSamples;
+  const t = Math.max(arr[0].t, Math.min(arr[arr.length - 1].t, time));
+  let lo = 0;
+  let hi = arr.length - 1;
+  while (hi - lo > 1) {
+    const mid = (lo + hi) >> 1;
+    if (arr[mid].t <= t) lo = mid;
+    else hi = mid;
+  }
+  const a = arr[lo];
+  const b = arr[hi];
+  const span = b.t - a.t || 1;
+  const k = Math.max(0, Math.min(1, (t - a.t) / span));
+  const lerp = (x: number, y: number) => x + (y - x) * k;
+  return {
+    ...a,
+    t,
+    position: {
+      x: lerp(a.position.x, b.position.x),
+      y: lerp(a.position.y, b.position.y),
+      z: lerp(a.position.z, b.position.z),
+    },
+    velocity: {
+      x: lerp(a.velocity.x, b.velocity.x),
+      y: lerp(a.velocity.y, b.velocity.y),
+      z: lerp(a.velocity.z, b.velocity.z),
+    },
+    attitude: slerp(a.attitude, b.attitude, k),
+    latDeg: lerp(a.latDeg, b.latDeg),
+    lonDeg: lerp(a.lonDeg, b.lonDeg),
+    altM: lerp(a.altM, b.altM),
+    speedMS: lerp(a.speedMS, b.speedMS),
+    rangeM: lerp(a.rangeM, b.rangeM),
   };
 }
 
@@ -323,7 +411,7 @@ export function toggleDataPlay(): void {
 }
 
 export function cycleDataRate(): number {
-  const rates = [1, 5, 20, 60];
+  const rates = [0.1, 1, 5, 20, 60];
   const idx = rates.indexOf(dataClock.rate);
   const next = rates[(idx + 1) % rates.length];
   dataClock.rate = next;

@@ -14,6 +14,10 @@ export function TopBar() {
   const lang = useApp((s) => s.lang);
   const setLang = useApp((s) => s.setLang);
   const setChartsOpen = useApp((s) => s.setChartsOpen);
+  const seekerOpen = useApp((s) => s.seekerOpen);
+  const setSeekerOpen = useApp((s) => s.setSeekerOpen);
+  const xrayOpen = useApp((s) => s.xrayOpen);
+  const setXrayOpen = useApp((s) => s.setXrayOpen);
   const setMethodsOpen = useApp((s) => s.setMethodsOpen);
   const telemetry = useApp((s) => s.telemetry);
   const compact = useApp((s) => s.compact);
@@ -88,6 +92,22 @@ export function TopBar() {
           </select>
         </label>
 
+        <button
+          type="button"
+          className={`ghost-btn ghost-btn--sm topbar__xray-btn ${xrayOpen ? "is-active" : ""}`}
+          title={t("xrayHint")}
+          onClick={() => setXrayOpen(!xrayOpen)}
+        >
+          ✦ {t("xrayBtn")}
+        </button>
+        <button
+          type="button"
+          className={`ghost-btn ghost-btn--sm topbar__seeker-btn ${seekerOpen ? "is-active" : ""}`}
+          title={t("seekerHint")}
+          onClick={() => setSeekerOpen(!seekerOpen)}
+        >
+          ◎ {t("seekerBtn")}
+        </button>
         <button type="button" className="icon-button" title={t("methods")} onClick={() => setMethodsOpen(true)}>
           ⓘ
         </button>

@@ -256,3 +256,61 @@ def test_thrust_controller_closed_loop_settles_with_droop():
     droop = 8.0 - mach
     assert 0.0 < droop < 1.2          # inherent steady-state offset of pure P control
     assert 0.0 < thr < 1.0
+
+
+def test_second_order_servo_and_hinge_moment_saturation():
+    """2nd-order servo tracks small steps cleanly and caps usable deflection above 400 kPa."""
+    mixer = FinMixer()
+    dt = 0.005
+    # Small step converges accurately with physical 2nd-order overshoot (<15%).
+    hist = []
+    for _ in range(120):
+        cmd = mixer.mix(np.array([0.08, 0.0, 0.0]), dt, q_dyn=100000.0)
+        hist.append(float(cmd.delta_fins[3]))
+    hist = np.array(hist)
+    assert abs(hist[-1] - 0.08) < 1e-3
+    assert hist.max() < 0.08 * 1.15
+
+    # High dynamic pressure (800 kPa > 400 kPa) derates hinge-moment deflection stop.
+    mixer_hiq = FinMixer()
+    for _ in range(400):
+        cmd_hiq = mixer_hiq.mix(np.array([1.0, 0.0, 0.0]), dt, q_dyn=800000.0)
+    expected_stop = C.FIN_MAX * ((C.FIN_HINGE_Q_REF / 800000.0) ** C.FIN_HINGE_EXP)
+    assert cmd_hiq.delta_fins[3] == pytest.approx(expected_stop, rel=1e-3)
+    assert cmd_hiq.delta_fins[3] < C.FIN_MAX * 0.85
+    assert cmd_hiq.is_saturated
+
+
+def test_flex_body_bending_mode_and_notch_filter():
+    """1st elastic bending mode excites 22 Hz rate ripple; biquad notch suppresses it."""
+    from control.autopilot import BendingModePlant, BiquadNotchFilter
+
+    dt = 0.005
+    plant = BendingModePlant(freq_hz=C.FLEX_FREQ_HZ, zeta=0.03, gain=0.01)
+    notch = BiquadNotchFilter(notch_hz=C.FLEX_FREQ_HZ, bw_hz=C.FLEX_NOTCH_BW_HZ, dt=dt)
+
+    raw_22, filt_22 = [], []
+    for k in range(600):
+        t = k * dt
+        u_fin = 0.1 * np.sin(2.0 * np.pi * C.FLEX_FREQ_HZ * t)
+        w_flex = plant.step(u_fin, 0.0, 250000.0, dt)
+        w_f = notch.update(w_flex)
+        if k >= 200:
+            raw_22.append(w_flex[1])
+            filt_22.append(w_f[1])
+    rms_raw = float(np.sqrt(np.mean(np.square(raw_22))))
+    rms_filt = float(np.sqrt(np.mean(np.square(filt_22))))
+    assert rms_raw > 0.05
+    assert rms_filt < 0.15 * rms_raw  # > 16 dB attenuation at bending frequency
+
+    # Low-frequency 1 Hz rigid-body command passes through with minimal distortion.
+    notch.reset()
+    low_in, low_out = [], []
+    for k in range(600):
+        t = k * dt
+        sig = np.array([0.0, np.sin(2.0 * np.pi * 1.0 * t), 0.0])
+        out = notch.update(sig)
+        if k >= 200:
+            low_in.append(sig[1])
+            low_out.append(out[1])
+    assert np.sqrt(np.mean(np.square(low_out))) > 0.95 * np.sqrt(np.mean(np.square(low_in)))

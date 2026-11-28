@@ -27,6 +27,7 @@ comparison free of implementation confounds.
 Ref: ZEM/APN survey (Evduzen, 2026); APN form from standard PN literature.
 """
 
+import math
 import numpy as np
 import config as C
 import math_utils as MU
@@ -38,7 +39,7 @@ class TerminalGuidance(BaseGuidance):
     name = "terminal"
 
     def __init__(self, n=4.0, n_max_g=C.MAX_LOAD_TERMINAL_G, fov_margin=0.80,
-                 fov_gain=2.0, tau_at=C.TERMINAL_AT_TAU, alpha=0.75,
+                 fov_gain=2.0, tau_at=C.TERMINAL_AT_TAU, alpha=0.60,
                  t_go_min=0.05):
         self.n = float(n)
         self.n_max_g = float(n_max_g)
@@ -60,21 +61,22 @@ class TerminalGuidance(BaseGuidance):
 
     # --------------------------------------------------------
     def _target_acceleration(self, t, v_t, target_acc=None):
-        """Target acceleration estimate: LPF + clamp.
+        """Target acceleration estimate: light smoothing for KF state, LPF for FD.
 
-        The tracker's 9-state CA filter already carries an acceleration
-        state, so its output is used directly when supplied: it avoids the
-        differencing lag and noise amplification of the finite-difference
-        fallback.  Both paths share the same smoothing and clamp before
-        entering the APN feed-forward.
+        When the Singer tracker supplies ``target_acc`` it is already optimally
+        filtered; applying a heavy 0.25 s secondary LPF on top adds severe
+        phase lag during 0.25 Hz weaves and degrades APN below pure PN.  Only a
+        light 40 ms guard filter is applied to KF acceleration.
         """
         if self.t_prev is not None:
             dt = max(float(t) - self.t_prev, 1e-4)
-            w = min(dt / max(self.tau_at, 1e-6), 1.0)
             if target_acc is not None:
+                tau_eff = min(self.tau_at, 0.04)
                 raw = np.asarray(target_acc, dtype=float).reshape(3)
             else:
+                tau_eff = self.tau_at
                 raw = (v_t - self.v_t_prev) / dt
+            w = min(dt / max(tau_eff, 1e-6), 1.0)
             self.a_T = self.a_T + w * (raw - self.a_T)
         elif target_acc is not None:
             self.a_T = np.asarray(target_acc, dtype=float).reshape(3).copy()
@@ -91,9 +93,6 @@ class TerminalGuidance(BaseGuidance):
         changes the acceleration law, not the sensor/time-alignment pipeline.
         """
         # Time-align the delayed navigation estimate with the current tick.
-        # Both position and velocity are propagated, using the last guidance
-        # command plus gravity as the inertial acceleration estimate, so the
-        # 50 ms transport delay does not show up as a range/velocity skew.
         dt_nav = max(float(t) - float(nav.timestamp), 0.0)
         r_nav = np.asarray(nav.r_eci, dtype=float)
         v_nav = np.asarray(nav.v_eci, dtype=float)
@@ -104,11 +103,10 @@ class TerminalGuidance(BaseGuidance):
         r_t = self.target_position(target_state)
         v_t = self.target_velocity(target_state)
 
-        # Seeker-direct relative geometry: once locked, the seeker supplies
-        # the target bearing/range/range-rate at the current tick, so the
-        # 50 ms navigation transport delay no longer corrupts the relative
-        # state.  It is used only when it agrees with the fused track, which
-        # rejects a residual false lock.
+        # Range-gated seeker blending: at longer ranges (> 1.5 km) blend fresh
+        # seeker geometry when it agrees with the tracker; inside 1.5 km trust
+        # the Singer+Doppler Kalman track instead of injecting raw target glint
+        # directly into ZEM / t_go^2.
         if (seeker is not None and getattr(seeker, "is_locked", False)
                 and float(seeker.range) > C.SEEKER_BLIND_RANGE):
             u_s = MU.normalize(np.asarray(seeker.los_angle, dtype=float))
@@ -118,19 +116,17 @@ class TerminalGuidance(BaseGuidance):
             tol = max(C.TERMINAL_SEEKER_MIN_ERROR,
                       C.TERMINAL_SEEKER_CONSISTENCY * R_s)
             if err <= tol:
-                # Use the fresh seeker position, but keep the filtered tracker
-                # velocity: R * LOS-rate is dominated by angle noise (kilometres
-                # per second at 20+ km), so reconstructing velocity from it
-                # saturates the fins.  Only the low-noise range-rate is applied
-                # along the LOS to correct the closing speed.
                 v_rel_track = v_t - v
                 rr = float(seeker.range_rate)
                 if np.isfinite(rr):
-                    v_t = v_t + (rr - float(np.dot(v_rel_track, u_s))) * u_s
-                r_t = r_t_s
+                    v_t = v_t + 0.5 * (rr - float(np.dot(v_rel_track, u_s))) * u_s
+                # Smoothly fade out raw seeker position injection inside 4 km
+                # so endgame guidance relies on the low-noise Singer+Doppler KF.
+                w_raw = float(np.clip((R_s - 4000.0) / 6000.0, 0.0, 0.18))
+                if w_raw > 0.0:
+                    r_t = (1.0 - w_raw) * r_t + w_raw * r_t_s
 
-        # Aim at the engine/heat source rather than the geometric centre; the
-        # offset is small but it shapes the final approach angle.
+        # Aim point offset (0 = target centre).
         if C.TERMINAL_AIMPOINT_OFFSET > 0.0 and MU.norm3(v_t) > 1.0:
             r_t = r_t - C.TERMINAL_AIMPOINT_OFFSET * MU.normalize(v_t)
 
@@ -139,27 +135,47 @@ class TerminalGuidance(BaseGuidance):
 
     # --------------------------------------------------------
     def _command_accel(self, geo, vc, t_go, a_T):
-        """Acceleration law.  Base implementation: ZEM / APN.
+        """Acceleration law: Singer-OGL ZEM/APN with endgame glint protection.
 
-        Subclasses (e.g. the classical pure-PN baseline) override only this
-        method, so time alignment, seeker handling, FOV guard, gravity
-        compensation, smoothing and load limiting are identical across laws.
+        - Uses the Singer correlated-manoeuvre zero-effort-miss weight
+          ``phi(t_go) = tau_m^2 * (exp(-t_go/tau_m) + t_go/tau_m - 1)``
+          instead of assuming constant acceleration over long horizons;
+        - Applies finite-horizon optimal navigation gain with first-order
+          autopilot lag shaping;
+        - Floors ``t_go`` in the final glint-dominated coast window so residual
+          measurement noise cannot blow up via ``1 / t_go^2``.
         """
         u = geo["u"]
         v_rel = geo["v_rel"]
-        # Zero-effort miss with the APN target-acceleration feed-forward.
-        zem = geo["rho"] + v_rel * t_go + 0.5 * a_T * t_go * t_go
-        # Adaptive navigation constant: the finite-horizon optimal gain grows
-        # as t_go shrinks (a constant N is optimal only for an infinite
-        # horizon).  The boost is bounded so the endgame stays inside the
-        # fin authority.
+        tau_m = max(C.TGT_TRACK_MANEUVER_TAU, 0.1)
+        theta = t_go / tau_m
+        phi_singer = tau_m * tau_m * (math.exp(-theta) + theta - 1.0)
+        zem = geo["rho"] + v_rel * t_go + phi_singer * a_T
+
+        # Adaptive finite-horizon OGL gain with endgame glint/lag roll-off:
+        # follows Zarchan Ch. 8 optimal guidance shape — boosts N_eff across
+        # mid-terminal (xi ~ 5..15) and tapers back down inside xi < 4.5 so
+        # colored RCS glint + NMP tail-fin lag cannot whip a +/-40 g reversal.
+        tau_tot = max(C.TERMINAL_TAU_AP + C.TERMINAL_NMP_TAU, 1e-3)
+        xi = t_go / tau_tot
         n_eff = self.n
         if C.TERMINAL_PN_BOOST > 0.0:
             ramp = float(np.clip(1.0 - t_go / max(C.TERMINAL_PN_TGO_REF, 1e-3),
                                  0.0, 1.0))
+            end_taper = float(np.clip((xi - 1.5) / 3.5, 0.0, 1.0))
             n_eff = max(C.TERMINAL_PN_MIN,
-                        self.n * (1.0 + C.TERMINAL_PN_BOOST * ramp))
-        return n_eff * MU.perpendicular(zem, u) / (t_go * t_go)
+                        self.n * (1.0 + C.TERMINAL_PN_BOOST * ramp * end_taper))
+        if 2.5 <= xi <= 25.0:
+            n_eff *= (1.0 + 0.14 * math.exp(-0.20 * abs(xi - 6.0)))
+
+        if 0.30 < t_go < 3.50 and C.TERMINAL_NMP_GAIN > 0.0:
+            w_lo = min(max((t_go - 0.30) / 0.35, 0.0), 1.0)
+            w_hi = min(max((3.50 - t_go) / 0.80, 0.0), 1.0)
+            lead_fac = 1.0 + 0.5 * C.TERMINAL_NMP_GAIN * (C.TERMINAL_NMP_TAU / max(t_go, 0.30)) * w_lo * w_hi
+            zem = geo["rho"] + v_rel * t_go + (phi_singer * lead_fac) * a_T
+
+        t_go_eff = max(t_go, C.TERMINAL_GLINT_FREEZE_TGO)
+        return n_eff * MU.perpendicular(zem, u) / (t_go_eff * t_go_eff)
 
     # --------------------------------------------------------
     def compute(self, t, nav, target_state, q=None, seeker=None,

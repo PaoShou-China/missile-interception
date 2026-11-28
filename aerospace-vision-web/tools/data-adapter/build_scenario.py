@@ -34,6 +34,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 PROJECT = os.path.dirname(os.path.dirname(HERE))
 REPO = os.path.dirname(PROJECT)
 
+DEFAULT_NPZ = os.path.join(REPO, "missile_intercept", "output", "telemetry.npz")
 DEFAULT_CSV = os.path.join(REPO, "missile_intercept", "output", "telemetry.csv")
 DEFAULT_OUT = os.path.join(PROJECT, "public", "data", "missile-intercept")
 
@@ -180,25 +181,40 @@ def fmt_check(checks, cid, description, ok, detail):
 # ---------------------------------------------------------------------------
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--source", default=DEFAULT_CSV)
+    ap.add_argument("--source", default=None)
     ap.add_argument("--out", default=DEFAULT_OUT)
     ap.add_argument("--rows", type=int, default=N_MISSILE_SAMPLES)
     args = ap.parse_args()
+
+    # Auto-prefer fast binary telemetry.npz when present and not older than CSV.
+    if args.source is None:
+        if os.path.exists(DEFAULT_NPZ) and (
+            not os.path.exists(DEFAULT_CSV)
+            or os.path.getmtime(DEFAULT_NPZ) >= os.path.getmtime(DEFAULT_CSV) - 1.0
+        ):
+            args.source = DEFAULT_NPZ
+        else:
+            args.source = DEFAULT_CSV
 
     if not os.path.exists(args.source):
         raise SystemExit(
             "Source telemetry not found: %s\nRun the simulation first "
             "(python missile_intercept/main.py) or pass --source." % args.source)
 
-    with open(args.source, "r", encoding="ascii") as f:
-        header = f.readline().strip().split(",")
+    if args.source.lower().endswith(".npz"):
+        with np.load(args.source, allow_pickle=False) as z:
+            header = [str(x) for x in z["columns"].tolist()]
+            raw = np.asarray(z["data"], dtype=np.float64)
+    else:
+        with open(args.source, "r", encoding="ascii") as f:
+            header = f.readline().strip().split(",")
+        raw = np.loadtxt(args.source, delimiter=",", skiprows=1)
+
     missing = [c for c in REQUIRED_COLUMNS if c not in header]
     if missing:
         raise SystemExit("Telemetry contract mismatch, missing columns: %s"
                          % ", ".join(missing))
     col = {name: i for i, name in enumerate(header)}
-
-    raw = np.loadtxt(args.source, delimiter=",", skiprows=1)
     n = raw.shape[0]
     if n < 10:
         raise SystemExit("Telemetry too short")
@@ -293,20 +309,52 @@ def main():
               float(alt.min()) > -100.0 and float(alt.max()) < 200000.0,
               "alt range [%.1f, %.1f] m" % (float(alt.min()), float(alt.max())))
 
-    # --- 5. downsample with protected event indices -----------------------
+    # --- 5. adaptive non-uniform downsample with protected peaks/events ---
+    # Preserves high temporal resolution in boost (0..25 s) and the final
+    # 15 s terminal endgame (~25-30 Hz), plus exact peak indices for alt,
+    # q_dyn, mach, achieved/commanded load and closest approach so summary
+    # metrics match the sampled telemetry stream.
     m_range = c("range")
     imin = int(np.argmin(m_range))
     phase = c("phase").astype(int)
+    load_g_raw = np.linalg.norm(
+        np.column_stack([c("a_act_x"), c("a_act_y"), c("a_act_z")]), axis=1) / G0
+    load_cmd_raw = np.linalg.norm(
+        np.column_stack([c("a_cmd_x"), c("a_cmd_y"), c("a_cmd_z")]), axis=1) / G0
     transitions = [0, imin] + list(np.where(np.diff(phase) != 0)[0] + 1)
     protected = set(int(i) for i in transitions)
     for name in ("seeker_lock", "handover"):
-        idx = np.where(c(name) > 0.5)[0]
-        if idx.size:
-            protected.add(int(idx[0]))
+        idx_ev = np.where(c(name) > 0.5)[0]
+        if idx_ev.size:
+            protected.add(int(idx_ev[0]))
     protected.add(int(np.argmax(c("alt"))))
     protected.add(int(np.argmax(c("q_dyn"))))
+    protected.add(int(np.argmax(c("mach"))))
+    protected.add(int(np.argmax(load_g_raw)))
+    protected.add(int(np.argmax(load_cmd_raw)))
+    for opt_peak in ("heat_flux_mw", "wall_temp_k"):
+        if opt_peak in col:
+            protected.add(int(np.argmax(c(opt_peak))))
+    for opt_flag in ("stage_sep", "unstart_flag", "decoy_active"):
+        if opt_flag in col:
+            f_idx = np.where(c(opt_flag) > 0.5)[0]
+            if f_idx.size:
+                protected.add(int(f_idx[0]))
+                protected.add(int(f_idx[-1]))
     protected.add(n - 1)
-    base = np.unique(np.linspace(0, n - 1, min(args.rows, n)).astype(int))
+
+    t_end_s = float(t[-1])
+    i_boost_end = int(np.searchsorted(t, min(25.0, t_end_s)))
+    i_term_start = int(np.searchsorted(t, max(0.0, t_end_s - 15.0)))
+    budget = max(int(args.rows), 1200)
+    n_boost = min(max(int(0.10 * budget), 100), max(i_boost_end + 1, 1))
+    n_term = min(max(int(0.28 * budget), 320), max(n - i_term_start, 1))
+    n_mid = max(budget - n_boost - n_term, 400)
+    seg_boost = np.linspace(0, max(i_boost_end, 0), n_boost).astype(int)
+    seg_mid = np.linspace(max(i_boost_end, 0), max(i_term_start, i_boost_end),
+                          n_mid).astype(int)
+    seg_term = np.linspace(max(i_term_start, 0), n - 1, n_term).astype(int)
+    base = np.unique(np.concatenate([seg_boost, seg_mid, seg_term]))
     idx = np.unique(np.concatenate([base, np.array(sorted(protected))]))
     idx = idx[(idx >= 0) & (idx < n)]
 
@@ -350,9 +398,16 @@ def main():
     def rnd(arr, nd=6):
         return np.round(np.asarray(arr, dtype=float), nd)
 
+    has_aero_sensor = all(
+        name in col for name in (
+            "heat_flux_mw", "wall_temp_k", "aspect_deg", "target_rcs",
+            "radar_snr_db", "ir_snr_db", "seeker_az_deg", "seeker_el_deg",
+        )
+    )
+
     samples = []
     for k, i in enumerate(idx):
-        samples.append({
+        rec = {
             "t": round(float(ts[k]), 6),
             "position": {"x": round(float(src_pos[k, 0]), 3),
                          "y": round(float(src_pos[k, 1]), 3),
@@ -389,12 +444,52 @@ def main():
                 "q": round(float(c("q_rate")[i]), 6),
                 "r": round(float(c("r_rate")[i]), 6),
             },
-        })
+        }
+        if has_aero_sensor:
+            rec["heatFluxMWm2"] = round(float(c("heat_flux_mw")[i]), 4)
+            rec["wallTempK"] = round(float(c("wall_temp_k")[i]), 2)
+            rec["aspectDeg"] = round(float(c("aspect_deg")[i]), 2)
+            rec["targetRcsM2"] = round(float(c("target_rcs")[i]), 5)
+            rec["radarSnrDb"] = round(float(c("radar_snr_db")[i]), 2)
+            rec["irSnrDb"] = round(float(c("ir_snr_db")[i]), 2)
+            rec["seekerAzDeg"] = round(float(c("seeker_az_deg")[i]), 3)
+            rec["seekerElDeg"] = round(float(c("seeker_el_deg")[i]), 3)
+        if "Fbx" in col and "Fby" in col and "Fbz" in col:
+            rec["bodyForceX"] = round(float(c("Fbx")[i]), 1)
+            rec["bodyForceY"] = round(float(c("Fby")[i]), 1)
+            rec["bodyForceZ"] = round(float(c("Fbz")[i]), 1)
+        if "wall_temp_eq_k" in col:
+            rec["wallTempEqK"] = round(float(c("wall_temp_eq_k")[i]), 2)
+        if "unstart_flag" in col:
+            rec["unstartFlag"] = round(float(c("unstart_flag")[i]), 1)
+        if "stage_sep" in col:
+            rec["stageSep"] = round(float(c("stage_sep")[i]), 1)
+        if "cg_pos" in col:
+            rec["cgPos"] = round(float(c("cg_pos")[i]), 4)
+        if "cp_pos" in col:
+            rec["cpPos"] = round(float(c("cp_pos")[i]), 4)
+        if "decoy_active" in col:
+            rec["decoyActive"] = round(float(c("decoy_active")[i]), 1)
+            rec["decoyAzDeg"] = round(float(c("decoy_az_deg")[i]), 3)
+            rec["decoyElDeg"] = round(float(c("decoy_el_deg")[i]), 3)
+        if "imm_p_cv" in col:
+            rec["immPCv"] = round(float(c("imm_p_cv")[i]), 4)
+            rec["immPCa"] = round(float(c("imm_p_ca")[i]), 4)
+            rec["immPCt"] = round(float(c("imm_p_ct")[i]), 4)
+        if "fuze_pk" in col:
+            rec["fuzePk"] = round(float(c("fuze_pk")[i]), 4)
+        samples.append(rec)
 
     # --- 6. target entity (attitude derived from ECEF velocity) -----------
+    # Densify target samples in the final 25 s so defensive beaming + terminal
+    # weave manoeuvres are captured smoothly in 3D replay.
     t_ecef = np.column_stack([c("t_ecef_x"), c("t_ecef_y"), c("t_ecef_z")])
     t_vecef = np.column_stack([c("t_vecef_x"), c("t_vecef_y"), c("t_vecef_z")])
-    tidx = np.unique(np.linspace(0, n - 1, min(N_TARGET_SAMPLES, n)).astype(int))
+    i_t_endgame = int(np.searchsorted(t, max(0.0, t_end_s - 25.0)))
+    t_cruise = np.linspace(0, max(i_t_endgame, 0), min(180, n)).astype(int)
+    t_final = np.linspace(max(i_t_endgame, 0), n - 1, min(140, n)).astype(int)
+    tidx = np.unique(np.concatenate([t_cruise, t_final, np.array([imin, n - 1])]))
+    tidx = tidx[(tidx >= 0) & (tidx < n)]
     t_lat, t_lon, t_alt = ecef_to_llh(t_ecef)
     target_samples = []
     for i in tidx:
@@ -454,6 +549,36 @@ def main():
         "label": "APOGEE", "kind": "peak", "severity": "info",
         "description": "Maximum altitude %.2f km." % (alt[imax_alt] / 1000.0),
     })
+    imax_q = int(np.argmax(c("q_dyn")))
+    events.append({
+        "id": "max-q", "t": round(float(t[imax_q]), 3),
+        "label": "MAX Q", "kind": "peak", "severity": "info",
+        "description": "Peak dynamic pressure %.1f kPa." % (c("q_dyn")[imax_q] / 1000.0),
+    })
+    if "stage_sep" in col:
+        sep_idx = np.where(c("stage_sep") > 0.5)[0]
+        if sep_idx.size:
+            events.append({
+                "id": "booster-sep", "t": round(float(t[sep_idx[0]]), 3),
+                "label": "BOOSTER SEP", "kind": "separation", "severity": "major",
+                "description": "Stage-1 solid booster casing jettisoned (CG/inertia step).",
+            })
+    if "unstart_flag" in col:
+        uns_idx = np.where(c("unstart_flag") > 0.5)[0]
+        if uns_idx.size:
+            events.append({
+                "id": "inlet-unstart", "t": round(float(t[uns_idx[0]]), 3),
+                "label": "INLET UNSTART", "kind": "anomaly", "severity": "major",
+                "description": "Scramjet inlet unstart hysteresis triggered at high incidence.",
+            })
+    if "decoy_active" in col:
+        dec_idx = np.where(c("decoy_active") > 0.5)[0]
+        if dec_idx.size:
+            events.append({
+                "id": "decoy-eject", "t": round(float(t[dec_idx[0]]), 3),
+                "label": "DECOY EJECT", "kind": "countermeasure", "severity": "major",
+                "description": "Target deployed IR flares & radar chaff; anti-decoy gate engaged.",
+            })
     events.append({
         "id": "intercept", "t": round(float(t[imin]), 3),
         "label": "INTERCEPT", "kind": "intercept", "severity": "critical",
@@ -471,8 +596,8 @@ def main():
     segments.append((int(phase[-1]), start, n - 1))
     phases = [{
         "phase": PHASE_NAMES.get(p, "coast"),
-        "startT": round(float(t[a]), 3),
-        "endT": round(float(t[b]), 3),
+        "startT": round(float(t[a]), 6),
+        "endT": round(float(t[b]), 6),
         "label": PHASE_NAMES.get(p, "coast").title(),
     } for p, a, b in segments]
 
@@ -493,8 +618,10 @@ def main():
             digest.update(chunk)
     source_sha = digest.hexdigest()
 
+    miss_m = float(m_range[imin])
+    pk_val = math.exp(-math.log(2.0) * (miss_m / 15.0) ** 2)
     metrics = {
-        "missDistanceM": round(float(m_range[imin]), 4),
+        "missDistanceM": round(miss_m, 4),
         "interceptTimeS": round(float(t[imin]), 4),
         "maxSpeedMS": round(float(np.linalg.norm(v_ecef, axis=1).max()), 4),
         "maxMach": round(float(c("mach").max()), 4),
@@ -504,8 +631,36 @@ def main():
         "downrangeKM": round(float(downrange.max()), 4),
         "fuelUsedKg": round(float(c("mass")[0] - c("mass")[-1]), 4),
         "handoverTimeS": round(float(t[ho_idx[0]]), 4) if ho_idx.size else None,
-        "flightDurationS": round(float(t[-1]), 4),
+        "flightDurationS": round(float(t[-1]), 6),
+        "killProbability": round(float(pk_val), 4),
     }
+    if has_aero_sensor:
+        metrics["maxHeatFluxMWm2"] = round(float(c("heat_flux_mw").max()), 4)
+        metrics["maxWallTempK"] = round(float(c("wall_temp_k").max()), 2)
+    if "fuze_pk" in col:
+        fpk = float(c("fuze_pk")[imin])
+        if fpk > 0.0:
+            metrics["fuzePk"] = round(fpk, 4)
+            metrics["killProbability"] = round(fpk, 4)
+    # Attach miss-budget ablation breakdown if available from tools/miss_budget.py.
+    mb_path = os.path.join(os.path.dirname(args.source), "miss_budget",
+                           "miss_budget_summary.json")
+    if os.path.exists(mb_path):
+        try:
+            with open(mb_path, "r", encoding="utf-8") as mf:
+                mb_raw = json.load(mf)
+            nom_map = {
+                row["variant"]: float(row["mean"])
+                for row in mb_raw.get("summary", [])
+                if row.get("scenario") == "nominal" and math.isfinite(float(row.get("mean", float("nan"))))
+            }
+            if nom_map:
+                metrics["missBudget"] = {
+                    "source": "missile_intercept/output/miss_budget/miss_budget_summary.json",
+                    "nominal": nom_map,
+                }
+        except Exception:
+            pass
 
     observables = [
         {"key": "altM", "label": "Altitude", "unit": "km", "precision": 2,
@@ -592,7 +747,7 @@ def main():
         },
         "time": {
             "startS": 0.0,
-            "endS": round(float(t[-1]), 4),
+            "endS": round(float(t[-1]), 6),
             "sampleCount": len(samples),
             "sourceRows": int(n),
             "sourceStepS": round(float(np.median(np.diff(t))), 6),

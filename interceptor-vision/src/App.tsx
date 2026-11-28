@@ -6,6 +6,7 @@ import { RightPanel } from "./components/RightPanel";
 import { Transport } from "./components/Transport";
 import { GalleryOverlay } from "./components/GalleryOverlay";
 import { ChartsOverlay } from "./components/ChartsOverlay";
+import { SeekerOverlay } from "./components/SeekerOverlay";
 import { MethodsOverlay } from "./components/MethodsOverlay";
 import { LoadingOverlay } from "./components/LoadingOverlay";
 import { MapCredit } from "./components/MapCredit";
@@ -22,6 +23,7 @@ export function App() {
   const fullscreenRequest = useApp((s) => s.fullscreenRequest);
   const galleryOpen = useApp((s) => s.galleryOpen);
   const chartsOpen = useApp((s) => s.chartsOpen);
+  const seekerOpen = useApp((s) => s.seekerOpen);
   const methodsOpen = useApp((s) => s.methodsOpen);
   const ready = useApp((s) => s.ready);
 
@@ -41,6 +43,13 @@ export function App() {
           const view = params.get("view");
           if (view && ["macro", "meso", "micro", "chase", "top", "target", "cinematic", "free"].includes(view)) {
             useApp.getState().setCameraMode(view as CameraMode);
+          }
+          if (params.get("xray") === "1") {
+            useApp.getState().setXrayOpen(true);
+          }
+          const rawRate = Number(params.get("rate"));
+          if (params.has("rate") && Number.isFinite(rawRate) && rawRate > 0) {
+            useApp.getState().setDataRate(rawRate);
           }
         })
         .catch(() => undefined);
@@ -87,8 +96,14 @@ export function App() {
         s.setGalleryOpen(false);
       } else if (e.key === "Escape" && s.chartsOpen) {
         s.setChartsOpen(false);
+      } else if (e.key === "Escape" && s.seekerOpen) {
+        s.setSeekerOpen(false);
       } else if (e.key === "Escape" && s.methodsOpen) {
         s.setMethodsOpen(false);
+      } else if (e.key.toLowerCase() === "r") {
+        s.setSeekerOpen(!s.seekerOpen);
+      } else if (e.key.toLowerCase() === "x") {
+        s.setXrayOpen(!s.xrayOpen);
       } else if (e.key.toLowerCase() === "s") {
         s.requestScreenshot();
       } else if (e.key.toLowerCase() === "f") {
@@ -123,6 +138,7 @@ export function App() {
       <MapCredit />
       {galleryOpen && <GalleryOverlay />}
       {chartsOpen && <ChartsOverlay />}
+      {seekerOpen && <SeekerOverlay />}
       {methodsOpen && <MethodsOverlay />}
       <LoadingOverlay />
     </div>

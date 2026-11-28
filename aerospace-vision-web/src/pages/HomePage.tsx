@@ -3,6 +3,11 @@ import { fmt } from "../utils/format";
 import { useManifest } from "./useManifest";
 import { CopyValue } from "./CopyValue";
 
+function formatIsoCompact(iso: string): string {
+  const m = /^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2})/.exec(iso);
+  return m ? `${m[1]} ${m[2]} UTC` : iso;
+}
+
 function Stat({ label, value, unit }: { label: string; value: string; unit?: string }) {
   return (
     <div className="stat">
@@ -16,6 +21,11 @@ export function HomePage() {
   const { t } = useI18n();
   const { manifest } = useManifest();
   const m = manifest?.metrics;
+  const isWorkspaceCommit = !manifest?.source.commit || manifest.source.commit === "workspace";
+  const reproLabel =
+    manifest?.experiment.reproducibility === "unreproducible-current-artifacts"
+      ? t("common.repro.localSnapshot")
+      : manifest?.experiment.reproducibility ?? "—";
 
   return (
     <>
@@ -26,7 +36,8 @@ export function HomePage() {
           <p className="lede">{t("home.lede")}</p>
           <div className="hero__actions">
             <a className="btn btn--primary" href="#/explore">{t("home.cta.explore")}</a>
-            <a className="btn btn--ghost" href="#/methodology">{t("home.cta.method")}</a>
+            <a className="btn btn--ghost" href="#/results">{t("home.cta.results")}</a>
+            <a className="btn btn--ghost" href="#/compare">{t("home.cta.compare")}</a>
           </div>
           {m && (
             <div className="stat-strip">
@@ -37,19 +48,24 @@ export function HomePage() {
             </div>
           )}
         </div>
-        <div className="hero__visual" aria-hidden>
-          <div className="orbit-card">
-            <div className="orbit-card__rings">
-              <span /><span /><span />
-            </div>
-            <div className="orbit-card__body">
-              <div className="orbit-card__label">WGS84 · ECEF</div>
-              <div className="orbit-card__value">{manifest ? t("scenario.title") : "—"}</div>
-              <div className="orbit-card__meta">
-                {manifest ? `${manifest.time.sampleCount} / ${manifest.time.sourceRows} rows` : "loading"}
+        <div className="hero__visual">
+          <a className="hero-showcase" href="#/explore" aria-label={t("home.cta.explore")}>
+            <img
+              className="hero-showcase__img"
+              src="./hero.jpg"
+              alt={t("home.showcase.alt")}
+              loading="eager"
+            />
+            <div className="hero-showcase__overlay">
+              <div className="hero-showcase__badge">WGS84 · ECEF · 6DOF</div>
+              <div className="hero-showcase__title">{manifest ? t("scenario.title") : "—"}</div>
+              <div className="hero-showcase__meta">
+                {manifest
+                  ? `${manifest.time.sampleCount.toLocaleString()} / ${manifest.time.sourceRows.toLocaleString()} ${t("home.showcase.samples")}`
+                  : t("common.explorerLoading")}
               </div>
             </div>
-          </div>
+          </a>
         </div>
       </section>
 
@@ -72,11 +88,14 @@ export function HomePage() {
       </section>
 
       <section className="section split">
-        <div className="audit-card">
-          <span className="tag tag--warn">{t("common.legacyUnreproducible")}</span>
-          <h2>{t("home.audit.title")}</h2>
-          <p>{t("home.audit.body")}</p>
-          <a className="link-arrow" href="#/verification">{t("home.audit.link")} →</a>
+        <div className="highlight-card">
+          <span className="tag tag--ok">{t("home.highlight.tag")}</span>
+          <h2>{t("home.highlight.title")}</h2>
+          <p>{t("home.highlight.body")}</p>
+          <div className="highlight-card__links">
+            <a className="link-arrow" href="#/results">{t("home.highlight.resultsLink")} →</a>
+            <a className="link-arrow" href="#/verification">{t("home.highlight.verifyLink")} →</a>
+          </div>
         </div>
         <div className="snapshot-card">
           <h2>{t("home.version.title")}</h2>
@@ -85,10 +104,19 @@ export function HomePage() {
             <dl className="kv">
               <div><dt>{t("common.schema")}</dt><dd>v{manifest.schemaVersion}</dd></div>
               <div><dt>{t("common.dataVersion")}</dt><dd>{manifest.id}</dd></div>
-              <div><dt>{t("common.sourceCommit")}</dt><dd><CopyValue value={manifest.source.commit} /></dd></div>
-              <div><dt>{t("common.stamp")}</dt><dd>{manifest.source.generatedAt}</dd></div>
-              <div><dt>{t("mission.repro")}</dt><dd>{manifest.experiment.reproducibility}</dd></div>
-              <div><dt>{t("mission.demoUtc")}</dt><dd><CopyValue value={manifest.time.demoUtc} /></dd></div>
+              <div>
+                <dt>{t("common.sourceCommit")}</dt>
+                <dd>
+                  {isWorkspaceCommit ? (
+                    <span>{t("common.commit.workspace")}</span>
+                  ) : (
+                    <CopyValue value={manifest.source.commit} />
+                  )}
+                </dd>
+              </div>
+              <div><dt>{t("common.stamp")}</dt><dd>{formatIsoCompact(manifest.source.generatedAt)}</dd></div>
+              <div><dt>{t("mission.repro")}</dt><dd>{reproLabel}</dd></div>
+              <div><dt>{t("mission.demoUtc")}</dt><dd>{formatIsoCompact(manifest.time.demoUtc)}</dd></div>
             </dl>
           )}
         </div>

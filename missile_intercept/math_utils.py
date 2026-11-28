@@ -30,30 +30,38 @@ def as_vec3(x):
 
 def norm3(v):
     """Euclidean norm of a 3-vector."""
+    if type(v) is np.ndarray and v.shape == (3,):
+        return math.sqrt(float(v[0] * v[0] + v[1] * v[1] + v[2] * v[2]))
     v = as_vec3(v)
     return float(math.sqrt(v[0] * v[0] + v[1] * v[1] + v[2] * v[2]))
 
 
 def normalize(v, fallback=None):
     """Normalize; a zero vector returns ``fallback`` (default [1,0,0])."""
-    v = as_vec3(v)
-    n = math.sqrt(v[0] * v[0] + v[1] * v[1] + v[2] * v[2])
+    if not (type(v) is np.ndarray and v.shape == (3,) and v.dtype == np.float64):
+        v = as_vec3(v)
+    n = math.sqrt(float(v[0] * v[0] + v[1] * v[1] + v[2] * v[2]))
     if n < _EPS:
         if fallback is None:
-            fallback = np.array([1.0, 0.0, 0.0])
+            return np.array([1.0, 0.0, 0.0])
         return as_vec3(fallback).copy()
-    return v / n
+    inv = 1.0 / n
+    return np.array([v[0] * inv, v[1] * inv, v[2] * inv])
 
 
 def dot3(a, b):
-    a = as_vec3(a)
-    b = as_vec3(b)
+    if not (type(a) is np.ndarray and a.shape == (3,)):
+        a = as_vec3(a)
+    if not (type(b) is np.ndarray and b.shape == (3,)):
+        b = as_vec3(b)
     return float(a[0] * b[0] + a[1] * b[1] + a[2] * b[2])
 
 
 def cross3(a, b):
-    a = as_vec3(a)
-    b = as_vec3(b)
+    if not (type(a) is np.ndarray and a.shape == (3,)):
+        a = as_vec3(a)
+    if not (type(b) is np.ndarray and b.shape == (3,)):
+        b = as_vec3(b)
     return np.array([
         a[1] * b[2] - a[2] * b[1],
         a[2] * b[0] - a[0] * b[2],
@@ -63,29 +71,46 @@ def cross3(a, b):
 
 def perpendicular(v, u):
     """Projection of v on the plane normal to u: v - (v.u)u."""
-    u = normalize(u)
-    v = as_vec3(v)
-    return v - dot3(v, u) * u
+    if not (type(v) is np.ndarray and v.shape == (3,)):
+        v = as_vec3(v)
+    if not (type(u) is np.ndarray and u.shape == (3,)):
+        u = as_vec3(u)
+    un = math.sqrt(float(u[0] * u[0] + u[1] * u[1] + u[2] * u[2]))
+    if un < _EPS:
+        ux, uy, uz = 1.0, 0.0, 0.0
+    else:
+        inv = 1.0 / un
+        ux, uy, uz = float(u[0]) * inv, float(u[1]) * inv, float(u[2]) * inv
+    d = float(v[0]) * ux + float(v[1]) * uy + float(v[2]) * uz
+    return np.array([float(v[0]) - d * ux, float(v[1]) - d * uy, float(v[2]) - d * uz])
 
 
 def angle_between(a, b):
     """Angle between two vectors in radians (clipped for numerical safety)."""
-    a = normalize(a)
-    b = normalize(b)
-    c = dot3(a, b)
+    if not (type(a) is np.ndarray and a.shape == (3,)):
+        a = as_vec3(a)
+    if not (type(b) is np.ndarray and b.shape == (3,)):
+        b = as_vec3(b)
+    na = math.sqrt(float(a[0] * a[0] + a[1] * a[1] + a[2] * a[2]))
+    nb = math.sqrt(float(b[0] * b[0] + b[1] * b[1] + b[2] * b[2]))
+    ax, ay, az = (1.0, 0.0, 0.0) if na < _EPS else (float(a[0]) / na, float(a[1]) / na, float(a[2]) / na)
+    bx, by, bz = (1.0, 0.0, 0.0) if nb < _EPS else (float(b[0]) / nb, float(b[1]) / nb, float(b[2]) / nb)
+    c = ax * bx + ay * by + az * bz
     if c > 1.0:
         c = 1.0
     elif c < -1.0:
         c = -1.0
-    return float(math.acos(c))
+    return math.acos(c)
 
 
 def clip_norm(v, limit):
     """Clip a vector to a maximum magnitude."""
-    v = as_vec3(v)
-    n = math.sqrt(v[0] * v[0] + v[1] * v[1] + v[2] * v[2])
+    if not (type(v) is np.ndarray and v.shape == (3,) and v.dtype == np.float64):
+        v = as_vec3(v)
+    n = math.sqrt(float(v[0] * v[0] + v[1] * v[1] + v[2] * v[2]))
     if n > limit and n > _EPS:
-        return v * (limit / n)
+        s = limit / n
+        return np.array([v[0] * s, v[1] * s, v[2] * s])
     return v
 
 
@@ -266,21 +291,24 @@ def _geodetic_altitude(r):
     Falls back to ``|r| - RE`` when ``config.EARTH_MODEL`` is the sphere, so
     the legacy model is reproduced bit-for-bit.
     """
-    r = as_vec3(r)
+    if not (type(r) is np.ndarray and r.shape == (3,)):
+        r = as_vec3(r)
+    rx, ry, rz = float(r[0]), float(r[1]), float(r[2])
     if C.EARTH_MODEL_CODE == 0:
-        return float(math.sqrt(r[0] * r[0] + r[1] * r[1] + r[2] * r[2]) - C.RE)
-    p = math.sqrt(r[0] * r[0] + r[1] * r[1])
+        return math.sqrt(rx * rx + ry * ry + rz * rz) - C.RE
+    p = math.sqrt(rx * rx + ry * ry)
     a, b, e2 = C.WGS84_A, C.WGS84_B, C.WGS84_E2
     if p < 1e-9:
-        return float(abs(r[2]) - b)
+        return abs(rz) - b
     ep2 = (a * a - b * b) / (b * b)
-    th = math.atan2(r[2] * a, p * b)
+    th = math.atan2(rz * a, p * b)
     st = math.sin(th)
     ct = math.cos(th)
-    phi = math.atan2(r[2] + ep2 * b * st * st * st,
+    phi = math.atan2(rz + ep2 * b * st * st * st,
                      p - e2 * a * ct * ct * ct)
-    n = a / math.sqrt(1.0 - e2 * math.sin(phi) ** 2)
-    return float(p / math.cos(phi) - n)
+    sp = math.sin(phi)
+    n = a / math.sqrt(1.0 - e2 * sp * sp)
+    return p / math.cos(phi) - n
 
 
 def llh_to_eci(lat_deg, lon_deg, alt_m, t=0.0):
@@ -306,27 +334,35 @@ def llh_to_eci(lat_deg, lon_deg, alt_m, t=0.0):
 
 def eci_to_llh(r_eci, t=0.0):
     """ECI position to geodetic ``(lat_deg, lon_deg, alt_m)``."""
-    r = as_vec3(r_eci)
-    lon = math.atan2(r[1], r[0]) - C.OMEGA_EARTH * t
+    if not (type(r_eci) is np.ndarray and r_eci.shape == (3,)):
+        r_eci = as_vec3(r_eci)
+    rx, ry, rz = float(r_eci[0]), float(r_eci[1]), float(r_eci[2])
+    lon = math.atan2(ry, rx) - C.OMEGA_EARTH * t
     lon = (lon + math.pi) % (2.0 * math.pi) - math.pi
     if C.EARTH_MODEL_CODE == 0:
-        rad = math.sqrt(r[0] * r[0] + r[1] * r[1] + r[2] * r[2])
-        lat = math.asin(float(np.clip(r[2] / max(rad, _EPS), -1.0, 1.0)))
-        return float(lat / C.DEG), float(lon / C.DEG), float(rad - C.RE)
-    p = math.sqrt(r[0] * r[0] + r[1] * r[1])
+        rad = math.sqrt(rx * rx + ry * ry + rz * rz)
+        s = rz / (rad if rad > _EPS else _EPS)
+        if s > 1.0:
+            s = 1.0
+        elif s < -1.0:
+            s = -1.0
+        lat = math.asin(s)
+        return lat / C.DEG, lon / C.DEG, rad - C.RE
+    p = math.sqrt(rx * rx + ry * ry)
     a, b, e2 = C.WGS84_A, C.WGS84_B, C.WGS84_E2
     if p < 1e-9:
-        lat = math.copysign(0.5 * math.pi, r[2])
-        return float(lat / C.DEG), float(lon / C.DEG), float(abs(r[2]) - b)
+        lat = math.copysign(0.5 * math.pi, rz)
+        return lat / C.DEG, lon / C.DEG, abs(rz) - b
     ep2 = (a * a - b * b) / (b * b)
-    th = math.atan2(r[2] * a, p * b)
+    th = math.atan2(rz * a, p * b)
     st = math.sin(th)
     ct = math.cos(th)
-    lat = math.atan2(r[2] + ep2 * b * st * st * st,
+    lat = math.atan2(rz + ep2 * b * st * st * st,
                      p - e2 * a * ct * ct * ct)
-    n = a / math.sqrt(1.0 - e2 * math.sin(lat) ** 2)
+    sl = math.sin(lat)
+    n = a / math.sqrt(1.0 - e2 * sl * sl)
     alt = p / math.cos(lat) - n
-    return float(lat / C.DEG), float(lon / C.DEG), float(alt)
+    return lat / C.DEG, lon / C.DEG, alt
 
 
 def altitude(r_eci):
@@ -345,21 +381,23 @@ def local_up(r_eci):
     that it agrees with ``altitude()`` and with the LLH<->ECI conversion.
     Sphere mode returns the radial direction, i.e. the old behaviour.
     """
-    r = as_vec3(r_eci)
+    if not (type(r_eci) is np.ndarray and r_eci.shape == (3,)):
+        r_eci = as_vec3(r_eci)
     if C.EARTH_MODEL_CODE == 0:
-        return normalize(r)
-    p = math.hypot(r[0], r[1])
+        return normalize(r_eci)
+    rx, ry, rz = float(r_eci[0]), float(r_eci[1]), float(r_eci[2])
+    p = math.hypot(rx, ry)
     if p < 1e-9:
-        lat = math.copysign(0.5 * math.pi, r[2])
+        lat = math.copysign(0.5 * math.pi, rz)
     else:
         a, b, e2 = C.WGS84_A, C.WGS84_B, C.WGS84_E2
         ep2 = (a * a - b * b) / (b * b)
-        th = math.atan2(r[2] * a, p * b)
+        th = math.atan2(rz * a, p * b)
         st = math.sin(th)
         ct = math.cos(th)
-        lat = math.atan2(r[2] + ep2 * b * st * st * st,
+        lat = math.atan2(rz + ep2 * b * st * st * st,
                          p - e2 * a * ct * ct * ct)
-    lon = math.atan2(r[1], r[0])
+    lon = math.atan2(ry, rx)
     cl = math.cos(lat)
     return np.array([cl * math.cos(lon), cl * math.sin(lon), math.sin(lat)])
 
@@ -369,41 +407,49 @@ def local_enu_dcm(lat_deg, lon_deg, t=0.0):
     """Local ENU -> ECI rotation (columns are E, N, U in ECI)."""
     lat = lat_deg * C.DEG
     lon = lon_deg * C.DEG + C.OMEGA_EARTH * t
-    e = np.array([-math.sin(lon), math.cos(lon), 0.0])
-    n = np.array([-math.sin(lat) * math.cos(lon),
-                  -math.sin(lat) * math.sin(lon),
-                  math.cos(lat)])
-    u = np.array([math.cos(lat) * math.cos(lon),
-                  math.cos(lat) * math.sin(lon),
-                  math.sin(lat)])
-    return np.column_stack((e, n, u))
+    sl, cl = math.sin(lat), math.cos(lat)
+    so, co = math.sin(lon), math.cos(lon)
+    return np.array([
+        [-so, -sl * co, cl * co],
+        [co,  -sl * so, cl * so],
+        [0.0, cl,       sl],
+    ])
 
 
 def gravity_eci(r_eci):
     """Gravity acceleration in ECI, m/s^2 (central field + optional J2)."""
-    r = as_vec3(r_eci)
-    r2 = r[0] * r[0] + r[1] * r[1] + r[2] * r[2]
-    rad = max(math.sqrt(r2), _EPS)
+    if not (type(r_eci) is np.ndarray and r_eci.shape == (3,)):
+        r_eci = as_vec3(r_eci)
+    rx, ry, rz = float(r_eci[0]), float(r_eci[1]), float(r_eci[2])
+    r2 = rx * rx + ry * ry + rz * rz
+    rad = math.sqrt(r2)
+    if rad < _EPS:
+        rad = _EPS
     r3 = rad * rad * rad
-    a = -C.MU * r / r3
+    c0 = -C.MU / r3
+    ax, ay, az = c0 * rx, c0 * ry, c0 * rz
     if C.EARTH_MODEL_CODE == 0:
-        return a
-    z2 = r[2] * r[2]
+        return np.array([ax, ay, az])
+    z2 = rz * rz
     r5 = r3 * r2
     k = -1.5 * C.J2 * C.MU * C.WGS84_A * C.WGS84_A / r5
     zf = 5.0 * z2 / r2
-    a[0] += k * r[0] * (1.0 - zf)
-    a[1] += k * r[1] * (1.0 - zf)
-    a[2] += k * r[2] * (3.0 - zf)
-    return a
+    ax += k * rx * (1.0 - zf)
+    ay += k * ry * (1.0 - zf)
+    az += k * rz * (3.0 - zf)
+    return np.array([ax, ay, az])
 
 
 def atmosphere_relative_velocity(r_eci, v_eci):
     """Air-relative velocity (subtract the Earth-rotation transport term)."""
     w = C.OMEGA_EARTH
-    r = as_vec3(r_eci)
-    v = as_vec3(v_eci)
-    return np.array([v[0] + w * r[1], v[1] - w * r[0], v[2]])
+    if not (type(r_eci) is np.ndarray and r_eci.shape == (3,)):
+        r_eci = as_vec3(r_eci)
+    if not (type(v_eci) is np.ndarray and v_eci.shape == (3,)):
+        v_eci = as_vec3(v_eci)
+    return np.array([float(v_eci[0]) + w * float(r_eci[1]),
+                     float(v_eci[1]) - w * float(r_eci[0]),
+                     float(v_eci[2])])
 
 
 # ------------------------------------------------------------
@@ -411,46 +457,83 @@ def atmosphere_relative_velocity(r_eci, v_eci):
 # ------------------------------------------------------------
 def los_vector(r_m, r_t):
     """Missile-to-target LOS vector."""
-    return as_vec3(r_t) - as_vec3(r_m)
+    if not (type(r_m) is np.ndarray and r_m.shape == (3,)):
+        r_m = as_vec3(r_m)
+    if not (type(r_t) is np.ndarray and r_t.shape == (3,)):
+        r_t = as_vec3(r_t)
+    return np.array([float(r_t[0] - r_m[0]),
+                     float(r_t[1] - r_m[1]),
+                     float(r_t[2] - r_m[2])])
 
 
 def los_geometry(r_m, v_m, r_t, v_t):
     """3D LOS geometry: range, LOS unit vector, relative velocity and rate."""
-    rho = los_vector(r_m, r_t)
-    R = math.sqrt(rho[0] * rho[0] + rho[1] * rho[1] + rho[2] * rho[2])
+    if not (type(r_m) is np.ndarray and r_m.shape == (3,)):
+        r_m = as_vec3(r_m)
+    if not (type(v_m) is np.ndarray and v_m.shape == (3,)):
+        v_m = as_vec3(v_m)
+    if not (type(r_t) is np.ndarray and r_t.shape == (3,)):
+        r_t = as_vec3(r_t)
+    if not (type(v_t) is np.ndarray and v_t.shape == (3,)):
+        v_t = as_vec3(v_t)
+    dx = float(r_t[0] - r_m[0])
+    dy = float(r_t[1] - r_m[1])
+    dz = float(r_t[2] - r_m[2])
+    R = math.sqrt(dx * dx + dy * dy + dz * dz)
     if R < _EPS:
         R = _EPS
-    u = rho / R
-    v_rel = as_vec3(v_t) - as_vec3(v_m)
-    range_rate = float(u[0] * v_rel[0] + u[1] * v_rel[1] + u[2] * v_rel[2])
-    omega = np.array([
-        (rho[1] * v_rel[2] - rho[2] * v_rel[1]) / (R * R),
-        (rho[2] * v_rel[0] - rho[0] * v_rel[2]) / (R * R),
-        (rho[0] * v_rel[1] - rho[1] * v_rel[0]) / (R * R),
-    ])
+    inv_r = 1.0 / R
+    ux, uy, uz = dx * inv_r, dy * inv_r, dz * inv_r
+    vrx = float(v_t[0] - v_m[0])
+    vry = float(v_t[1] - v_m[1])
+    vrz = float(v_t[2] - v_m[2])
+    range_rate = ux * vrx + uy * vry + uz * vrz
+    inv_r2 = inv_r * inv_r
     return {
-        "rho": rho,
+        "rho": np.array([dx, dy, dz]),
         "range": R,
-        "u": u,
-        "v_rel": v_rel,
+        "u": np.array([ux, uy, uz]),
+        "v_rel": np.array([vrx, vry, vrz]),
         "range_rate": range_rate,
-        "omega": omega,
+        "omega": np.array([
+            (dy * vrz - dz * vry) * inv_r2,
+            (dz * vrx - dx * vrz) * inv_r2,
+            (dx * vry - dy * vrx) * inv_r2,
+        ]),
     }
 
 
 def predict_intercept(r_m, v_m, r_t, v_t, max_iter=8):
     """Iterative predicted intercept point and time-to-go."""
-    r_m = as_vec3(r_m)
-    v_m = as_vec3(v_m)
-    r_t = as_vec3(r_t)
-    v_t = as_vec3(v_t)
-    speed = max(norm3(v_m), 1.0)
-    t_go = max(norm3(r_t - r_m) / speed, 1.0)
+    if not (type(r_m) is np.ndarray and r_m.shape == (3,)):
+        r_m = as_vec3(r_m)
+    if not (type(v_m) is np.ndarray and v_m.shape == (3,)):
+        v_m = as_vec3(v_m)
+    if not (type(r_t) is np.ndarray and r_t.shape == (3,)):
+        r_t = as_vec3(r_t)
+    if not (type(v_t) is np.ndarray and v_t.shape == (3,)):
+        v_t = as_vec3(v_t)
+    rmx, rmy, rmz = float(r_m[0]), float(r_m[1]), float(r_m[2])
+    vmx, vmy, vmz = float(v_m[0]), float(v_m[1]), float(v_m[2])
+    rtx, rty, rtz = float(r_t[0]), float(r_t[1]), float(r_t[2])
+    vtx, vty, vtz = float(v_t[0]), float(v_t[1]), float(v_t[2])
+    speed = math.sqrt(vmx * vmx + vmy * vmy + vmz * vmz)
+    if speed < 1.0:
+        speed = 1.0
+    inv_spd = 1.0 / speed
+    dx0, dy0, dz0 = rtx - rmx, rty - rmy, rtz - rmz
+    t_go = math.sqrt(dx0 * dx0 + dy0 * dy0 + dz0 * dz0) * inv_spd
+    if t_go < 1.0:
+        t_go = 1.0
     for _ in range(max_iter):
-        r_p = r_t + v_t * t_go
-        t_new = max(norm3(r_p - r_m) / speed, 1.0)
+        px = dx0 + vtx * t_go
+        py = dy0 + vty * t_go
+        pz = dz0 + vtz * t_go
+        t_new = math.sqrt(px * px + py * py + pz * pz) * inv_spd
+        if t_new < 1.0:
+            t_new = 1.0
         if abs(t_new - t_go) < 0.5:
             t_go = t_new
             break
         t_go = 0.5 * (t_go + t_new)
-    return r_t + v_t * t_go, t_go
+    return np.array([rtx + vtx * t_go, rty + vty * t_go, rtz + vtz * t_go]), t_go

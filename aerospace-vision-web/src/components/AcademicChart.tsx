@@ -3,6 +3,7 @@ import * as echarts from "echarts/core";
 import { LineChart } from "echarts/charts";
 import { GridComponent, TooltipComponent } from "echarts/components";
 import { CanvasRenderer } from "echarts/renderers";
+import { useI18n } from "../i18n";
 
 echarts.use([LineChart, GridComponent, TooltipComponent, CanvasRenderer]);
 
@@ -22,8 +23,19 @@ interface Props {
 }
 
 export function AcademicChart({ title, xUnit, unitA, unitB, series }: Props) {
+  const { t } = useI18n();
   const ref = useRef<HTMLDivElement>(null);
   const chart = useRef<echarts.ECharts | null>(null);
+
+  const exportPng = () => {
+    const c = chart.current;
+    if (!c) return;
+    const url = c.getDataURL({ type: "png", pixelRatio: 2, backgroundColor: "#ffffff" });
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${title.replace(/[^\w\u4e00-\u9fa5-]+/g, "_")}_2x.png`;
+    a.click();
+  };
 
   const option = useMemo<echarts.EChartsCoreOption>(() => ({
     animation: false,
@@ -83,7 +95,12 @@ export function AcademicChart({ title, xUnit, unitA, unitB, series }: Props) {
 
   return (
     <figure className="academic-chart">
-      <figcaption>{title}</figcaption>
+      <figcaption className="academic-chart__head">
+        <span>{title}</span>
+        <button type="button" className="chart-export-btn" onClick={exportPng}>
+          {t("chart.exportPng")}
+        </button>
+      </figcaption>
       <div className="academic-chart__canvas" ref={ref} />
     </figure>
   );

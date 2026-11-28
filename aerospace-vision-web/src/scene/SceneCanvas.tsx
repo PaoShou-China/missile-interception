@@ -10,15 +10,13 @@ import { simClock, useAppStore } from "../state/store";
 import { COLORS } from "./constants";
 import { CINEMATIC_WALL_S, simToWall, wallToSim } from "../cinematic/shots";
 
-/** Advances the single simulation clock and mirrors it to React state. */
+/** Advances the single simulation clock and mirrors it to React state at low cadence. */
 function ClockDriver() {
   const acc = useRef(0);
+  const lastSyncedT = useRef(-1);
   useFrame((_, dt) => {
     const state = useAppStore.getState();
     if (state.presentation === "cinematic" && state.runtime) {
-      // Independent three-minute presentation clock with per-phase pacing:
-      // boost/terminal are slow, midcourse is compressed. Simulation time is
-      // still the only time source for the data.
       if (simClock.playing) {
         const phases = state.runtime.manifest.phases;
         const wall = simToWall(simClock.time, phases);
@@ -29,10 +27,15 @@ function ClockDriver() {
     } else if (simClock.playing) {
       simClock.tick(dt);
     }
+    // Decouple React UI re-renders from the 60 FPS WebGL loop: skip completely
+    // while paused and throttle playback store mirrors to ~8 Hz (125 ms).
     acc.current += dt;
-    if (acc.current >= 0.05) {
+    if (acc.current >= 0.125) {
       acc.current = 0;
-      useAppStore.getState().syncTime();
+      if (Math.abs(simClock.time - lastSyncedT.current) > 1e-6 || simClock.playing !== state.playing) {
+        lastSyncedT.current = simClock.time;
+        state.syncTime();
+      }
     }
   });
   return null;

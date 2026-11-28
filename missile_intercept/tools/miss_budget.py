@@ -63,13 +63,14 @@ QUICK_VARIANTS = ("full", "no_sensor_noise", "truth_nav")
 # Case construction / execution
 # ============================================================
 def _base_cfg():
-    """Run configuration with telemetry sized for the full flight."""
+    """Run configuration with zero-allocation scalar-only telemetry."""
     cfg = C.SimConfig()
     return replace(
         cfg,
         enable_plot=False,
         verbose=False,
-        max_steps=max(int(round(cfg.t_end / max(cfg.dt_log, 1e-6))) + 1000, 1000),
+        telemetry_profile="none",
+        max_steps=1,
     )
 
 

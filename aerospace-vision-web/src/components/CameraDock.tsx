@@ -7,6 +7,8 @@ export function CameraDock() {
   const setCameraMode = useAppStore((s) => s.setCameraMode);
   const trackEmphasis = useAppStore((s) => s.trackEmphasis);
   const toggleTrackEmphasis = useAppStore((s) => s.toggleTrackEmphasis);
+  const xrayMode = useAppStore((s) => s.xrayMode);
+  const toggleXrayMode = useAppStore((s) => s.toggleXrayMode);
   const { t } = useI18n();
 
   return (
@@ -34,6 +36,15 @@ export function CameraDock() {
         title={t("camera.trackHint")}
       >
         {t("camera.track")}
+      </button>
+      <button
+        type="button"
+        className={xrayMode ? "is-active" : ""}
+        aria-pressed={xrayMode}
+        onClick={toggleXrayMode}
+        title={t("camera.xrayHint")}
+      >
+        ✦ {t("camera.xray")}
       </button>
     </div>
   );

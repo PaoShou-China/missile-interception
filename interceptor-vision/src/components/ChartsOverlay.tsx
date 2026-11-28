@@ -216,6 +216,23 @@ export function ChartsOverlay() {
         unit: "g",
         series: [{ name: "DACS", color: "#f27d7d", points: pick((s) => s!.divertG ?? 0) }],
       },
+      {
+        title: t("snrLink"),
+        unit: "dB",
+        series: [
+          { name: "Radar SNR", color: "#68f2a8", points: pick((s) => s!.radarSnrDb ?? -60) },
+          { name: "IIR SNR", color: "#ff9b66", points: pick((s) => s!.irSnrDb ?? -60) },
+          { name: "CFAR 13 dB", color: "#e8c46a", points: pick(() => 13) },
+        ],
+      },
+      {
+        title: t("aerothermal"),
+        unit: "MW/m² · ×100K",
+        series: [
+          { name: "q̇s (MW/m²)", color: "#ff7466", points: pick((s) => s!.heatFluxMWm2 ?? 0) },
+          { name: "Tw (×100 K)", color: "#ffc96b", points: pick((s) => (s!.wallTempK ?? 288) / 100) },
+        ],
+      },
     ];
   }, [telemetry, t]);
 

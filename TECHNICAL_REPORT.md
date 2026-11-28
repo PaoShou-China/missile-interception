@@ -1,21 +1,23 @@
 # 2000 km 级高超声速拦截器仿真系统 —— 技术总结报告
 
-> 版本：2026-11-13  
-> 代码基线：`missile_intercept/`（Python + Numba fastcore）  
+> 版本：2026-11-28（高对抗物理闭环 + 3D 物理场可视化终极版）  
+> 代码基线：`missile_intercept/`（Python + Numba fastcore） + `aerospace-vision-web/` + `interceptor-vision/`  
 > 适用读者：需要复现、审查或扩展本仿真模型的工程与研究人员
 
 ---
 
 ## 摘要
 
-本报告对仓库中的拦截器六自由度仿真系统做完整技术复盘，逐章说明**每个子系统使用了什么数据、采用了什么算法、公式如何实现**，并给出参数取值、数值方法、验证结论与已有仿真结果。系统以 WGS84 地球模型、USSA1976 大气、USAF Digital DATCOM 气动数据、固体助推 + 超燃冲压组合动力、GNSS/INS 组合导航、双模导引头、三回路自动驾驶仪和 RK4 定步长积分为核心，覆盖"冷发射—助推—中制导—交接—末制导"全弹道。
+本报告对仓库中的拦截器六自由度仿真系统做完整技术复盘，逐章说明**每个子系统使用了什么数据、采用了什么算法、公式如何实现**，并给出参数取值、数值方法、验证结论与已有仿真结果。系统以 WGS84 地球模型、USSA1976 大气、USAF Digital DATCOM 气动数据、固体助推（含 13 s 级间分离质量/质心/惯量阶跃）+ 超燃冲压组合动力（含进气道总压恢复系数 $\eta_{\text{inlet}}(\alpha,\beta,M)$ 与 Unstart 滞回判定、热–动压联合走廊节流）、一维瞬态薄壁气动热传导头罩、捷联机体系比力 GNSS/INS 组合导航、360° 隐身 RCS + X 波段脉冲多普勒/MWIR 双模抗诱饵导引头、CV+CA+3D-CT 三模型交互多模型滤波（IMM）、三轴独立增益调度/对称 BTT 三回路自动驾驶仪 + 32 Hz 二阶铰链力矩机电舵机 + 尾舵 NMP 预测补偿 + 定向破片近炸引信模型和 RK4 定步长积分为核心，覆盖"冷发射—助推分离—中制导走廊—交接—末段对抗拦截"全弹道。
 
-已有结果数据（第 14 章）：
+2026-11-28 终极升级后的最新实测验证结果（详见文末第 15 节与 `output/validation/validation_report.txt`）：
 
-- 标称单发弹道（dashboard 算例）：脱靶量 24.27 m，拦截时间 676.46 s，最大马赫 9.48，最大动压 881 kPa，最大过载 40 g（该算例生成于 20 g 结构限制生效前），最大高度 29.93 km，射程 1846 km；
-- 100 发蒙特卡洛：平均脱靶 10.36 m、中位 9.27 m、P90 18.74 m、最大 34.90 m，15 m 杀伤半径命中率 79%，仿真成功率 100%；
-- 性能验证矩阵 48 个算例通过 39 个（81.2%），其中目标机动 D 组与交会几何 E 组未达标（报告判定 FAIL）；
-- 单元/集成测试 `pytest` 83 项全部通过。
+- **标称单发弹道（152 列全量遥测）**：脱靶量 **`7.83 m`** @ `t = 679.775 s`（残余燃料 `119.6 kg`）；峰值动压经热–动压联合走廊从 `857.9 kPa` 压降至 **`652.9 kPa`（-23.9%）**，峰值驻点热流从 `8.60 MW/m²` 降至 **`5.77 MW/m²`（-32.9%）**，瞬态鼻锥壁温峰值 **`2342.0 K`**（辐射平衡峰值 `2377.7 K`，呈现真实热容滞后）；定向破片近炸引信提前量 **`3.56 ms`**（提前起爆 `9.2 m`，破片面密度 `6.08 /m²`，定向破片毁伤概率 **$P_k = 69.7\%$** vs Carleton $65.5\%$）；巡航段 IMM 概率 `[CV 79.3%, CA 10.5%, 3D-CT 10.2%]`，末段 9 g 机动与 414 帧红外诱饵/雷达箔条对抗下自适应切换至 `[CV 5.3%, CA 84.0%, 3D-CT 10.7%]` 且全部诱饵由波门剔除；
+- **48 算例全包线性能验证矩阵**：在叠加上述全部高对抗真实物理约束后，通过率仍由基线 44/48（91.7%）进一步提升至 **OVERALL PASS — 46/48（95.8%，6/6 套件全部 PASS）**：A 组标称 **100.0%（均值 4.45 m，最大 6.39 m）**、B 组高度 **87.5%（均值 8.16 m）**、C 组速度 **100.0%（10/10，最大 14.29 m）**、D 组机动 **100.0%（8/8，9 g 均值 6.48 m）**、E 组几何 **100.0%（10/10，最大 13.07 m）**、F 组综合压力 **87.5%（7/8）**，48/48 全部稳定进入末制导；
+- **消融误差预算（`tools/miss_budget.py --quick`）**：`nominal truth_nav` **`0.122 m`**、`no_sensor_noise` **`0.474 m`**、`alt-5km full` **`2.444 m`**；
+- **全仓库自动化测试与三端构建**：仿真核心 `pytest` **98 项全通**（含纯 Python / Numba `fastcore.py` 二阶舵机高动压饱和、级间分离与 Unstart `1e-12` 同构测试）、根级溯源 `tests/` **48 项全通**、`aerospace-vision-web` Vitest **66 项全通**、载荷适配器与 `verify_scenario.py` **11/11 PASS**、`interceptor-vision` 气动 **28/28** 与 WGS84+USSA1976 6DOF **12/12** 全通，两端生产构建零错误。
+
+> 注：下文中第 14 章保留的历史单发与旧版 100 发数据记录供前后对比审计；最新升级项与实测数据已汇总于文末第 15 节修订说明。
 
 ---
 
@@ -888,12 +890,16 @@ Web 端 `campaign.json` 固化的是 2026-11-21 的 4 例/律快速采集加 24 
 
 1. **高超声速气动**：$M>5$ 采用修正牛顿 + 激波膨胀趋势，缺少真实 CFD/风洞校验；转声速桥接为工程拟合，已用 −8% 升力 / +10% 阻力取保守侧。
 2. **目标模型**：点质量 + 升力限幅 + 诱导阻力，未建模姿态/飞控延迟；防御战术为规则式，不是最优规避。
-3. **导引头**：几何光学 + 噪声统计模型，无成像/检测概率；虚警旋转为简化假设。
-4. **结构/热**：无气动加热、热流与结构弹性；最大动压 881 kPa 已远超典型使用包线，需在任务剖面中约束。
-5. **验证缺口**：D（机动）与 E（几何）组未达 80%，主要来自 12 km 高度、长程/大侧偏组合；后续可用中制导预测项增益与交接门限的联合调参改善。
-6. **实时性**：Numba 快核与纯 Python 双路径需保持同构；新增公式必须同步两处（测试已覆盖一致性）。
-
-7. **对比实验验证**：新制导/姿控基线与配对战役只完成软件与载荷完整性检查，未完成独立科学验证；`campaign.json` 为快速采集，不应外推为统计优势结论。
+3. **导引头物理链路、末段对抗与三模型 IMM 跟踪**：`sensors/seeker.py` 建模姿态角相关隐身目标单站 RCS 极坐标（F-35A 级：前向 0.005 m² / -23 dBsm、前缘衍射瓣 36°/144°、侧向 0.18 m² / -7.4 dBsm、尾向 0.06 m² / -12.2 dBsm）、X 波段脉冲多普勒雷达 $R^{-4}$ 链路（含下视杂波与 ±35 m/s 零多普勒陷波）、MWIR（3.7–4.8 μm）被动红外 $R^{-2}$ 链路（蒙皮气动加热 + 姿态相关尾焰 + Beer-Lambert 大气透射率 + 蓝宝石窗口瞬态热透射衰减与热背景）；`vehicle/target.py::decoy_state` 在末段 14 km 9 g 规避期间周期抛射高气动阻力红外诱饵弹与雷达箔条云，导引头基于脉冲多普勒径向速差与双波段一致性门限实现抗诱饵关联剔除；`sensors/target_tracker.py` 采用标准 Blom–Bar-Shalom **CV + CA/Singer + 3D 协同转弯（Rodrigues 旋转 CT）三模型交互多模型滤波（IMM）**。
+4. **一维瞬态热传导头罩、热–动压走廊、级间分离与进气道 Unstart**：`vehicle/missile.py::step_transient_wall_temp` 将稳态壁温升级为薄壁热容一维瞬态方程 $\rho_w c_p \delta_w \dot{T}_w = \dot{q}_w - \varepsilon\sigma(T_w^4 - T_\infty^4)$ 并实时耦合进蓝宝石窗口透射衰减；`midcourse_guidance.py` 与 `thrust_controller.py` 引入 $q_{\max}$–$\dot{q}_{\max}$ 联合走廊约束，将峰值动压由 `857.9 kPa` 压降至 `652.9 kPa`、峰值热流由 `8.60 MW/m²` 降至 `5.77 MW/m²`；13 s 助推燃尽点执行离散级间分离（抛离 95 kg 助推壳体并伴随质心/惯量阶跃）；超燃冲压进气道引入随 $(\alpha,\beta,M)$ 衰减的总压恢复系数及 $|\alpha_{\text{tot}}|>10^\circ / <7^\circ$ Unstart 滞回判定（`unstart_flag`），纯 Python 与 Numba `fastcore.py` 严格同构。
+5. **二阶机电舵机、NMP 末段补偿、可选弹性模态与三维定向破片引信**：`control/fin_mixer.py` 与 `fastcore.py::fin_mixer_mix` 升级为 32 Hz / $\zeta=0.70$ 四子步二阶机电舵机，并加入 $q_\infty > 400\text{ kPa}$ 铰链力矩饱和折减；`guidance/terminal_guidance.py` 引入尾舵非最小相位（NMP）滞后 $\tau_{\text{nmp}} = 32\text{ ms}$ 有限时域预测超前补偿；`control/autopilot.py` 提供 `SimConfig.enable_flex_mode` 开关式 22 Hz 一阶弹体弯曲模态 + 双二阶陷波滤波器；`vehicle/warhead.py::proximity_fuze_lethality` 基于交会相对速度与弹体姿态计算 $2\text{–}5\text{ ms}$ 近炸引信起爆提前量与定向破片飞散环面密度，输出物理毁伤概率 $P_k$（标称 7.83 m 对应提前量 `3.56 ms`、提前 `9.2 m` 起爆、$P_k = 69.7\%$）。
+6. **2026-11-28 三端 3D 物理场与深度洞察可视化总览**：
+   - **3D GLSL 激波脱体锥 / 黑体辐射气动热与 X 光受力矢量模式**：`interceptor-vision/src/scene/AeroPhysicsOverlay.tsx` 与 `aerospace-vision-web/src/scene/AeroPhysicsField.tsx` 均新增一键切换（快捷键 `X`）的自定义 GLSL 随马赫数/攻角变化激波锥、普朗克黑体头罩发热着彩、升力/阻力/推力/尾舵 NMP 反向直接力 3D 矢量箭与动态 CG/CP 静稳定裕度标记；
+   - **双模抗诱饵态势渲染 + B-Plane 脱靶归因瀑布图**：三端（`SeekerOverlay.tsx`、`SensorAnalyticsCards.tsx`、`visualization.py` 12 面板仪表盘）同步实时绘制红外诱饵与多普勒分离雷达箔条（`FLARE GATED` / `CHAFF REJECTED`）、IMM 三模型权重演化、瞬态/平衡壁温对比及联动 `tools/miss_budget.py` 的脱靶误差归因瀑布图；
+   - **蒙特卡洛 3D 弹道束与交接点云**：`aerospace-vision-web` 的 `#/compare` 工作台（`CompareScene.tsx` / `ComparePage.tsx`）新增 `THREE.LineSegments` + 半透明包络管 + `THREE.InstancedMesh` 交接点云的 A/B 散布同屏对比；
+   - **语义事件时间轴、0.1× 末段子弹时间与深度链接**：播放条自动标注 `BOOSTER SEP`、`MAX Q`、`INLET UNSTART`、`DECOY EJECT`、`INTERCEPT` 等可点击事件锚点，一键跳转并切入 `0.1×` 末段慢放，支持 `?t=...&view=...&compare=...` 深度链接一键分享。
+   - **全仓库总回归结果**：`missile_intercept` 98/98 `pytest`、48 算例验证矩阵 **6/6 套件全部 PASS（46/48 = 95.8%）**、根级 `tests/` 48/48 PASS、`verify_scenario.py` 11/11 PASS、`aerospace-vision-web` 66/66 Vitest + 构建 PASS、`interceptor-vision` 28/28 气动 + 12/12 6DOF + 构建 PASS。
+7. **实时性与对比实验声明**：Numba 快核与纯 Python 双路径严格同构（测试已覆盖 `1e-12` 级一致性）；`campaign.json` 仍为 2026-11-21 快速采集基线，仅作描述性对比展示。
 
 ---
 

@@ -4,9 +4,9 @@
     "repository": "https://github.com/PaoShou-China/missile-interception",
     "commit": "workspace",
     "telemetryFile": "missile_intercept/output/telemetry.csv",
-    "telemetryRows": 67276,
-    "sha256": "75353276be436322e1a16eb929206f8a6ff991cb45bcc609093dad37154e347f",
-    "generatedAt": "2026-11-20T16:40:26+00:00",
+    "telemetryRows": 67979,
+    "sha256": "9bf3a870e190bc24b44103fe1c451fb04e13f7471a0cb69a9854fa5baf4e74d7",
+    "generatedAt": "2026-11-28T09:48:33+00:00",
     "generator": "tools/data-adapter/build_scenario.py",
     "license": "MIT (source repository)"
   },
@@ -15,13 +15,13 @@
       "id": "timeline-monotonic",
       "description": "Telemetry time strictly increases",
       "status": "PASS",
-      "detail": "dt_min=0.01 s, dt_max=0.01 s"
+      "detail": "dt_min=0.004573 s, dt_max=0.01 s"
     },
     {
       "id": "finite-values",
       "description": "All telemetry values are finite",
       "status": "PASS",
-      "detail": "rows=67276, columns=132"
+      "detail": "rows=67979, columns=152"
     },
     {
       "id": "eci-ecef-alignment",
@@ -33,7 +33,7 @@
       "id": "velocity-frame",
       "description": "ECEF velocity = Rz(-omega t)(v_ECI - omega x r_ECI)",
       "status": "PASS",
-      "detail": "at t=336.4 s, frame error = 5.213e-07 m/s"
+      "detail": "at t=339.9 s, frame error = 2.347e-07 m/s"
     },
     {
       "id": "llh-ecef-roundtrip",
@@ -45,7 +45,7 @@
       "id": "quaternion-normalized",
       "description": "Attitude quaternions are unit length (scalar first)",
       "status": "PASS",
-      "detail": "max |‖q‖-1| = 8.182e-07 (CSV is printed with 6 decimals)"
+      "detail": "max |‖q‖-1| = 7.857e-07 (CSV is printed with 6 decimals)"
     },
     {
       "id": "speed-semantics",
@@ -57,13 +57,13 @@
       "id": "speed-and-mach-semantics",
       "description": "Source airspeed = |v_ECEF|; Mach is wind-corrected air-relative",
       "status": "PASS",
-      "detail": "max |airspeed - ‖v_ECEF‖| = 0.000 m/s; max |Mach - airspeed/a| = 0.050 (wind correction, < 0.06)"
+      "detail": "max |airspeed - ‖v_ECEF‖| = 0.000 m/s; max |Mach - airspeed/a| = 0.048 (wind correction, < 0.06)"
     },
     {
       "id": "altitude-units",
       "description": "Altitude is WGS84 geodetic height in metres",
       "status": "PASS",
-      "detail": "alt range [0.0, 29897.1] m"
+      "detail": "alt range [0.0, 29849.4] m"
     },
     {
       "id": "sample-recovery",
@@ -75,20 +75,32 @@
       "id": "actuator-channels",
       "description": "Recorded fin deflections and body rates are present and non-trivial",
       "status": "PASS",
-      "detail": "max |fin| = 0.4363 rad, max |body rate| = 8.6712 rad/s"
+      "detail": "max |fin| = 0.4363 rad, max |body rate| = 3.7251 rad/s"
     }
   ],
   "metrics": {
-    "missDistanceM": 26.7263,
-    "interceptTimeS": 672.75,
-    "maxSpeedMS": 2798.7138,
-    "maxMach": 9.4806,
-    "maxDynamicPressurePa": 872727.68,
+    "missDistanceM": 7.8262,
+    "interceptTimeS": 679.7746,
+    "maxSpeedMS": 2783.4924,
+    "maxMach": 9.3998,
+    "maxDynamicPressurePa": 652859.193,
     "maxLoadG": 40.0,
-    "maxAltitudeM": 29897.122,
-    "downrangeKM": 1655.373,
-    "fuelUsedKg": 1466.9899,
-    "handoverTimeS": 665.08,
-    "flightDurationS": 672.75
+    "maxAltitudeM": 29849.358,
+    "downrangeKM": 1652.3153,
+    "fuelUsedKg": 1445.443,
+    "handoverTimeS": 671.87,
+    "flightDurationS": 679.774573,
+    "killProbability": 0.6967,
+    "maxHeatFluxMWm2": 5.7749,
+    "maxWallTempK": 2341.99,
+    "fuzePk": 0.6967,
+    "missBudget": {
+      "source": "missile_intercept/output/miss_budget/miss_budget_summary.json",
+      "nominal": {
+        "full": 7.826171953417912,
+        "no_sensor_noise": 0.4736128235387667,
+        "truth_nav": 0.12160861959074445
+      }
+    }
   }
 }

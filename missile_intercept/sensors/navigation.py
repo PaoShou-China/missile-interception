@@ -17,6 +17,7 @@ from collections import deque
 import numpy as np
 import config as C
 import fastcore as FC
+import math_utils as MU
 
 
 class NavigationSystem:
@@ -36,12 +37,15 @@ class NavigationSystem:
         self.gyro_bias_tau = max(float(C.GYRO_BIAS_TAU), 1e-6)
         self.sigma_gbias = float(C.GYRO_BIAS) * scale
         self.sigma_gbias_walk = float(C.GYRO_BIAS_WALK) * scale
+        self.scale_err = float(C.GYRO_SCALE_ERR) * 0.5 * scale
         self.rng = np.random.RandomState(seed)
         self._rng_state = FC.make_rng_state(seed)
 
         self.x = np.zeros(12)      # [r, v, b_a, b_g]
         self.P = np.eye(12) * 1e4
-        self.b_acc = np.zeros(3)   # raw (true) accelerometer bias
+        self.b_acc = np.zeros(3)   # raw (true) accelerometer bias (body frame in strapdown mode)
+        self.acc_scale = np.ones(3)
+        self.last_accel_body_meas = np.zeros(3)  # noisy specific force measured in body frame
         self.t_last = 0.0
         self.next_gnss = 0.0
         self.history = deque(maxlen=4000)   # (t, x) delay buffer
@@ -58,11 +62,14 @@ class NavigationSystem:
         rn = r + self.rng.normal(0.0, self.sigma_pos, 3)
         vn = v + self.rng.normal(0.0, self.sigma_vel, 3)
         self.x = np.concatenate([rn, vn, np.zeros(3), np.zeros(3)])
-        self.P = np.diag([self.sigma_pos ** 2] * 3
-                         + [self.sigma_vel ** 2] * 3
-                         + [self.sigma_bias ** 2] * 3
-                         + [self.sigma_gbias ** 2] * 3)
+        self.P = np.diag([max(self.sigma_pos ** 2, 1e-6)] * 3
+                         + [max(self.sigma_vel ** 2, 1e-6)] * 3
+                         + [max(self.sigma_bias ** 2, 1e-9)] * 3
+                         + [max(self.sigma_gbias ** 2, 1e-9)] * 3)
         self.b_acc = self.rng.normal(0.0, self.sigma_bias, 3)
+        self.acc_scale = (1.0 + self.rng.normal(0.0, self.scale_err, 3)
+                          if self.scale_err > 0.0 else np.ones(3))
+        self.last_accel_body_meas = np.zeros(3)
         self.t_last = float(t)
         self.next_gnss = float(t)
         self.history.clear()
@@ -101,15 +108,27 @@ class NavigationSystem:
         self.P = 0.5 * (Pn + Pn.T)
 
     def _update_gnss_ins(self):
-        """GNSS update with H = [I6 0 0] for the twelve-state filter."""
+        """GNSS update with H = [I6 0 0] in Joseph form (safe at zero noise)."""
+        sp2 = max(self.sigma_pos ** 2, 1e-9)
+        sv2 = max(self.sigma_vel ** 2, 1e-9)
         R = np.zeros((6, 6))
-        R[0:3, 0:3] = np.eye(3) * self.sigma_pos ** 2
-        R[3:6, 3:6] = np.eye(3) * self.sigma_vel ** 2
+        R[0:3, 0:3] = np.eye(3) * sp2
+        R[3:6, 3:6] = np.eye(3) * sv2
         S = self.P[0:6, 0:6] + R
         K = np.linalg.solve(S, self.P[:, 0:6].T).T
         self.x = self.x + K.dot(self.truth_meas - self.x[0:6])
-        self.P = self.P - K.dot(self.P[0:6, :])
+        IKH = np.eye(12)
+        IKH[:, 0:6] -= K
+        self.P = IKH.dot(self.P).dot(IKH.T) + K.dot(R).dot(K.T)
         self.P = 0.5 * (self.P + self.P.T)
+
+    def latest_estimate(self, t):
+        """Zero-delay current INS state estimate at tick ``t``."""
+        return C.NavEstimate(
+            r_eci=np.asarray(self.x[0:3], dtype=float).copy(),
+            v_eci=np.asarray(self.x[3:6], dtype=float).copy(),
+            timestamp=float(t),
+        )
 
     def set_gyro_bias(self, b_meas):
         """Inject the star-aided gyro-bias estimate as a KF pseudo-measurement."""
@@ -125,8 +144,17 @@ class NavigationSystem:
             self.P = 0.5 * (self.P + self.P.T)
 
     # --------------------------------------------------------
-    def step(self, t, r_true, v_true, a_true_eci):
-        """One outer-step call: predict, optional GNSS update, delayed output."""
+    def step(self, t, r_true, v_true, a_true_eci, f_body_true=None,
+             q_est=None, omega_true=None, cg_pos=None):
+        """One outer-step call: strapdown INS predict, optional GNSS update, delayed output.
+
+        When ``f_body_true`` and ``q_est`` are supplied, runs full body-frame
+        strapdown mechanisation (body specific force + lever-arm coupling +
+        accelerometer bias/scale/noise rotated by estimated attitude ``q_est``
+        plus WGS84+J2 gravity), naturally coupling attitude errors into
+        velocity/position.  Otherwise keeps the 4-arg ECI interface for legacy
+        unit tests.
+        """
         if not self.initialized:
             self.reset(t, r_true, v_true)
 
@@ -138,22 +166,48 @@ class NavigationSystem:
             self.b_acc = (phi * self.b_acc
                           + self.rng.normal(0.0, self.sigma_bias_walk
                                             * np.sqrt(max(1.0 - phi * phi, 0.0)), 3))
-            a_vec = np.ascontiguousarray(
-                np.asarray(a_true_eci, dtype=float).reshape(3))
             phi_g = float(np.exp(-dt / self.gyro_bias_tau))
             q_bias = (self.sigma_bias_walk
                       * np.sqrt(max(1.0 - phi * phi, 0.0))) ** 2
             q_gb = (self.sigma_gbias_walk
                     * np.sqrt(max(1.0 - phi_g * phi_g, 0.0))) ** 2
-            if FC.NUMBA_AVAILABLE:
-                FC.nav_predict_ins(self.x, self.P, dt, a_vec, self.b_acc,
-                                   self.sigma_acc, self.sigma_acc_q,
-                                   phi, phi_g, q_bias, q_gb,
-                                   self._rng_state)
+
+            if f_body_true is not None and q_est is not None:
+                fb = np.asarray(f_body_true, dtype=float).reshape(3)
+                # IMU mounting lever-arm centripetal coupling: w x (w x r_arm).
+                a_lever = np.zeros(3)
+                if omega_true is not None and cg_pos is not None:
+                    w_b = np.asarray(omega_true, dtype=float).reshape(3)
+                    # Body +X points forward from CG toward nose.
+                    r_arm = np.array([float(cg_pos) - C.IMU_STATION, 0.0, 0.0])
+                    a_lever = MU.cross3(w_b, MU.cross3(w_b, r_arm))
+                noise_b = (self.rng.normal(0.0, self.sigma_acc, 3)
+                           if self.sigma_acc > 0.0 else np.zeros(3))
+                fb_meas = (fb + a_lever) * self.acc_scale + self.b_acc + noise_b
+                self.last_accel_body_meas = fb_meas.copy()
+                # Strapdown mechanisation: rotate body specific force with
+                # ESTIMATED attitude q_est and add WGS84+J2 gravity at x[0:3].
+                a_eci_meas = MU.quat_rotate(q_est, fb_meas) + MU.gravity_eci(self.x[0:3])
+                if FC.NUMBA_AVAILABLE:
+                    FC.nav_predict_ins(self.x, self.P, dt,
+                                       np.ascontiguousarray(a_eci_meas),
+                                       np.zeros(3), 0.0, self.sigma_acc_q,
+                                       phi, phi_g, q_bias, q_gb,
+                                       self._rng_state)
+                else:
+                    self._predict_ins(dt, a_eci_meas, phi, q_bias)
             else:
-                self._predict_ins(dt, a_vec + self.b_acc
-                                  + self.rng.normal(0.0, self.sigma_acc, 3),
-                                  phi, q_bias)
+                a_vec = np.ascontiguousarray(
+                    np.asarray(a_true_eci, dtype=float).reshape(3))
+                if FC.NUMBA_AVAILABLE:
+                    FC.nav_predict_ins(self.x, self.P, dt, a_vec, self.b_acc,
+                                       self.sigma_acc, self.sigma_acc_q,
+                                       phi, phi_g, q_bias, q_gb,
+                                       self._rng_state)
+                else:
+                    self._predict_ins(dt, a_vec + self.b_acc
+                                      + self.rng.normal(0.0, self.sigma_acc, 3),
+                                      phi, q_bias)
             self.t_last = float(t)
 
             if t + 1e-12 >= self.next_gnss:

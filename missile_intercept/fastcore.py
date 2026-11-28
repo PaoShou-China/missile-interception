@@ -190,26 +190,36 @@ def geodetic_up(rx, ry, rz):
     return cl * math.cos(lon), cl * math.sin(lon), math.sin(lat)
 
 
-@njit(cache=True)
-def gravity_accel(rx, ry, rz):
-    """ECI gravity acceleration (central + optional J2), m/s^2."""
+@njit(cache=True, nogil=True)
+def gravity_xyz(rx, ry, rz):
+    """Scalar ECI gravity acceleration (central + optional J2), zero allocation."""
     r2 = rx * rx + ry * ry + rz * rz
     rad = math.sqrt(r2)
     if rad < 1e-12:
         rad = 1e-12
     r3 = rad * rad * rad
-    out = np.empty(3)
-    out[0] = -C.MU * rx / r3
-    out[1] = -C.MU * ry / r3
-    out[2] = -C.MU * rz / r3
+    gx = -C.MU * rx / r3
+    gy = -C.MU * ry / r3
+    gz = -C.MU * rz / r3
     if C.EARTH_MODEL_CODE != 0:
         z2 = rz * rz
         r5 = r3 * r2
         k = -1.5 * C.J2 * C.MU * C.WGS84_A * C.WGS84_A / r5
         zf = 5.0 * z2 / r2
-        out[0] += k * rx * (1.0 - zf)
-        out[1] += k * ry * (1.0 - zf)
-        out[2] += k * rz * (3.0 - zf)
+        gx += k * rx * (1.0 - zf)
+        gy += k * ry * (1.0 - zf)
+        gz += k * rz * (3.0 - zf)
+    return gx, gy, gz
+
+
+@njit(cache=True, nogil=True)
+def gravity_accel(rx, ry, rz):
+    """ECI gravity acceleration (central + optional J2), m/s^2."""
+    gx, gy, gz = gravity_xyz(rx, ry, rz)
+    out = np.empty(3)
+    out[0] = gx
+    out[1] = gy
+    out[2] = gz
     return out
 
 
@@ -263,7 +273,11 @@ def static_margin(mach, cg):
     m = min(mach, 5.0)
     cna = _table(m, C.AERO_MACH, C.AERO_CN_ALPHA)
     cma = _table(m, C.AERO_MACH, C.AERO_CM_ALPHA)
-    return -cma * C.LENGTH / cna + (C.CG_FULL - cg)
+    margin = -cma * C.LENGTH / cna
+    if mach > 5.0:
+        shift = C.AERO_HYP_CP_SHIFT_MAX * min((mach - 5.0) / 5.0, 1.0)
+        margin = max(margin - shift, 0.25)
+    return margin + (C.CG_FULL - cg)
 
 
 @njit(cache=True)
@@ -304,7 +318,12 @@ def k_shape(alpha):
 
 @njit(cache=True)
 def induced_k(mach):
-    return _table(min(mach, 5.0), C.AERO_MACH, C.AERO_INDUCED_K)
+    if mach <= 5.0:
+        return _table(mach, C.AERO_MACH, C.AERO_INDUCED_K)
+    ratio = C.AERO_HYP_CN_ALPHA[0] / max(cn_alpha(mach), 2.5)
+    if ratio > 1.45:
+        ratio = 1.45
+    return C.AERO_INDUCED_K[-1] * ratio
 
 
 @njit(cache=True)
@@ -367,7 +386,7 @@ def cm_gain(mach, alpha):
 
 
 @njit(cache=True)
-def fin_lever():
+def fin_lever(cg=C.CG_FULL):
     cr = C.ROOT_CHORD
     ct = C.TIP_CHORD
     b = C.WING_SPAN
@@ -375,12 +394,25 @@ def fin_lever():
     y_mac = (b / 3.0) * (cr + 2.0 * ct) / (cr + ct)
     sweep = math.atan((cr - ct) / (b + 0.5 * C.DIAMETER))
     x_ac = (C.LENGTH - cr) + y_mac * math.tan(sweep) + 0.25 * mac
-    return x_ac - C.CG_FULL
+    return x_ac - cg
 
 
 @njit(cache=True)
-def cm_de(mach):
-    return -(cn_alpha(mach) - C.CN_ALPHA_BODY) * fin_lever() / C.LENGTH
+def cm_de(mach, cg=C.CG_FULL):
+    return -(cn_alpha(mach) - C.CN_ALPHA_BODY) * fin_lever(cg) / C.LENGTH
+
+
+@njit(cache=True)
+def ramjet_isp(mach):
+    if mach <= 3.5:
+        return C.RAMJET_ISP
+    frac = (mach - 3.5) / max(C.RAMJET_MACH_MAX - 3.5, 1e-6)
+    if frac < 0.0:
+        frac = 0.0
+    elif frac > 1.0:
+        frac = 1.0
+    s = frac * (1.30 - 0.30 * frac)
+    return C.RAMJET_ISP - s * (C.RAMJET_ISP - C.RAMJET_ISP_MIN)
 
 
 @njit(cache=True)
@@ -389,42 +421,74 @@ def fin_effective(d):
 
 
 @njit(cache=True)
-def friction_delta(alt, speed):
-    t, _p, rho, _a = atmosphere(alt)
+def _eckert_cf_factor(mach, t_inf):
+    m = max(mach, 0.0)
+    ti = max(t_inf, 100.0)
+    tr_ratio = 1.0 + 0.89 * 0.2 * m * m
+    tw_ratio = 1.0 + 0.55 * (tr_ratio - 1.0)
+    t_star_ratio = 0.5 + 0.5 * tw_ratio + 0.039 * m * m
+    t_star = ti * t_star_ratio
+    mu_star = 1.458e-6 * t_star ** 1.5 / (t_star + 110.4)
+    mu_inf = 1.458e-6 * ti ** 1.5 / (ti + 110.4)
+    mu_ratio = mu_star / mu_inf
+    return (t_star_ratio ** -0.65) * (mu_ratio ** 0.20)
+
+
+@njit(cache=True)
+def friction_delta(alt, speed, mach=-1.0):
+    t, _p, rho, a = atmosphere(alt)
     tt = max(t, 1.0)
     mu = 1.458e-6 * tt ** 1.5 / (tt + 110.4)
     v = max(speed, 1.0)
+    m = (v / max(a, 1e-6)) if mach < 0.0 else mach
     re = rho * v * C.LENGTH / mu
     re_ref = C.RHO_SL * v * C.LENGTH / C.MU_SL
-    cf = 0.074 / max(re, 1.0) ** C.RE_EXPONENT
-    cf_ref = 0.074 / max(re_ref, 1.0) ** C.RE_EXPONENT
-    return min(max((cf - cf_ref) * C.S_WET_RATIO, -0.03), 0.20)
+    cf = (0.074 / max(re, 1.0) ** C.RE_EXPONENT) * _eckert_cf_factor(m, tt)
+    cf_ref = (0.074 / max(re_ref, 1.0) ** C.RE_EXPONENT) * _eckert_cf_factor(
+        min(m, 5.0), 288.15)
+    return min(max((cf - cf_ref) * C.S_WET_RATIO, -0.04), 0.18)
 
 
-# ============================================================
-# Missile 14-state derivative
-# ============================================================
 @njit(cache=True)
-def missile_derivatives(t, state14, fins, mass0, dry_mass, fuel0, S, L,
-                        throttle, wx, wy, wz):
-    """Compiled equivalent of ``Missile.derivatives``.
+def inlet_pressure_recovery(mach, alpha, beta):
+    """Scramjet inlet total-pressure recovery factor (matches vehicle.missile)."""
+    theta = math.hypot(alpha, beta)
+    ang_factor = math.exp(-1.8 * theta * theta)
+    m_over = mach - 5.0
+    if m_over < 0.0:
+        m_over = 0.0
+    mach_factor = 1.0 - 0.025 * m_over
+    if mach_factor < 0.78:
+        mach_factor = 0.78
+    val = ang_factor * mach_factor
+    if val < 0.20:
+        val = 0.20
+    elif val > 1.0:
+        val = 1.0
+    return val
 
-    Returns ``(dy14, alpha, beta, mach, q_dyn, alt, cn_a, F_body,
-    M_body, dcm, mdot, thrust, phase_code)``.
-    """
-    rx, ry, rz = state14[0], state14[1], state14[2]
-    vx, vy, vz = state14[3], state14[4], state14[5]
+
+# ============================================================
+# Missile 14-state derivative (zero-alloc scalar hot path)
+# ============================================================
+@njit(cache=True, nogil=True)
+def _missile_deriv_into(t, state, fins, mass0, dry_mass, fuel0, S, L,
+                        throttle, wx, wy, wz, unstart_flag,
+                        dy_out, Fb_out, Mb_out, dcm_out):
+    """Zero-allocation compiled 14-state missile RHS writing into caller buffers."""
+    rx, ry, rz = state[0], state[1], state[2]
+    vx, vy, vz = state[3], state[4], state[5]
 
     # ---- quaternion normalization (scalar first) ----
-    qw, qx, qy, qz = state14[6], state14[7], state14[8], state14[9]
+    qw, qx, qy, qz = state[6], state[7], state[8], state[9]
     qn = math.sqrt(qw * qw + qx * qx + qy * qy + qz * qz)
     if qn < 1e-12:
         qw, qx, qy, qz = 1.0, 0.0, 0.0, 0.0
     else:
         qw, qx, qy, qz = qw / qn, qx / qn, qy / qn, qz / qn
 
-    p, qq, r = state14[10], state14[11], state14[12]
-    mass = state14[13]
+    p, qq, r = state[10], state[11], state[12]
+    mass = state[13]
     if mass < dry_mass:
         mass = dry_mass
     elif mass > mass0:
@@ -439,10 +503,12 @@ def missile_derivatives(t, state14, fins, mass0, dry_mass, fuel0, S, L,
             f = 1.0
     else:
         f = 0.0
+    separated = t >= C.BOOST_SEP_TIME
     cg = C.CG_DRY + f * (C.CG_FULL - C.CG_DRY)
+    if not separated:
+        cg += C.STAGE1_CG_SHIFT
 
     # ---- freestream ----
-    rn = math.sqrt(rx * rx + ry * ry + rz * rz)
     alt = geodetic_alt(rx, ry, rz)
     if alt < 0.0:
         alt = 0.0
@@ -456,7 +522,7 @@ def missile_derivatives(t, state14, fins, mass0, dry_mass, fuel0, S, L,
     mach = min(speed / max(sound, 1e-6), 30.0)
     q_dyn = max(0.5 * rho * speed * speed, 0.0)
 
-    # ---- body->ECI DCM ----
+    # ---- body->ECI DCM (pure scalar write) ----
     d00 = 1.0 - 2.0 * (qy * qy + qz * qz)
     d01 = 2.0 * (qx * qy - qw * qz)
     d02 = 2.0 * (qx * qz + qw * qy)
@@ -466,10 +532,9 @@ def missile_derivatives(t, state14, fins, mass0, dry_mass, fuel0, S, L,
     d20 = 2.0 * (qx * qz - qw * qy)
     d21 = 2.0 * (qy * qz + qw * qx)
     d22 = 1.0 - 2.0 * (qx * qx + qy * qy)
-    dcm = np.empty((3, 3))
-    dcm[0, 0], dcm[0, 1], dcm[0, 2] = d00, d01, d02
-    dcm[1, 0], dcm[1, 1], dcm[1, 2] = d10, d11, d12
-    dcm[2, 0], dcm[2, 1], dcm[2, 2] = d20, d21, d22
+    dcm_out[0, 0], dcm_out[0, 1], dcm_out[0, 2] = d00, d01, d02
+    dcm_out[1, 0], dcm_out[1, 1], dcm_out[1, 2] = d10, d11, d12
+    dcm_out[2, 0], dcm_out[2, 1], dcm_out[2, 2] = d20, d21, d22
 
     # v_body = R^T v_rel
     u = d00 * wrx + d10 * wry + d20 * wrz
@@ -508,25 +573,27 @@ def missile_derivatives(t, state14, fins, mass0, dry_mass, fuel0, S, L,
     d_pe = fin_effective(d_p)
     d_ye = fin_effective(d_y)
     d_re = fin_effective(d_r)
-    cn = cn_body + 0.25 * d_pe
-    cy = C.CY_BETA * ratio * beta + 0.25 * d_ye
+    cn_de_lift = C.FIN_LIFT_FRAC * max(cn_a - C.CN_ALPHA_BODY, 0.0)
+    cn = cn_body + cn_de_lift * d_pe
+    cy = C.CY_BETA * ratio * beta + 0.4 * cn_de_lift * d_ye
 
     cn_sin = cn * math.sin(alpha)
     denom = max(math.cos(alpha), 0.2)
-    ca = (cd0(mach) + friction_delta(alt, speed)
+    ca = (cd0(mach) + friction_delta(alt, speed, mach)
           + induced_k(mach) * k_shape(alpha) * (cn * cn + cy * cy)
           - cn_sin) / denom
     if ca < 0.0:
         ca = 0.0
-    for d in (d_p, d_y, d_r):
-        ca += C.FIN_CD * (abs(d) + C.FIN_CD_QUAD * d * d / C.FIN_MAX)
+    ca += C.FIN_CD * (abs(d_p) + C.FIN_CD_QUAD * d_p * d_p / C.FIN_MAX)
+    ca += C.FIN_CD * (abs(d_y) + C.FIN_CD_QUAD * d_y * d_y / C.FIN_MAX)
+    ca += C.FIN_CD * (abs(d_r) + C.FIN_CD_QUAD * d_r * d_r / C.FIN_MAX)
     if ca > 3.0:
         ca = 3.0
     margin = static_margin(mach, cg)
-    cm = -margin / L * cn_body * cm_gain(mach, alpha) + cm_de(mach) * d_pe
+    cm = -margin / L * cn_body * cm_gain(mach, alpha) + cm_de(mach, cg) * d_pe
     cn_yaw = -C.CN_BETA * ratio * (margin / (C.X_REF - C.CG_FULL)) * beta \
         + C.CN_DR * ratio * d_ye
-    cl = C.CL_DA * ratio * d_re
+    cl = C.CL_DA * ratio * d_re + C.CL_ALPHA_BETA * ratio * alpha * beta
     if abs(alpha) > 1e-4:
         cn_a_eff = cn_body / alpha
     else:
@@ -538,7 +605,7 @@ def missile_derivatives(t, state14, fins, mass0, dry_mass, fuel0, S, L,
         fuel = 0.0
     mdot = 0.0
     thrust = 0.0
-    phase_code = -1          # -1 coast, 0 boost, 1 ramjet
+    phase_code = -1
     if fuel > 1e-6:
         consumed = fuel0 - fuel
         if consumed < 0.0:
@@ -552,7 +619,8 @@ def missile_derivatives(t, state14, fins, mass0, dry_mass, fuel0, S, L,
             phase_code = 0
         elif (C.RAMJET_MACH_MIN <= mach <= C.RAMJET_MACH_MAX) and q_dyn > C.RAMJET_Q_MIN:
             eta_m, eta_h = ramjet_efficiency(mach, alt)
-            eta = eta_m * eta_h
+            eta_in = inlet_pressure_recovery(mach, alpha, beta)
+            eta = eta_m * eta_h * eta_in
             thr = throttle
             if thr < 0.0:
                 thr = 0.0
@@ -568,45 +636,70 @@ def missile_derivatives(t, state14, fins, mass0, dry_mass, fuel0, S, L,
                 elif a_clip < -0.6:
                     a_clip = -0.6
                 cos_alpha = min(max(math.cos(a_clip), 0.55), 1.0)
-                t_avail = (C.RAMJET_COEFF * q_dyn * C.RAMJET_A_INLET
-                           * eta * cos_alpha * thr)
-                mdot = min(t_avail / (C.G0 * C.RAMJET_ISP), C.RAMJET_MDOT_MAX)
-                mdot = min(mdot, fuel / 1e-3)
-                thrust = min(mdot * C.G0 * C.RAMJET_ISP, C.RAMJET_THRUST_MAX)
+                unstart_scale = C.INLET_UNSTART_THRUST_FRAC if unstart_flag != 0 else 1.0
+                t_avail_full = (C.RAMJET_COEFF * q_dyn * C.RAMJET_A_INLET
+                                * eta * cos_alpha)
+                isp_now = ramjet_isp(mach)
+                mdot_air = (math.sqrt(max(2.0 * rho * q_dyn, 0.0))
+                            * C.RAMJET_A_INLET * C.RAMJET_CAPTURE_GAIN * eta_in * cos_alpha)
+                mdot_stoich = C.RAMJET_PHI_MAX * C.RAMJET_F_STOICH * mdot_air
+                mdot_cap = min(t_avail_full / (C.G0 * isp_now),
+                               min(mdot_stoich, C.RAMJET_MDOT_MAX))
+                mdot = min(mdot_cap * thr * unstart_scale, fuel / 1e-3)
+                thrust = min(mdot * C.G0 * isp_now, C.RAMJET_THRUST_MAX)
                 if thrust < 0.0:
                     thrust = 0.0
                 phase_code = 1
 
-    # ---- forces and moments ----
+    # ---- forces and moments (pure scalar) ----
     qS = q_dyn * S
-    base_relief = C.CD_BASE_PLUME * qS if thrust > 0.0 else 0.0
-    Fb = np.empty(3)
-    Fb[0] = -ca * qS + thrust + base_relief
-    Fb[1] = cy * qS
-    Fb[2] = -cn * qS
+    base_relief = (0.065 / (1.0 + 0.35 * mach * mach)) * qS if thrust > 0.0 else 0.0
+    if separated and mach >= 1.2:
+        if unstart_flag != 0:
+            spill_drag = C.CD_INLET_UNSTART * qS
+        elif thrust <= 0.0:
+            spill_drag = C.CD_INLET_SPILL_COAST * qS
+        else:
+            spill_drag = 0.0
+    else:
+        spill_drag = 0.0
+    fb0 = -ca * qS + thrust + base_relief - spill_drag
+    fb1 = cy * qS
+    fb2 = -cn * qS
+    Fb_out[0] = fb0
+    Fb_out[1] = fb1
+    Fb_out[2] = fb2
 
     qSL = qS * L
     V = max(speed, 1.0)
     inv_half = L / (2.0 * V)
-    cm += C.CM_Q * (qq * inv_half)
-    cn_yaw += C.CN_R * (r * inv_half)
-    cl += C.CL_P * (p * inv_half)
-    Mb = np.empty(3)
-    Mb[0] = cl * qSL
-    Mb[1] = cm * qSL
-    Mb[2] = cn_yaw * qSL
+    lever_ratio = fin_lever(cg) / max(C.FIN_LEVER, 0.2)
+    lever_eff = 0.5 + 0.5 * lever_ratio * lever_ratio
+    damp_trans = min(max(ratio * lever_eff, 0.70), 1.55)
+    damp_roll = min(max(ratio, 0.70), 1.50)
+    cm += C.CM_Q * damp_trans * (qq * inv_half)
+    cn_yaw += C.CN_R * damp_trans * (r * inv_half)
+    cl += C.CL_P * damp_roll * (p * inv_half)
+    mb0 = cl * qSL
+    mb1 = cm * qSL
+    mb2 = cn_yaw * qSL
+    Mb_out[0] = mb0
+    Mb_out[1] = mb1
+    Mb_out[2] = mb2
 
-    gvec = gravity_accel(rx, ry, rz)
-    Fe = np.empty(3)
-    Fe[0] = dcm[0, 0] * Fb[0] + dcm[0, 1] * Fb[1] + dcm[0, 2] * Fb[2] + mass * gvec[0]
-    Fe[1] = dcm[1, 0] * Fb[0] + dcm[1, 1] * Fb[1] + dcm[1, 2] * Fb[2] + mass * gvec[1]
-    Fe[2] = dcm[2, 0] * Fb[0] + dcm[2, 1] * Fb[1] + dcm[2, 2] * Fb[2] + mass * gvec[2]
+    gx, gy, gz = gravity_xyz(rx, ry, rz)
+    fe0 = d00 * fb0 + d01 * fb1 + d02 * fb2 + mass * gx
+    fe1 = d10 * fb0 + d11 * fb1 + d12 * fb2 + mass * gy
+    fe2 = d20 * fb0 + d21 * fb1 + d22 * fb2 + mass * gz
 
-    # ---- mass properties (f and cg already computed above) ----
+    # ---- mass properties ----
     ix = C.IXX_DRY + f * (C.IXX_FULL - C.IXX_DRY)
     iy = C.IYY_DRY + f * (C.IYY_FULL - C.IYY_DRY)
     iz = C.IZZ_DRY + f * (C.IZZ_FULL - C.IZZ_DRY)
-    # Inertia rate from fuel burn: I_dot enters Euler's equation as -I_dot w.
+    if not separated:
+        ix += C.STAGE1_IXX_DROP
+        iy += C.STAGE1_IYY_DROP
+        iz += C.STAGE1_IYY_DROP
     if fuel0 > 0.0:
         dix = (C.IXX_FULL - C.IXX_DRY) / fuel0 * (-mdot)
         diy = (C.IYY_FULL - C.IYY_DRY) / fuel0 * (-mdot)
@@ -616,67 +709,82 @@ def missile_derivatives(t, state14, fins, mass0, dry_mass, fuel0, S, L,
         diy = 0.0
         diz = 0.0
 
-    # ---- state derivative ----
-    dy = np.empty(14)
-    dy[0] = vx
-    dy[1] = vy
-    dy[2] = vz
-    dy[3] = Fe[0] / max(mass, 1e-6)
-    dy[4] = Fe[1] / max(mass, 1e-6)
-    dy[5] = Fe[2] / max(mass, 1e-6)
-    dy[6] = 0.5 * (-qx * p - qy * qq - qz * r)
-    dy[7] = 0.5 * (qw * p + qy * r - qz * qq)
-    dy[8] = 0.5 * (qw * qq - qx * r + qz * p)
-    dy[9] = 0.5 * (qw * r + qx * qq - qy * p)
+    inv_m = 1.0 / max(mass, 1e-6)
+    dy_out[0] = vx
+    dy_out[1] = vy
+    dy_out[2] = vz
+    dy_out[3] = fe0 * inv_m
+    dy_out[4] = fe1 * inv_m
+    dy_out[5] = fe2 * inv_m
+    dy_out[6] = 0.5 * (-qx * p - qy * qq - qz * r)
+    dy_out[7] = 0.5 * (qw * p + qy * r - qz * qq)
+    dy_out[8] = 0.5 * (qw * qq - qx * r + qz * p)
+    dy_out[9] = 0.5 * (qw * r + qx * qq - qy * p)
     gyro0 = qq * (iz * r) - r * (iy * qq)
     gyro1 = r * (ix * p) - p * (iz * r)
     gyro2 = p * (iy * qq) - qq * (ix * p)
-    dy[10] = (Mb[0] - gyro0 - dix * p) / ix
-    dy[11] = (Mb[1] - gyro1 - diy * qq) / iy
-    dy[12] = (Mb[2] - gyro2 - diz * r) / iz
-    dy[13] = -mdot
+    r_noz = max(C.LENGTH - cg, 0.0)
+    jet_trans = mdot * r_noz * r_noz
+    jet_roll = 0.5 * mdot * (C.NOZZLE_EXIT_AREA / math.pi)
+    dy_out[10] = (mb0 - gyro0 - dix * p - jet_roll * p) / ix
+    dy_out[11] = (mb1 - gyro1 - diy * qq - jet_trans * qq) / iy
+    dy_out[12] = (mb2 - gyro2 - diz * r - jet_trans * r) / iz
+    dy_out[13] = -mdot
 
+    return alpha, beta, mach, q_dyn, alt, cn_a_eff, mdot, thrust, phase_code
+
+
+@njit(cache=True, nogil=True)
+def missile_derivatives(t, state14, fins, mass0, dry_mass, fuel0, S, L,
+                        throttle, wx, wy, wz, unstart_flag=0):
+    """Compiled equivalent of ``Missile.derivatives``."""
+    dy = np.empty(14)
+    Fb = np.empty(3)
+    Mb = np.empty(3)
+    dcm = np.empty((3, 3))
+    (alpha, beta, mach, q_dyn, alt, cn_a_eff, mdot, thrust,
+     phase_code) = _missile_deriv_into(
+        t, state14, fins, mass0, dry_mass, fuel0, S, L, throttle,
+        wx, wy, wz, unstart_flag, dy, Fb, Mb, dcm)
     return (dy, alpha, beta, mach, q_dyn, alt, cn_a_eff, Fb, Mb,
             dcm, mdot, thrust, phase_code)
 
 
 # ============================================================
-# Target 6-state derivative
+# Target 6-state derivative (zero-alloc scalar hot path)
 # ============================================================
-@njit(cache=True)
-def target_derivatives(t, state6, missile_pos, evade_g, maneuver_dist,
-                       evade_phase):
-    """Compiled equivalent of ``Target.derivatives``."""
-    rx, ry, rz = state6[0], state6[1], state6[2]
-    vx, vy, vz = state6[3], state6[4], state6[5]
+@njit(cache=True, nogil=True)
+def _target_deriv_into(t, state, t_off, mx, my, mz, evade_g, maneuver_dist,
+                       evade_phase, dy_out, dy_off):
+    """Zero-allocation compiled 6-state target RHS writing into caller buffer."""
+    rx = state[t_off]
+    ry = state[t_off + 1]
+    rz = state[t_off + 2]
+    vx = state[t_off + 3]
+    vy = state[t_off + 4]
+    vz = state[t_off + 5]
 
     rn = math.sqrt(rx * rx + ry * ry + rz * rz)
     if rn < 1e-12:
         rn = 1e-12
-    # Local vertical: geodetic normal so "level" agrees with geodetic altitude.
     upx, upy, upz = geodetic_up(rx, ry, rz)
 
-    # Constant-altitude flight: centripetal term uses the inertial speed.
     speed = math.sqrt(vx * vx + vy * vy + vz * vz)
     scale = speed * speed / max(rn, 1.0)
     ax = -upx * scale
     ay = -upy * scale
     az = -upz * scale
 
-    dx = missile_pos[0] - rx
-    dy = missile_pos[1] - ry
-    dz = missile_pos[2] - rz
+    dx = mx - rx
+    dy = my - ry
+    dz = mz - rz
     dist = math.sqrt(dx * dx + dy * dy + dz * dz)
 
-    # Lift-limited load factor available at the current q and Mach (shared by
-    # the defensive turn and the terminal jink).
     w = C.OMEGA_EARTH
     wrx = vx + w * ry
     wry = vy - w * rx
     wrz = vz
     v_air = math.sqrt(wrx * wrx + wry * wry + wrz * wrz)
-    # Gravity along the flight path: a dive trades altitude for speed, a climb
-    # costs it.  Applied along the air-relative velocity, zero in level cruise.
     if v_air > 1e-9:
         sin_gamma = (wrx * upx + wry * upy + wrz * upz) / v_air
         ax -= C.G0 * sin_gamma * wrx / v_air
@@ -687,9 +795,6 @@ def target_derivatives(t, state6, missile_pos, evade_g, maneuver_dist,
         alt = 0.0
     temp, pressure, rho, sound = atmosphere(alt)
     mach = v_air / max(sound, 1e-6)
-    # Maneuver directions are built from the air-relative velocity: the wing
-    # flies in the air frame, and using the inertial heading would change the
-    # airspeed purely through Earth-transport geometry.
     if v_air > 1e-12:
         vhx, vhy, vhz = wrx / v_air, wry / v_air, wrz / v_air
     else:
@@ -711,7 +816,6 @@ def target_derivatives(t, state6, missile_pos, evade_g, maneuver_dist,
     may_ = 0.0
     maz_ = 0.0
     if dist < maneuver_dist:
-        # e_cross = normalize(up x v_hat) with v_hat the air-relative direction.
         ex = upy * vhz - upz * vhy
         ey = upz * vhx - upx * vhz
         ez = upx * vhy - upy * vhx
@@ -727,11 +831,6 @@ def target_derivatives(t, state6, missile_pos, evade_g, maneuver_dist,
         if n_cmd < 0.0:
             n_cmd = 0.0
         amp = n_cmd * C.G0
-        # Manoeuvre onset/reversal lag: a 0.25 Hz weave demands a lift-vector
-        # reversal every 2 s, which the airframe cannot do instantly.  The
-        # steady-state first-order response (gain 1/sqrt(1+(w*tau)^2), phase
-        # -atan(w*tau)) is applied directly, so no extra target state is
-        # needed in the 6-state model.
         w1 = 2.0 * math.pi * 0.25
         w2 = 2.0 * math.pi * 0.5
         tau = C.TARGET_MANEUVER_TAU
@@ -746,12 +845,10 @@ def target_derivatives(t, state6, missile_pos, evade_g, maneuver_dist,
         maz_ = amp * s1 * ez - 0.25 * amp * s2 * upz
         n_man = n_cmd * math.sqrt(1.0 + 0.25 * 0.25)
     elif dist < C.TARGET_DEFEND_DIST:
-        # Defensive reaction: beam the incoming missile and dive for energy.
         ln = math.sqrt(dx * dx + dy * dy + dz * dz)
         if ln < 1e-9:
             lhx, lhy, lhz = 1.0, 0.0, 0.0
         else:
-            # LOS from the target to the missile.
             lhx, lhy, lhz = dx / ln, dy / ln, dz / ln
         cos_head = vhx * lhx + vhy * lhy + vhz * lhz
         gain = ((cos_head - C.TARGET_BEAM_COS_LO)
@@ -796,7 +893,6 @@ def target_derivatives(t, state6, missile_pos, evade_g, maneuver_dist,
             n_turn *= sc
             n_desc *= sc
             n_tot = n_avail
-        # e_notch = normalize(up x los)
         nx = upy * lhz - upz * lhy
         ny = upz * lhx - upx * lhz
         nz = upx * lhy - upy * lhx
@@ -811,19 +907,13 @@ def target_derivatives(t, state6, missile_pos, evade_g, maneuver_dist,
         n_man = n_tot
 
     if n_man > 0.0:
-        # Lift is perpendicular to the relative wind: remove any along-track
-        # component so the manoeuvre cannot pump airspeed.
         along = max_ * vhx + may_ * vhy + maz_ * vhz
         ax += max_ - along * vhx
         ay += may_ - along * vhy
         az += maz_ - along * vhz
-        # Induced-drag energy bleed.  Thrust is trimmed for 1 g level flight,
-        # so only the increment k*(CL^2 - CL_trim^2) decelerates the target.
         q_s = q_t * C.TARGET_WING_AREA
         if q_s > 1.0:
             w_load = C.TARGET_MASS * C.G0 / q_s
-            # CL_total^2 = 1 (weight support) + n_man^2 (manoeuvre), so the
-            # drag increment over 1 g level flight is k*n_man^2*CL_trim^2.
             ar = C.TARGET_SPAN * C.TARGET_SPAN / C.TARGET_WING_AREA
             k_ind = 1.0 / (math.pi * ar * C.TARGET_OSWALD_E)
             dcd = k_ind * (n_man * n_man) * w_load * w_load
@@ -834,34 +924,123 @@ def target_derivatives(t, state6, missile_pos, evade_g, maneuver_dist,
                     ay -= a_bleed * wry / v_air
                     az -= a_bleed * wrz / v_air
 
+    dy_out[dy_off] = vx
+    dy_out[dy_off + 1] = vy
+    dy_out[dy_off + 2] = vz
+    dy_out[dy_off + 3] = ax
+    dy_out[dy_off + 4] = ay
+    dy_out[dy_off + 5] = az
+
+
+@njit(cache=True, nogil=True)
+def target_derivatives(t, state6, missile_pos, evade_g, maneuver_dist,
+                       evade_phase):
+    """Compiled equivalent of ``Target.derivatives``."""
     out = np.empty(6)
-    out[0], out[1], out[2] = vx, vy, vz
-    out[3], out[4], out[5] = ax, ay, az
+    _target_deriv_into(
+        t, state6, 0, missile_pos[0], missile_pos[1], missile_pos[2],
+        evade_g, maneuver_dist, evade_phase, out, 0)
     return out
 
 
-@njit(cache=True)
+@njit(cache=True, nogil=True)
 def system_derivatives(t, state20, fins, mass0, dry_mass, fuel0, S, L,
                        throttle, wx, wy, wz, evade_g, maneuver_dist,
-                       evade_phase):
-    """Combined missile+target 20-state RHS in a single JIT call.
-
-    Avoids four Python-level dict/array rebuilds per RK4 step (the missile and
-    target RHS are independent apart from the missile position fed to the
-    target's terminal evasion).
-    """
-    (dy_m, alpha, beta, mach, q_dyn, alt, cn_a, Fb, Mb, dcm, mdot, thrust,
-     phase_code) = missile_derivatives(
-        t, state20[0:14], fins, mass0, dry_mass, fuel0, S, L, throttle,
-        wx, wy, wz)
-    dy_t = target_derivatives(t, state20[14:20], state20[0:3], evade_g,
-                              maneuver_dist, evade_phase)
-
+                       evade_phase, unstart_flag=0):
+    """Combined missile+target 20-state RHS in a single JIT call."""
     dy = np.empty(20)
-    dy[0:14] = dy_m
-    dy[14:20] = dy_t
+    Fb = np.empty(3)
+    Mb = np.empty(3)
+    dcm = np.empty((3, 3))
+    (alpha, beta, mach, q_dyn, alt, cn_a, mdot, thrust,
+     phase_code) = _missile_deriv_into(
+        t, state20, fins, mass0, dry_mass, fuel0, S, L, throttle,
+        wx, wy, wz, unstart_flag, dy, Fb, Mb, dcm)
+    _target_deriv_into(
+        t, state20, 14, state20[0], state20[1], state20[2],
+        evade_g, maneuver_dist, evade_phase, dy, 14)
     return (dy, alpha, beta, mach, q_dyn, alt, cn_a, Fb, Mb, dcm, mdot,
             thrust, phase_code)
+
+
+@njit(cache=True, nogil=True)
+def rk4_multi_step_system_into(t0, y_in, h_total, n_sub, fins,
+                               mass0, dry_mass, fuel0, S, L,
+                               throttle, wx, wy, wz,
+                               evade_g, maneuver_dist, evade_phase,
+                               unstart_flag,
+                               y_out, f_avg, k1, k2, k3, k4, ytmp,
+                               Fb, Mb, dcm):
+    """Fused zero-allocation RK4 (1 or more substeps) inside one nogil JIT call.
+
+    Eliminates 4*n_sub Python<->Numba transitions, temporary NumPy array
+    allocations, and Python dict builds per outer ZOH step.
+    """
+    for i in range(20):
+        y_out[i] = y_in[i]
+
+    h = h_total / n_sub
+    hh = 0.5 * h
+    t = t0
+
+    alpha = 0.0
+    beta = 0.0
+    mach = 0.0
+    q_dyn = 0.0
+    alt = 0.0
+    cn_a = 0.0
+    mdot = 0.0
+    thrust = 0.0
+    phase_code = -1
+
+    for _s in range(n_sub):
+        # Stage 1
+        _missile_deriv_into(t, y_out, fins, mass0, dry_mass, fuel0, S, L,
+                            throttle, wx, wy, wz, unstart_flag, k1, Fb, Mb, dcm)
+        _target_deriv_into(t, y_out, 14, y_out[0], y_out[1], y_out[2],
+                           evade_g, maneuver_dist, evade_phase, k1, 14)
+
+        # Stage 2
+        for i in range(20):
+            ytmp[i] = y_out[i] + hh * k1[i]
+        _missile_deriv_into(t + hh, ytmp, fins, mass0, dry_mass, fuel0, S, L,
+                            throttle, wx, wy, wz, unstart_flag, k2, Fb, Mb, dcm)
+        _target_deriv_into(t + hh, ytmp, 14, ytmp[0], ytmp[1], ytmp[2],
+                           evade_g, maneuver_dist, evade_phase, k2, 14)
+
+        # Stage 3
+        for i in range(20):
+            ytmp[i] = y_out[i] + hh * k2[i]
+        _missile_deriv_into(t + hh, ytmp, fins, mass0, dry_mass, fuel0, S, L,
+                            throttle, wx, wy, wz, unstart_flag, k3, Fb, Mb, dcm)
+        _target_deriv_into(t + hh, ytmp, 14, ytmp[0], ytmp[1], ytmp[2],
+                           evade_g, maneuver_dist, evade_phase, k3, 14)
+
+        # Stage 4 (final-stage diagnostics populate Fb, Mb, dcm and scalars)
+        for i in range(20):
+            ytmp[i] = y_out[i] + h * k3[i]
+        (alpha, beta, mach, q_dyn, alt, cn_a, mdot, thrust,
+         phase_code) = _missile_deriv_into(
+            t + h, ytmp, fins, mass0, dry_mass, fuel0, S, L,
+            throttle, wx, wy, wz, unstart_flag, k4, Fb, Mb, dcm)
+        _target_deriv_into(t + h, ytmp, 14, ytmp[0], ytmp[1], ytmp[2],
+                           evade_g, maneuver_dist, evade_phase, k4, 14)
+
+        h6 = h / 6.0
+        for i in range(20):
+            y_out[i] += h6 * (k1[i] + 2.0 * k2[i] + 2.0 * k3[i] + k4[i])
+        t += h
+
+    if n_sub == 1:
+        inv6 = 1.0 / 6.0
+        for i in range(20):
+            f_avg[i] = inv6 * (k1[i] + 2.0 * k2[i] + 2.0 * k3[i] + k4[i])
+    else:
+        inv_ht = 1.0 / max(h_total, 1e-15)
+        for i in range(20):
+            f_avg[i] = (y_out[i] - y_in[i]) * inv_ht
+
+    return alpha, beta, mach, q_dyn, alt, cn_a, mdot, thrust, phase_code
 
 
 # ============================================================
@@ -875,7 +1054,7 @@ def make_rng_state(seed):
     return np.array([v], dtype=np.uint64)
 
 
-@njit(cache=True)
+@njit(cache=True, nogil=True)
 def rng_uniform(state):
     """Uniform double in [0, 1) from a 64-bit LCG."""
     v = state[0] * np.uint64(6364136223846793005) + np.uint64(1442695040888963407)
@@ -883,7 +1062,7 @@ def rng_uniform(state):
     return np.float64(v >> np.uint64(11)) * (1.0 / 9007199254740992.0)
 
 
-@njit(cache=True)
+@njit(cache=True, nogil=True)
 def rng_normal(state):
     """Standard normal via Box-Muller (two uniforms per sample)."""
     u1 = rng_uniform(state)
@@ -893,7 +1072,7 @@ def rng_normal(state):
     return math.sqrt(-2.0 * math.log(u1)) * math.cos(2.0 * math.pi * u2)
 
 
-@njit(cache=True)
+@njit(cache=True, nogil=True)
 def quat_to_dcm(q):
     """Quaternion (scalar first) to body->ECI DCM."""
     w, x, y, z = q[0], q[1], q[2], q[3]
@@ -915,7 +1094,7 @@ def quat_to_dcm(q):
     return dcm
 
 
-@njit(cache=True)
+@njit(cache=True, nogil=True)
 def quat_rotate_inv(q, v):
     """Rotate an ECI vector into the body frame (conjugate quaternion).
 
@@ -941,7 +1120,7 @@ def quat_rotate_inv(q, v):
 # ============================================================
 # Seeker: LOS geometry + noise + rate filter
 # ============================================================
-@njit(cache=True)
+@njit(cache=True, nogil=True)
 def seeker_measure(t, r_m, v_m, body_x, r_t, v_t, fov, blind, lock_range,
                    sigma_angle, rate_state, rng_state, t_last, initialized,
                    noise_scale):
@@ -1040,7 +1219,7 @@ def seeker_measure(t, r_m, v_m, body_x, r_t, v_t, fov, blind, lock_range,
 # ============================================================
 # Navigation: KF predict / GNSS update
 # ============================================================
-@njit(cache=True)
+@njit(cache=True, nogil=True)
 def nav_predict_ins(x, P, dt, a_true, b_true, sigma_acc, sigma_acc_q, phi_a,
                     phi_g, q_bias_a, q_bias_g, rng_state):
     """Twelve-state INS prediction ``[r, v, b_a, b_g]`` (mutates x and P).
@@ -1090,7 +1269,7 @@ def nav_predict_ins(x, P, dt, a_true, b_true, sigma_acc, sigma_acc_q, phi_a,
             P[i, j] = 0.5 * (Pn[i, j] + Pn[j, i])
 
 
-@njit(cache=True)
+@njit(cache=True, nogil=True)
 def nav_gnss_update_ins(x, P, r_true, v_true, sigma_pos, sigma_vel, rng_state):
     """GNSS position/velocity update with ``H = [I6 0 0]`` (mutates x, P)."""
     z = np.empty(6)
@@ -1099,8 +1278,8 @@ def nav_gnss_update_ins(x, P, r_true, v_true, sigma_pos, sigma_vel, rng_state):
         z[3 + i] = v_true[i] + rng_normal(rng_state) * sigma_vel
 
     S = P[0:6, 0:6].copy()
-    sp2 = sigma_pos * sigma_pos
-    sv2 = sigma_vel * sigma_vel
+    sp2 = max(sigma_pos * sigma_pos, 1e-9)
+    sv2 = max(sigma_vel * sigma_vel, 1e-9)
     for i in range(3):
         S[i, i] += sp2
         S[3 + i, 3 + i] += sv2
@@ -1108,14 +1287,23 @@ def nav_gnss_update_ins(x, P, r_true, v_true, sigma_pos, sigma_vel, rng_state):
     K = np.linalg.solve(S, P[:, 0:6].T).T
     innov = z - x[0:6]
     x[:] = x + K.dot(innov)
-    Pn = P - K.dot(P[0:6, :].copy())
+    # Joseph form preserves positive semi-definiteness even at zero noise.
+    IKH = np.eye(12)
+    for i in range(12):
+        for j in range(6):
+            IKH[i, j] -= K[i, j]
+    Rmat = np.zeros((6, 6))
+    for i in range(3):
+        Rmat[i, i] = sp2
+        Rmat[3 + i, 3 + i] = sv2
+    Pn = IKH.dot(P).dot(IKH.T) + K.dot(Rmat).dot(K.T)
     for i in range(12):
         for j in range(12):
             P[i, j] = 0.5 * (Pn[i, j] + Pn[j, i])
     return z
 
 
-@njit(cache=True)
+@njit(cache=True, nogil=True)
 def nav_bias_update_ins(x, P, b_meas, sigma_b):
     """Gyro-bias pseudo-measurement ``H = [0 0 0 I]`` (mutates x, P)."""
     S = P[9:12, 9:12].copy()
@@ -1135,7 +1323,7 @@ def nav_bias_update_ins(x, P, b_meas, sigma_b):
 # ============================================================
 # Autopilot: three-loop law with anti-windup and gain scheduling
 # ============================================================
-@njit(cache=True)
+@njit(cache=True, nogil=True)
 def autopilot_update(q, omega, a_cmd, mass, q_dyn, cn_alpha,
                      alpha_trim, beta_trim, is_saturated, dt, alpha_max,
                      prefilter_hz,
@@ -1156,17 +1344,20 @@ def autopilot_update(q, omega, a_cmd, mass, q_dyn, cn_alpha,
     a_b = quat_rotate_inv(q, a_cmd)
     ab1 = a_b[1]
     ab2 = a_b[2]
-    # Lift-vector alignment: roll so the commanded acceleration lies in the
-    # pitch plane (body -Z); otherwise it is split with the weak beta channel.
-    if roll_align > 0.5 and (ab1 * ab1 + ab2 * ab2) > 1.0e-2:
-        p_cmd = C.AP_ROLL_ANGLE_GAIN * math.atan2(ab1, -ab2)
+    # Lift-vector alignment (symmetric BTT shortest-axis alignment [-pi/2, pi/2]).
+    a_lat = math.hypot(ab1, ab2)
+    if roll_align > 0.5 and a_lat > 0.1:
+        phi_err = math.atan2(ab1, -ab2)
+        if phi_err > 0.5 * math.pi:
+            phi_err -= math.pi
+        elif phi_err < -0.5 * math.pi:
+            phi_err += math.pi
+        p_cmd = C.AP_ROLL_ANGLE_GAIN * phi_err * min(a_lat / 6.0, 1.0)
         if p_cmd > C.AP_ROLL_RATE_MAX:
             p_cmd = C.AP_ROLL_RATE_MAX
         elif p_cmd < -C.AP_ROLL_RATE_MAX:
             p_cmd = -C.AP_ROLL_RATE_MAX
-        # High-alpha roll-rate taper: the kinematic coupling builds sideslip at
-        # roughly alpha * p, so the full roll rate at large alpha would generate
-        # beta far faster than the weak yaw channel can trim it.
+        # High-alpha roll-rate taper: alpha * p coupling builds sideslip.
         roll_scale = C.AP_ALPHA_ROLL_REF / max(abs(alpha_trim), 1.0e-3)
         if roll_scale > 1.0:
             roll_scale = 1.0
@@ -1299,8 +1490,7 @@ def autopilot_update(q, omega, a_cmd, mass, q_dyn, cn_alpha,
     p, qq, r = omega[0], omega[1], omega[2]
     low_q = q_dyn < 100.0
 
-    # Gain schedule: hold the rate-loop crossover at AP_OMEGA_Q using the
-    # instantaneous fin authority, inertia and q.
+    # Independent per-axis gain scheduling using live CG, fin lever and inertia.
     if C.MASS0 > C.DRY_MASS:
         ff = (mass - C.DRY_MASS) / (C.MASS0 - C.DRY_MASS)
         if ff < 0.0:
@@ -1309,17 +1499,39 @@ def autopilot_update(q, omega, a_cmd, mass, q_dyn, cn_alpha,
             ff = 1.0
     else:
         ff = 0.0
+    ixx = C.IXX_DRY + ff * (C.IXX_FULL - C.IXX_DRY)
     iyy = C.IYY_DRY + ff * (C.IYY_FULL - C.IYY_DRY)
-    cm_de = (cn_alpha - C.CN_ALPHA_BODY) * C.FIN_LEVER / C.LENGTH
-    if cm_de < 1.0e-3:
-        cm_de = 1.0e-3
-    gain_scale = (C.AP_OMEGA_Q * iyy
-                  / (max(q_dyn, 1.0) * C.S_REF * C.LENGTH * cm_de)
-                  / kp_rate)
-    if gain_scale < C.GAIN_SCALE_MIN:
-        gain_scale = C.GAIN_SCALE_MIN
-    elif gain_scale > C.GAIN_SCALE_MAX:
-        gain_scale = C.GAIN_SCALE_MAX
+    izz = C.IZZ_DRY + ff * (C.IZZ_FULL - C.IZZ_DRY)
+    cg_now = C.CG_DRY + ff * (C.CG_FULL - C.CG_DRY)
+    lever_now = fin_lever(cg_now)
+    cm_de_val = (cn_alpha - C.CN_ALPHA_BODY) * lever_now / C.LENGTH
+    if cm_de_val < 1.0e-3:
+        cm_de_val = 1.0e-3
+    q_sl = max(q_dyn, 1.0) * C.S_REF * C.LENGTH
+    gain_scale_p = (C.AP_OMEGA_Q * iyy / (q_sl * cm_de_val)) / kp_rate
+    if gain_scale_p < C.GAIN_SCALE_MIN:
+        gain_scale_p = C.GAIN_SCALE_MIN
+    elif gain_scale_p > C.GAIN_SCALE_MAX:
+        gain_scale_p = C.GAIN_SCALE_MAX
+
+    cm_dr_val = abs(C.CN_DR) * ratio_y
+    if cm_dr_val < 1.0e-3:
+        cm_dr_val = 1.0e-3
+    gain_scale_y = (C.AP_OMEGA_R * izz / (q_sl * cm_dr_val)) / kp_rate_y
+    if gain_scale_y < C.GAIN_SCALE_MIN:
+        gain_scale_y = C.GAIN_SCALE_MIN
+    elif gain_scale_y > C.GAIN_SCALE_MAX:
+        gain_scale_y = C.GAIN_SCALE_MAX
+
+    cl_da_val = abs(C.CL_DA) * ratio_y
+    if cl_da_val < 1.0e-3:
+        cl_da_val = 1.0e-3
+    gain_scale_r = (C.AP_OMEGA_P * ixx / (q_sl * cl_da_val)) / kp_roll
+    if gain_scale_r < C.GAIN_SCALE_MIN:
+        gain_scale_r = C.GAIN_SCALE_MIN
+    elif gain_scale_r > C.GAIN_SCALE_MAX:
+        gain_scale_r = C.GAIN_SCALE_MAX
+
     freeze = (is_saturated > 0.5) or low_q
     ki_scale = math.sqrt(max(q_dyn, 1.0) / ref_q)
     if ki_scale > 1.0:
@@ -1329,24 +1541,30 @@ def autopilot_update(q, omega, a_cmd, mass, q_dyn, cn_alpha,
 
     e_alpha = alpha_ref - alpha_trim
     e_beta = beta_ref - beta_trim
+    bleed = max(1.0 - dt_f / 0.12, 0.0)
     if not freeze:
+        if state[8] * e_alpha < 0.0:
+            state[8] *= bleed
+        if state[9] * e_beta < 0.0:
+            state[9] *= bleed
         state[8] += e_alpha * dt_f
         state[9] += e_beta * dt_f
-    state[8] = min(max(state[8], -0.5), 0.5)
-    state[9] = min(max(state[9], -0.5), 0.5)
+    state[8] = min(max(state[8], -0.15), 0.15)
+    state[9] = min(max(state[9], -0.15), 0.15)
     ki_angle_eff = ki_angle * ki_scale
     ki_angle_y_eff = ki_angle_y * ki_scale
     q_cmd = alpha_ref_dot + kp_angle * e_alpha + ki_angle_eff * state[8]
     r_cmd = -(beta_ref_dot + kp_angle_y * e_beta + ki_angle_y_eff * state[9])
 
-    # Direct load-factor loop on body -Z (matches the Python path).  The
-    # n_z integrator lives in state[27] and the lead-filter state in
-    # state[28], so the compiled state is 29 long.
+    # Direct load-factor loop on body -Z (q-scheduled to match Python path).
     if kp_nz != 0.0 or ki_nz != 0.0:
+        nz_q_scale = (q_dyn - 80000.0) / 140000.0
+        if nz_q_scale < 0.25:
+            nz_q_scale = 0.25
+        elif nz_q_scale > 1.0:
+            nz_q_scale = 1.0
         n_used = n_meas
         if nz_lead > 0.0:
-            # Lead compensation: low-passed derivative of the measured load
-            # factor (same formula as the Python path).
             tau_l = C.AP_NZ_LEAD_LPF
             n_f = state[28] + dt_f / tau_l * (n_meas - state[28])
             state[28] = min(max(n_f, -50.0), 50.0)
@@ -1354,63 +1572,58 @@ def autopilot_update(q, omega, a_cmd, mass, q_dyn, cn_alpha,
             n_used = n_meas + nz_lead * n_dot
         e_n = -ab2 / C.G0 - n_used
         if not freeze:
+            if state[27] * e_n < 0.0:
+                state[27] *= bleed
             state[27] += e_n * dt_f
-        state[27] = min(max(state[27], -50.0), 50.0)
-        q_cmd += kp_nz * e_n + ki_nz * state[27]
+        state[27] = min(max(state[27], -15.0), 15.0)
+        q_cmd += nz_q_scale * (kp_nz * e_n + ki_nz * state[27])
 
     e_q = q_cmd - qq
     e_r = r_cmd - r
     if not freeze:
+        if state[10] * e_q < 0.0:
+            state[10] *= bleed
+        if state[11] * e_r < 0.0:
+            state[11] *= bleed
         state[10] += e_q * dt_f
         state[11] += e_r * dt_f
-    state[10] = min(max(state[10], -5.0), 5.0)
-    state[11] = min(max(state[11], -5.0), 5.0)
+    state[10] = min(max(state[10], -1.5), 1.5)
+    state[11] = min(max(state[11], -1.5), 1.5)
 
-    kp_p = kp_rate * gain_scale
-    ki_p = ki_rate * gain_scale * 0.1 * ki_scale
-    kp_y = kp_rate_y * gain_scale
-    ki_y = ki_rate_y * gain_scale * 0.1 * ki_scale
-    d_p = -kp_p * e_q - ki_p * state[10]
-    d_y = kp_y * e_r + ki_y * state[11]
+    kp_p = kp_rate * gain_scale_p
+    ki_p = ki_rate * gain_scale_p * 0.15 * ki_scale
+    kp_y = kp_rate_y * gain_scale_y
+    ki_y = ki_rate_y * gain_scale_y * 0.15 * ki_scale
+    d_p_raw = -kp_p * e_q - ki_p * state[10]
+    d_y_raw = kp_y * e_r + ki_y * state[11]
 
-    # Feed-forward trim, first-order low-pass with 0.3 safety factor.  Scale
-    # by the current static margin (CG migrating forward with fuel burn).
-    if C.MASS0 > C.DRY_MASS:
-        fuel_f = min(max((mass - C.DRY_MASS) / (C.MASS0 - C.DRY_MASS),
-                         0.0), 1.0)
-    else:
-        fuel_f = 0.0
-    cg_now = C.CG_DRY + fuel_f * (C.CG_FULL - C.CG_DRY)
-    # Mach-dependent trim derivatives (same model as the moment equations).
-    cm_de_ff = max((cn_alpha - C.CN_ALPHA_BODY) * C.FIN_LEVER / C.LENGTH,
+    # Model feed-forward trim using live CG, live fin lever and conservative margin.
+    cm_de_ff = max((cn_alpha - C.CN_ALPHA_BODY) * lever_now / C.LENGTH,
                    1.0e-3)
-    cm_alpha_ff = cn_alpha * (C.X_REF - cg_now) / C.LENGTH
-    trim_raw = -alpha_trim * cm_alpha_ff / cm_de_ff
+    sm_ff = max(0.58 + (C.CG_FULL - cg_now), 0.25)
+    cm_alpha_ff = cn_alpha * sm_ff / C.LENGTH
+    trim_raw = -alpha_ref * cm_alpha_ff / cm_de_ff
     if state[7] < 0.5:
         state[6] = trim_raw
         state[7] = 1.0
     else:
-        a_f = dt_f / 0.1
+        a_f = dt_f / max(C.AP_TRIM_FF_TAU, 1e-6)
         if a_f > 1.0:
             a_f = 1.0
         state[6] += a_f * (trim_raw - state[6])
-    d_p += 0.3 * state[6]
+    d_p_raw += C.AP_TRIM_FF_GAIN * state[6]
 
     if not freeze:
         state[12] += (p_cmd - p) * dt_f
     else:
         state[12] *= 0.98
     state[12] = min(max(state[12], -1.0), 1.0)
-    d_r = kp_roll * gain_scale * (p_cmd - p) + ki_roll * state[12]
-    # Pre-mixer position limit, matching the Python path so both paths hand
-    # the mixer the same virtual command.
-    d_p = min(max(d_p, -C.FIN_MAX), C.FIN_MAX)
-    d_y = min(max(d_y, -C.FIN_MAX), C.FIN_MAX)
+    d_r_raw = kp_roll * gain_scale_r * (p_cmd - p) + ki_roll * gain_scale_r * state[12]
+    d_p = min(max(d_p_raw, -C.FIN_MAX), C.FIN_MAX)
+    d_y = min(max(d_y_raw, -C.FIN_MAX), C.FIN_MAX)
+    d_r = min(max(d_r_raw, -C.FIN_MAX), C.FIN_MAX)
 
-    # Mixer/actuator in the loop: rate limit -> first-order lag ->
-    # position limit on the four physical fins, then invert the mixer.
-    # The command is returned unchanged; the achieved virtual fins are
-    # stored for PID back-calculation.
+    # Mixer/actuator in the loop: lag -> rate limit -> position limit.
     t0 = d_y
     t1 = d_y
     t2 = d_p - d_r
@@ -1426,12 +1639,12 @@ def autopilot_update(q, omega, a_cmd, mass, q_dyn, cn_alpha,
             tgt = t2
         else:
             tgt = t3
-        dlt = tgt - state[23 + i]
-        if dlt > max_step:
-            dlt = max_step
-        elif dlt < -max_step:
-            dlt = -max_step
-        f_obs = state[23 + i] + alpha_m * dlt
+        step_m = alpha_m * (tgt - state[23 + i])
+        if step_m > max_step:
+            step_m = max_step
+        elif step_m < -max_step:
+            step_m = -max_step
+        f_obs = state[23 + i] + step_m
         if f_obs > C.FIN_MAX:
             f_obs = C.FIN_MAX
         elif f_obs < -C.FIN_MAX:
@@ -1443,16 +1656,21 @@ def autopilot_update(q, omega, a_cmd, mass, q_dyn, cn_alpha,
     state[16] = d_p_a
     state[19] = d_y_a
     state[22] = d_r_a
-    # Cascade-PID back-calculation anti-windup from the mixer shortfall.
+    # Cascade-PID back-calculation anti-windup using pre-clip command shortfall.
     if not freeze:
+        d_p_lim = min(max(d_p_raw, -2.0 * C.FIN_MAX), 2.0 * C.FIN_MAX)
+        d_y_lim = min(max(d_y_raw, -2.0 * C.FIN_MAX), 2.0 * C.FIN_MAX)
+        d_r_lim = min(max(d_r_raw, -2.0 * C.FIN_MAX), 2.0 * C.FIN_MAX)
         if ki_p > 1e-9:
-            state[10] += 0.5 * (d_p - d_p_a) / ki_p
+            state[10] += 0.5 * (d_p_lim - d_p_a) / ki_p
         if ki_y > 1e-9:
-            state[11] -= 0.5 * (d_y - d_y_a) / ki_y
-        state[10] = min(max(state[10], -5.0), 5.0)
-        state[11] = min(max(state[11], -5.0), 5.0)
-        ikr = ki_roll if ki_roll > 1e-6 else 1e-6
-        state[12] += 0.5 * (d_r - d_r_a) / ikr
+            state[11] -= 0.5 * (d_y_lim - d_y_a) / ki_y
+        state[10] = min(max(state[10], -1.5), 1.5)
+        state[11] = min(max(state[11], -1.5), 1.5)
+        ikr = ki_roll * gain_scale_r
+        if ikr < 1e-6:
+            ikr = 1e-6
+        state[12] += 0.5 * (d_r_lim - d_r_a) / ikr
         state[12] = min(max(state[12], -1.0), 1.0)
     # d_p/d_y/d_r keep the unmodified virtual command (see Python path).
 
@@ -1466,43 +1684,75 @@ def autopilot_update(q, omega, a_cmd, mass, q_dyn, cn_alpha,
 # ============================================================
 # Fin mixer: virtual -> four physical fins
 # ============================================================
-@njit(cache=True)
-def fin_mixer_mix(virtual, fins, dt, tau, rate_max, pos_max):
-    """Compiled equivalent of ``FinMixer.mix`` (mutates ``fins``)."""
-    d_p, d_y, d_r = virtual[0], virtual[1], virtual[2]
-    target = np.empty(4)
-    target[0] = d_y
-    target[1] = d_y
-    target[2] = d_p - d_r
-    target[3] = d_p + d_r
+@njit(cache=True, nogil=True)
+def fin_mixer_mix(virtual, fins, fin_rates, dt, omega_n, zeta, rate_max,
+                  pos_max, q_dyn):
+    """Compiled equivalent of ``FinMixer.mix`` (2nd-order servo + hinge torque).
 
-    max_step = rate_max * dt
-    a = dt / (tau + dt)
+    Mutates ``fins`` and ``fin_rates`` in place with zero heap allocation.
+    """
+    d_p, d_y, d_r = virtual[0], virtual[1], virtual[2]
+    t0 = d_y
+    t1 = d_y
+    t2 = d_p - d_r
+    t3 = d_p + d_r
+
+    pos_eff = pos_max
+    if q_dyn > C.FIN_HINGE_Q_REF:
+        scale = (C.FIN_HINGE_Q_REF / q_dyn) ** C.FIN_HINGE_EXP
+        if scale < C.FIN_HINGE_MIN_SCALE:
+            scale = C.FIN_HINGE_MIN_SCALE
+        pos_eff = pos_max * scale
+
+    h = dt * 0.25
+    wn2 = omega_n * omega_n
+    two_z_wn = 2.0 * zeta * omega_n
     rate_limited = False
     pos_limited = False
     for i in range(4):
-        diff = target[i] - fins[i]
-        if abs(diff) > max_step + 1e-12:
-            rate_limited = True
-        if diff > max_step:
-            diff = max_step
-        elif diff < -max_step:
-            diff = -max_step
-        v = fins[i] + a * diff
-        if abs(v) > pos_max + 1e-12:
-            pos_limited = True
-        if v > pos_max:
-            v = pos_max
-        elif v < -pos_max:
-            v = -pos_max
-        fins[i] = v
+        x = fins[i]
+        v = fin_rates[i]
+        if i == 0:
+            tgt = t0
+        elif i == 1:
+            tgt = t1
+        elif i == 2:
+            tgt = t2
+        else:
+            tgt = t3
+        for _ in range(4):
+            acc = wn2 * (tgt - x) - two_z_wn * v
+            v_raw = v + acc * h
+            if abs(v_raw) > rate_max + 1e-12:
+                rate_limited = True
+            if v_raw > rate_max:
+                v = rate_max
+            elif v_raw < -rate_max:
+                v = -rate_max
+            else:
+                v = v_raw
+            x_raw = x + v * h
+            if abs(x_raw) > pos_eff + 1e-12:
+                pos_limited = True
+            if x_raw > pos_eff:
+                x = pos_eff
+                if v > 0.0:
+                    v = 0.0
+            elif x_raw < -pos_eff:
+                x = -pos_eff
+                if v < 0.0:
+                    v = 0.0
+            else:
+                x = x_raw
+        fins[i] = x
+        fin_rates[i] = v
     return rate_limited or pos_limited
 
 
 # ============================================================
 # Telemetry frame write
 # ============================================================
-@njit(cache=True)
+@njit(cache=True, nogil=True)
 def telemetry_write(data, n, t, vals, last_time):
     """Validate and append one telemetry frame.
 
@@ -1521,4 +1771,216 @@ def telemetry_write(data, n, t, vals, last_time):
     for i in range(m):
         data[n, i + 1] = vals[i]
     return n + 1, t, 0
+
+
+# ============================================================
+# 3-Model IMM Target Tracker Prediction + Moment-Matched Fusion
+# ============================================================
+@njit(cache=True, nogil=True)
+def _imm_singer_predict_inplace(x, P, dt, tau, sigma_a, F, tmp):
+    """In-place 9-state Singer prediction matching ``_singer_predict``."""
+    a_s = 1.0 / (tau if tau > 0.05 else 0.05)
+    adt = a_s * dt
+    e = math.exp(-adt)
+    if adt > 1e-4:
+        f_ra = (adt - 1.0 + e) / (a_s * a_s)
+        f_va = (1.0 - e) / a_s
+    else:
+        f_ra = 0.5 * dt * dt * (1.0 - adt / 3.0)
+        f_va = dt * (1.0 - 0.5 * adt)
+
+    for i in range(3):
+        r_i = x[i]
+        v_i = x[i + 3]
+        a_i = x[i + 6]
+        x[i] = r_i + dt * v_i + f_ra * a_i
+        x[i + 3] = v_i + f_va * a_i
+        x[i + 6] = e * a_i
+
+    for i in range(9):
+        for j in range(9):
+            F[i, j] = 1.0 if i == j else 0.0
+    for i in range(3):
+        F[i, i + 3] = dt
+        F[i, i + 6] = f_ra
+        F[i + 3, i + 6] = f_va
+        F[i + 6, i + 6] = e
+
+    # tmp = F @ P, then P = tmp @ F.T
+    for i in range(9):
+        for j in range(9):
+            s = 0.0
+            for k in range(9):
+                s += F[i, k] * P[k, j]
+            tmp[i, j] = s
+    for i in range(9):
+        for j in range(9):
+            s = 0.0
+            for k in range(9):
+                s += tmp[i, k] * F[j, k]
+            P[i, j] = s
+
+    q_psd = 2.0 * a_s * (sigma_a * sigma_a)
+    dt2 = dt * dt
+    dt3 = dt2 * dt
+    dt4 = dt3 * dt
+    dt5 = dt4 * dt
+    q_rr = q_psd * dt5 / 20.0
+    q_rv = q_psd * dt4 / 8.0
+    q_ra = q_psd * dt3 / 6.0
+    q_vv = q_psd * dt3 / 3.0
+    q_va = q_psd * dt2 / 2.0
+    q_aa = (sigma_a * sigma_a) * (1.0 - e * e if 1.0 - e * e > 0.0 else 0.0)
+    for i in range(3):
+        P[i, i] += q_rr
+        P[i, i + 3] += q_rv
+        P[i + 3, i] += q_rv
+        P[i, i + 6] += q_ra
+        P[i + 6, i] += q_ra
+        P[i + 3, i + 3] += q_vv
+        P[i + 3, i + 6] += q_va
+        P[i + 6, i + 3] += q_va
+        P[i + 6, i + 6] += q_aa
+
+
+@njit(cache=True, nogil=True)
+def _imm_rodrigues(kx, ky, kz, angle, R):
+    c = math.cos(angle)
+    s = math.sin(angle)
+    omc = 1.0 - c
+    R[0, 0] = c + kx * kx * omc
+    R[0, 1] = kx * ky * omc - kz * s
+    R[0, 2] = kx * kz * omc + ky * s
+    R[1, 0] = ky * kx * omc + kz * s
+    R[1, 1] = c + ky * ky * omc
+    R[1, 2] = ky * kz * omc - kx * s
+    R[2, 0] = kz * kx * omc - ky * s
+    R[2, 1] = kz * ky * omc + kx * s
+    R[2, 2] = c + kz * kz * omc
+
+
+@njit(cache=True, nogil=True)
+def _imm_ct3d_predict_inplace(x, P, dt, sigma_a, F, tmp, R_rot, R_half):
+    """In-place 9-state 3D Coordinated Turn prediction matching ``_ct3d_predict``."""
+    v0, v1, v2 = x[3], x[4], x[5]
+    a0, a1, a2 = x[6], x[7], x[8]
+    v2_n = v0 * v0 + v1 * v1 + v2 * v2
+    inv_v2 = 1.0 / (v2_n if v2_n > 100.0 else 100.0)
+    wx = (v1 * a2 - v2 * a1) * inv_v2
+    wy = (v2 * a0 - v0 * a2) * inv_v2
+    wz = (v0 * a1 - v1 * a0) * inv_v2
+    w_norm = math.sqrt(wx * wx + wy * wy + wz * wz)
+    if w_norm > 0.5:
+        sc = 0.5 / w_norm
+        wx *= sc
+        wy *= sc
+        wz *= sc
+        w_norm = 0.5
+
+    theta = w_norm * dt
+    if theta <= 1e-4:
+        _imm_singer_predict_inplace(x, P, dt, 5.5, sigma_a, F, tmp)
+        return
+
+    inv_w = 1.0 / w_norm
+    kx, ky, kz = wx * inv_w, wy * inv_w, wz * inv_w
+    _imm_rodrigues(kx, ky, kz, theta, R_rot)
+    _imm_rodrigues(kx, ky, kz, 0.5 * theta, R_half)
+    damp = math.exp(-dt / 6.0)
+
+    r0, r1, r2 = x[0], x[1], x[2]
+    x[0] = r0 + (R_half[0, 0] * v0 + R_half[0, 1] * v1 + R_half[0, 2] * v2) * dt
+    x[1] = r1 + (R_half[1, 0] * v0 + R_half[1, 1] * v1 + R_half[1, 2] * v2) * dt
+    x[2] = r2 + (R_half[2, 0] * v0 + R_half[2, 1] * v1 + R_half[2, 2] * v2) * dt
+    x[3] = R_rot[0, 0] * v0 + R_rot[0, 1] * v1 + R_rot[0, 2] * v2
+    x[4] = R_rot[1, 0] * v0 + R_rot[1, 1] * v1 + R_rot[1, 2] * v2
+    x[5] = R_rot[2, 0] * v0 + R_rot[2, 1] * v1 + R_rot[2, 2] * v2
+    x[6] = damp * (R_rot[0, 0] * a0 + R_rot[0, 1] * a1 + R_rot[0, 2] * a2)
+    x[7] = damp * (R_rot[1, 0] * a0 + R_rot[1, 1] * a1 + R_rot[1, 2] * a2)
+    x[8] = damp * (R_rot[2, 0] * a0 + R_rot[2, 1] * a1 + R_rot[2, 2] * a2)
+
+    for i in range(9):
+        for j in range(9):
+            F[i, j] = 1.0 if i == j else 0.0
+    half_dt2 = 0.5 * dt * dt
+    for i in range(3):
+        F[i, i + 6] = half_dt2
+        for j in range(3):
+            F[i, j + 3] = R_half[i, j] * dt
+            F[i + 3, j + 3] = R_rot[i, j]
+            F[i + 3, j + 6] = dt * R_half[i, j]
+            F[i + 6, j + 6] = damp * R_rot[i, j]
+
+    for i in range(9):
+        for j in range(9):
+            s = 0.0
+            for k in range(9):
+                s += F[i, k] * P[k, j]
+            tmp[i, j] = s
+    for i in range(9):
+        for j in range(9):
+            s = 0.0
+            for k in range(9):
+                s += tmp[i, k] * F[j, k]
+            P[i, j] = s
+
+    a_s = 1.0 / 5.5
+    q_psd = 2.0 * a_s * (sigma_a * sigma_a)
+    dt2 = dt * dt
+    dt3 = dt2 * dt
+    dt4 = dt3 * dt
+    dt5 = dt4 * dt
+    q_rr = q_psd * dt5 / 20.0
+    q_rv = q_psd * dt4 / 8.0
+    q_ra = q_psd * dt3 / 6.0
+    q_vv = q_psd * dt3 / 3.0
+    q_va = q_psd * dt2 / 2.0
+    e2 = math.exp(-2.0 * a_s * dt)
+    q_aa = (sigma_a * sigma_a) * (1.0 - e2 if 1.0 - e2 > 0.0 else 0.0)
+    for i in range(3):
+        P[i, i] += q_rr
+        P[i, i + 3] += q_rv
+        P[i + 3, i] += q_rv
+        P[i, i + 6] += q_ra
+        P[i + 6, i] += q_ra
+        P[i + 3, i + 3] += q_vv
+        P[i + 3, i + 6] += q_va
+        P[i + 6, i + 3] += q_va
+        P[i + 6, i + 6] += q_aa
+
+
+@njit(cache=True, nogil=True)
+def imm_predict_all(xs, Ps, mode_probs, dt, maneuver_tau, sigma_a, cov_floor,
+                    x_out, P_out, F, tmp, R_rot, R_half):
+    """Fused 3-model IMM predict (CV + CA + 3D-CT) + moment-matched combination."""
+    _imm_singer_predict_inplace(xs[0], Ps[0], dt, 0.6, 2.0, F, tmp)
+    _imm_singer_predict_inplace(xs[1], Ps[1], dt, maneuver_tau, sigma_a, F, tmp)
+    ct_sig = 0.80 * sigma_a
+    if ct_sig < 9.0:
+        ct_sig = 9.0
+    _imm_ct3d_predict_inplace(xs[2], Ps[2], dt, ct_sig, F, tmp, R_rot, R_half)
+
+    m0, m1, m2 = mode_probs[0], mode_probs[1], mode_probs[2]
+    for i in range(9):
+        x_out[i] = m0 * xs[0, i] + m1 * xs[1, i] + m2 * xs[2, i]
+
+    for i in range(9):
+        for j in range(9):
+            P_out[i, j] = 0.0
+
+    for k in range(3):
+        mk = mode_probs[k]
+        for i in range(9):
+            dxi = xs[k, i] - x_out[i]
+            for j in range(9):
+                dxj = xs[k, j] - x_out[j]
+                P_out[i, j] += mk * (Ps[k, i, j] + dxi * dxj)
+
+    for i in range(9):
+        for j in range(i, 9):
+            v = 0.5 * (P_out[i, j] + P_out[j, i])
+            P_out[i, j] = v
+            P_out[j, i] = v
+        if P_out[i, i] < cov_floor:
+            P_out[i, i] = cov_floor
 

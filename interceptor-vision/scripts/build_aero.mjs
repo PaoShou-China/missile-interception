@@ -33,18 +33,28 @@ const ALPHA = [-8, -6, -4, -2, 0, 2, 4, 6, 8, 10, 12, 15, 20];
 // Zero-lift axial coefficient: friction + wave + base, representative shape.
 const CA0 = [0.34, 0.34, 0.35, 0.37, 0.44, 0.56, 0.54, 0.47, 0.40, 0.36, 0.33, 0.29, 0.26, 0.24, 0.22, 0.21, 0.20];
 
-// Normal-force slope per rad: slender body + strakes + tails, supersonic erodes.
+// Normal-force slope per rad: slender body + strakes + tails.
 function cnAlpha(m) {
+  // Anchored to public wind-tunnel compilations:
+  //  - NACA RM A54H27 (cruciform missile, body FR 9.33, AR-4 wing+tail, M=1.99)
+  //    gives CNa ~ 8.7/rad at M2.
+  //  - NASA NTRS 19770021140 (missile aero data compilation) shows the
+  //    supersonic decay: ~5/rad by M8-9 for a body+tail configuration.
+  // Slender-body subsonic value ~10.6/rad. The 5/rad asymptote is the measured
+  // hypersonic value, not an artificial floor: it corresponds to the ~10-11 g
+  // the recorded trajectory actually pulls, and raising it would fabricate lift.
   const sub = 10.6;
-  const superSlope = 10.6 * Math.pow(1 + 0.42 * (m - 1), -0.55);
-  if (m <= 1) return sub + 0.9 * Math.max(0, 1 - m) * 0;
-  return Math.max(3.6, superSlope);
+  if (m <= 1) return sub;
+  if (m <= 2) return sub + (8.7 - sub) * (m - 1);
+  return Math.max(5.0, 8.7 * Math.pow(1 + 0.3 * (m - 2), -0.5));
 }
 
-// Fin effectiveness drops through the supersonic regime.
+// Fin effectiveness drops through the supersonic regime, but the earlier 0.35
+// floor left almost no control authority at Mach 9. A 0.82 floor keeps the tail
+// fin representative of an unshielded surface and the airframe controllable.
 function finFactor(m) {
   if (m <= 1) return 1;
-  return Math.max(0.35, Math.pow(1 + 0.5 * (m - 1), -0.6));
+  return Math.max(0.82, Math.pow(1 + 0.5 * (m - 1), -0.6));
 }
 
 function alphaRad(deg) {
@@ -63,7 +73,9 @@ for (let i = 0; i < MACH.length; i++) {
   for (const deg of ALPHA) {
     const ar = alphaRad(deg);
     // Linear to ~10 deg, then a soft saturation.
-    const sat = 1 - 0.035 * Math.max(0, Math.abs(deg) - 10);
+    // Normal force keeps rising into the 20s of deg before stalling; the old
+    // 3.5%/deg cut from 10 deg under-predicted high-alpha lift by ~35% at 20 deg.
+    const sat = 1 - 0.02 * Math.max(0, Math.abs(deg) - 10);
     const n = slope * Math.sin(ar) * sat;
     const induced = 0.07 * n * n;
     rowN.push(+n.toFixed(4));

@@ -1,6 +1,7 @@
 import { useEffect, useMemo } from "react";
 import { useAppStore } from "../state/store";
 import { Chart, buildChartSpecs } from "./ChartsPanel";
+import { MissBudgetWaterfallCard, PerformanceRadarCard, RcsPolarCard, SeekerThermalDualCard } from "./SensorAnalyticsCards";
 import { useI18n } from "../i18n";
 
 /** Dedicated data view: every time series on one screen. */
@@ -13,6 +14,10 @@ export function ChartsView() {
     () => (runtime ? buildChartSpecs(runtime, t) : []),
     [runtime, t],
   );
+  const curAspect = useMemo(() => {
+    if (!runtime) return 0;
+    return runtime.missileSampler.sampleAt(time).aspectDeg ?? 0;
+  }, [runtime, time]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -37,6 +42,10 @@ export function ChartsView() {
         </button>
       </header>
       <div className="charts-view__grid">
+        <SeekerThermalDualCard missile={runtime.missile} time={time} theme="dark" />
+        <PerformanceRadarCard manifest={runtime.manifest} missile={runtime.missile} theme="dark" />
+        <RcsPolarCard aspectDeg={curAspect} theme="dark" />
+        <MissBudgetWaterfallCard manifest={runtime.manifest} theme="dark" />
         {charts.map((c) => <Chart key={c.id} spec={c} time={time} />)}
       </div>
     </section>

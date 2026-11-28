@@ -31,7 +31,7 @@ type RuntimeRun = CompareRunView["run"];
 type StageMode = "side" | "overlay";
 
 const CAMERAS: CameraPreset[] = ["global", "flight", "attitude", "structure"];
-const RATES = [1, 5, 20, 60];
+const RATES = [0.1, 1, 5, 20, 60];
 const SAVE_KEY = "av.compare.selection";
 
 function ConfigPanel({
@@ -125,6 +125,7 @@ export function ComparePage() {
   const [playing, setPlaying] = useState(false);
   const [rate, setRate] = useState(20);
   const [modelScale, setModelScale] = useState(1);
+  const [showMcBundle, setShowMcBundle] = useState(true);
   const [uiTime, setUiTime] = useState(0);
   const [configError, setConfigError] = useState<string | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -192,13 +193,26 @@ export function ComparePage() {
         setManifest(man);
         setCampaign(camp);
         const realRuns = reg.experiments.filter((e) => !e.synthetic);
-        const a = (realRuns.find((e) => e.id === "exp-campaign-bezier-zem") ?? realRuns[0]!).combo;
-        const b = (realRuns.find((e) => e.id === "exp-campaign-classic-full")
+        const hashQ = window.location.hash.includes("?") ? window.location.hash.split("?")[1] : "";
+        const params = new URLSearchParams(hashQ || window.location.search);
+        const cmpPair = (params.get("compare") || "").split(",").map((s) => s.trim()).filter(Boolean);
+        const expParamA = cmpPair[0] ? reg.experiments.find((e) => e.id === cmpPair[0]) : undefined;
+        const expParamB = cmpPair[1] ? reg.experiments.find((e) => e.id === cmpPair[1]) : undefined;
+        const a = (expParamA ?? realRuns.find((e) => e.id === "exp-campaign-bezier-zem") ?? realRuns[0]!).combo;
+        const b = (expParamB ?? realRuns.find((e) => e.id === "exp-campaign-classic-full")
           ?? realRuns.find((e) => e.id === "exp-campaign-bezier-pn")
           ?? realRuns[1] ?? realRuns[0]!).combo;
+        if (params.get("mc") === "0") setShowMcBundle(false);
+        const viewP = params.get("view") as CameraPreset | null;
+        if (viewP && CAMERAS.includes(viewP)) setCamera(viewP);
         setSelA(a);
         setSelB(b);
         await buildRuns(reg, a, b);
+        const rawT = Number(params.get("t"));
+        if (params.has("t") && Number.isFinite(rawT)) {
+          seekCompare(rawT, "A", true);
+          setUiTime(rawT);
+        }
       } catch (e) {
         if (!cancelled) setLoadError(e instanceof Error ? e.message : String(e));
       }
@@ -438,6 +452,10 @@ export function ComparePage() {
           }} />
           {t("compare.sync")}
         </label>
+        <label className="cmp-check">
+          <input type="checkbox" checked={showMcBundle} onChange={(e) => setShowMcBundle(e.target.checked)} />
+          {t("compare.mcBundle")}
+        </label>
         <label className="cmp-scale">
           <span>{t("cfg.modelScale")}</span>
           <input
@@ -468,18 +486,38 @@ export function ComparePage() {
           <div className="cmp-split">
             <div className="cmp-pane">
               <span className="cmp-pane-label">A</span>
-              <CompareScene runs={[aView]} reference={aView} cameraPreset={camera} modelScale={modelScale} />
+              <CompareScene
+                runs={[{ ...aView, mcStat: statA }]}
+                reference={aView}
+                cameraPreset={camera}
+                modelScale={modelScale}
+                showMcBundle={showMcBundle}
+              />
             </div>
             <div className="cmp-pane">
               <span className="cmp-pane-label cmp-pane-label--b">B</span>
-              {bView ? <CompareScene runs={[bView]} reference={aView} cameraPreset={camera} modelScale={modelScale} /> : (
+              {bView ? (
+                <CompareScene
+                  runs={[{ ...bView, mcStat: statB }]}
+                  reference={aView}
+                  cameraPreset={camera}
+                  modelScale={modelScale}
+                  showMcBundle={showMcBundle}
+                />
+              ) : (
                 <div className="cmp-empty"><b>{t("compare.noB")}</b><p>{t("cfg.noExperiment")}</p></div>
               )}
             </div>
           </div>
         ) : (
           <div className="cmp-overlay-stage">
-            <CompareScene runs={bView ? [aView, bView] : [aView]} reference={aView} cameraPreset={camera} modelScale={modelScale} />
+            <CompareScene
+              runs={bView ? [{ ...aView, mcStat: statA }, { ...bView, mcStat: statB }] : [{ ...aView, mcStat: statA }]}
+              reference={aView}
+              cameraPreset={camera}
+              modelScale={modelScale}
+              showMcBundle={showMcBundle}
+            />
             <div className="cmp-legend">
               <span><i style={{ background: A_COLOR }} />{t("compare.legendA")}</span>
               {bView && <span><i style={{ background: B_COLOR }} />{t("compare.legendB")}</span>}

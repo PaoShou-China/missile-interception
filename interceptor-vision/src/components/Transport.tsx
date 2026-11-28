@@ -1,8 +1,10 @@
+import { useEffect, useRef, useState } from "react";
 import { useApp } from "../state";
 import { useT } from "../i18n";
 import { CINEMATIC_SECONDS } from "../scene/assets";
 import {
   cycleDataRate,
+  dataClock,
   formatMissionTime,
   seekDataTime,
   toggleDataPlay,
@@ -24,11 +26,77 @@ export function Transport() {
   const fps = useApp((s) => s.fps);
   const reset = useApp((s) => s.requestResetView);
   const telemetry = useApp((s) => s.telemetry);
-  const dataTime = useApp((s) => s.dataTime);
   const dataPlaying = useApp((s) => s.dataPlaying);
   const dataRate = useApp((s) => s.dataRate);
+  const [copied, setCopied] = useState(false);
 
   const dataMode = !!telemetry && mode !== "cinematic";
+  const sliderRef = useRef<HTMLInputElement>(null);
+  const clockRef = useRef<HTMLElement>(null);
+  const slowRef = useRef<HTMLSpanElement>(null);
+
+  // Zero React re-renders during telemetry playback: update slider value, live
+  // timecode & slow-mo indicator directly via DOM refs from `dataClock.t` (~25 Hz).
+  useEffect(() => {
+    if (!dataMode || !telemetry) return;
+    let raf = 0;
+    let lastDraw = 0;
+    let lastShown = -1;
+
+    const paint = (curT: number) => {
+      if (sliderRef.current && document.activeElement !== sliderRef.current) {
+        sliderRef.current.value = curT.toFixed(2);
+      }
+      if (clockRef.current) {
+        clockRef.current.textContent = formatMissionTime(curT);
+      }
+      if (slowRef.current) {
+        const st = useApp.getState();
+        const showSlow = st.dataPlaying && telemetry.end - curT < 10 && st.dataRate > 1;
+        slowRef.current.style.display = showSlow ? "" : "none";
+      }
+      lastShown = curT;
+    };
+
+    paint(dataClock.t);
+    const unsub = useApp.subscribe((st) => {
+      if (Math.abs(st.dataTime - lastShown) > 1e-4) paint(dataClock.t);
+    });
+    const tick = (now: number) => {
+      raf = requestAnimationFrame(tick);
+      if (now - lastDraw < 40) return;
+      if (Math.abs(dataClock.t - lastShown) > 1e-4) {
+        lastDraw = now;
+        paint(dataClock.t);
+      }
+    };
+    raf = requestAnimationFrame(tick);
+    return () => {
+      cancelAnimationFrame(raf);
+      unsub();
+    };
+  }, [dataMode, telemetry]);
+
+  const enterBulletTime = () => {
+    if (!telemetry) return;
+    const tJump = Math.max(telemetry.start, telemetry.end - 2.2);
+    useApp.getState().setDataRate(0.1);
+    seekDataTime(tJump, false);
+    if (!useApp.getState().dataPlaying) toggleDataPlay();
+  };
+
+  const copyDeepLink = () => {
+    const s = useApp.getState();
+    const url = new URL(window.location.href);
+    url.searchParams.set("t", dataClock.t.toFixed(2));
+    url.searchParams.set("view", s.cameraMode);
+    url.searchParams.set("rate", String(s.dataRate));
+    if (s.xrayOpen) url.searchParams.set("xray", "1");
+    else url.searchParams.delete("xray");
+    void navigator.clipboard?.writeText(url.toString()).catch(() => undefined);
+    setCopied(true);
+    window.setTimeout(() => setCopied(false), 1600);
+  };
 
   const onPlay = () => {
     if (dataMode) {
@@ -52,26 +120,29 @@ export function Transport() {
       <div className="transport__mid">
         <div className="transport__labels">
           <span>{dataMode ? t("flightTime") : t("shot")}</span>
-          <b>{dataMode ? formatMissionTime(dataTime) : fmt(time)}</b>
+          <b ref={clockRef}>{dataMode ? formatMissionTime(dataClock.t) : fmt(time)}</b>
           {dataMode && <em className="transport__rate">{dataRate}×</em>}
         </div>
         {dataMode ? (
           <div className="transport__track">
             <input
+              ref={sliderRef}
               type="range"
               min={telemetry.start}
               max={telemetry.end}
               step={0.05}
-              value={dataTime}
+              defaultValue={dataClock.t}
               onChange={(e) => seekDataTime(Number(e.target.value))}
             />
-            <div className="transport__events" aria-hidden>
+            <div className="transport__events">
               {telemetry.events.map((e) => (
-                <span
+                <button
                   key={e.id}
+                  type="button"
                   className={`transport__event transport__event--${e.severity}`}
                   style={{ left: `${((e.t - telemetry.start) / (telemetry.end - telemetry.start)) * 100}%` }}
-                  title={e.label}
+                  title={`${e.label} (${e.t.toFixed(1)}s) — ${e.description}`}
+                  onClick={() => seekDataTime(e.t, true)}
                 />
               ))}
             </div>
@@ -92,19 +163,37 @@ export function Transport() {
       </div>
       <div className="transport__right">
         {dataMode && (
-          <button
-            type="button"
-            className="ghost-btn ghost-btn--sm"
-            onClick={() => cycleDataRate()}
-            title={t("rateHint")}
-            aria-label={t("rateHint")}
-          >
-            {dataRate}×
-          </button>
+          <>
+            <button
+              type="button"
+              className={`ghost-btn ghost-btn--sm ${dataRate <= 0.15 ? "is-active" : ""}`}
+              onClick={enterBulletTime}
+              title={t("bulletTimeHint")}
+            >
+              0.1×
+            </button>
+            <button
+              type="button"
+              className="ghost-btn ghost-btn--sm"
+              onClick={() => cycleDataRate()}
+              title={t("rateHint")}
+              aria-label={t("rateHint")}
+            >
+              {dataRate}×
+            </button>
+            <button
+              type="button"
+              className="ghost-btn ghost-btn--sm"
+              onClick={copyDeepLink}
+              title={t("shareLinkHint")}
+            >
+              {copied ? "✓" : "🔗"}
+            </button>
+          </>
         )}
-        {dataMode && dataPlaying && telemetry && telemetry.end - dataTime < 10 && dataRate > 1 && (
-          <span className="chip chip--slow">{t("slowMo")}</span>
-        )}
+        <span ref={slowRef} className="chip chip--slow" style={{ display: "none" }}>
+          {t("slowMo")}
+        </span>
         <span className="fps">
           {t("fps")} <b>{fps}</b>
         </span>

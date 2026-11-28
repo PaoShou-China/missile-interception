@@ -44,6 +44,7 @@ interface AppStore {
   loadingProgress: number;
   hudVisible: boolean;
   trackEmphasis: boolean;
+  xrayMode: boolean;
 
   setRuntime: (r: ScenarioRuntime) => void;
   setStatus: (s: "loading" | "ready" | "error", error?: string | null) => void;
@@ -64,6 +65,8 @@ interface AppStore {
   setMobilePanel: (p: SidePanel) => void;
   setHudVisible: (v: boolean) => void;
   toggleTrackEmphasis: () => void;
+  toggleXrayMode: () => void;
+  setXrayMode: (v: boolean) => void;
 }
 
 export const useAppStore = create<AppStore>((set, get) => ({
@@ -83,6 +86,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
   loadingProgress: 0,
   hudVisible: true,
   trackEmphasis: true,
+  xrayMode: false,
 
   setRuntime: (runtime) => {
     const { startS, endS } = runtime.manifest.time;
@@ -155,4 +159,6 @@ export const useAppStore = create<AppStore>((set, get) => ({
   })),
   setHudVisible: (hudVisible) => set({ hudVisible }),
   toggleTrackEmphasis: () => set((s) => ({ trackEmphasis: !s.trackEmphasis })),
+  toggleXrayMode: () => set((s) => ({ xrayMode: !s.xrayMode })),
+  setXrayMode: (xrayMode) => set({ xrayMode }),
 }));

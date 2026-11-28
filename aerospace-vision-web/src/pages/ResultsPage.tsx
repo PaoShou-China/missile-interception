@@ -2,6 +2,7 @@ import { useMemo } from "react";
 import { useI18n } from "../i18n";
 import { fmt, formatClock } from "../utils/format";
 import { AcademicChart } from "../components/AcademicChart";
+import { MissBudgetWaterfallCard, PerformanceRadarCard, RcsPolarCard, SeekerThermalDualCard } from "../components/SensorAnalyticsCards";
 import { useManifest } from "./useManifest";
 import type { TrajectorySample } from "../scientific/types";
 
@@ -37,6 +38,27 @@ export function ResultsPage() {
         { name: "right", color: "#37B9D8", data: pairs(missile, (s) => +((s.finDeflectionsRad?.right ?? 0) * 57.2958).toFixed(2)) },
         { name: "q", color: "#C0562B", data: pairs(missile, (s) => +((s.bodyRatesRadS?.q ?? 0) * 57.2958).toFixed(2)), yAxisIndex: 1 },
       ],
+      hasSensors: missile.some((s) => s.radarSnrDb !== undefined),
+      snr: [
+        { name: "Radar dB", color: "#0F8B5F", data: pairs(missile, (s) => +(s.radarSnrDb ?? -60).toFixed(1)) },
+        { name: "IIR dB", color: "#D96B27", data: pairs(missile, (s) => +(s.irSnrDb ?? -60).toFixed(1)) },
+        { name: "RCS m²", color: "#2078BF", data: pairs(missile, (s) => +(s.targetRcsM2 ?? 0.005).toFixed(4)), yAxisIndex: 1 },
+      ],
+      thermal: [
+        { name: "q̇s MW/m²", color: "#C0392B", data: pairs(missile, (s) => +(s.heatFluxMWm2 ?? 0).toFixed(2)) },
+        { name: "Tw K", color: "#D97706", data: pairs(missile, (s) => +(s.wallTempK ?? 288).toFixed(0)), yAxisIndex: 1 },
+        ...(missile.some((s) => s.wallTempEqK !== undefined)
+          ? [{ name: "Teq K", color: "#9B2C2C", data: pairs(missile, (s) => +(s.wallTempEqK ?? s.wallTempK ?? 288).toFixed(0)), yAxisIndex: 1 }]
+          : []),
+      ],
+      hasImm: missile.some((s) => s.immPCv !== undefined),
+      imm: [
+        { name: "CV", color: "#005BAC", data: pairs(missile, (s) => +(s.immPCv ?? 0.34).toFixed(3)) },
+        { name: "CA/Singer", color: "#D96B27", data: pairs(missile, (s) => +(s.immPCa ?? 0.33).toFixed(3)) },
+        { name: "3D-CT", color: "#0F8B5F", data: pairs(missile, (s) => +(s.immPCt ?? 0.33).toFixed(3)) },
+      ],
+      missile,
+      termAspect: missile[missile.length - 1]?.aspectDeg ?? 75,
     };
   }, [manifest]);
 
@@ -62,6 +84,9 @@ export function ResultsPage() {
           [t("results.metric.duration"), fmt(m.flightDurationS, 1), "s"],
           [t("results.metric.handover"), m.handoverTimeS != null ? formatClock(m.handoverTimeS) : "—", ""],
           [t("results.metric.samples"), manifest ? String(manifest.time.sampleCount) : "—", ""],
+          ...(m.killProbability !== undefined ? [[t("results.metric.pk"), fmt(m.killProbability * 100, 1), "%"]] : []),
+          ...(m.maxHeatFluxMWm2 !== undefined ? [[t("results.metric.heatFlux"), fmt(m.maxHeatFluxMWm2, 2), "MW/m²"]] : []),
+          ...(m.maxWallTempK !== undefined ? [[t("results.metric.wallTemp"), fmt(m.maxWallTempK, 0), "K"]] : []),
         ].map(([label, value, unit]) => (
           <div className="metric-card" key={label}>
             <span>{label}</span>
@@ -98,6 +123,41 @@ export function ResultsPage() {
               unitB="deg/s"
               series={chartData.fins}
             />
+            {chartData.hasSensors && (
+              <>
+                <AcademicChart
+                  title={t("science.seekerSnr")}
+                  xUnit="s"
+                  unitA="dB"
+                  unitB="m²"
+                  series={chartData.snr}
+                />
+                <AcademicChart
+                  title={t("science.aerothermal")}
+                  xUnit="s"
+                  unitA="MW/m²"
+                  unitB="K"
+                  series={chartData.thermal}
+                />
+              </>
+            )}
+            {chartData.hasImm && (
+              <AcademicChart
+                title="IMM 3-Model Filter (CV / CA / 3D-CT)"
+                xUnit="s"
+                unitA="prob"
+                unitB=""
+                series={chartData.imm}
+              />
+            )}
+            {manifest && (
+              <>
+                <PerformanceRadarCard manifest={manifest} missile={chartData.missile} theme="light" />
+                <RcsPolarCard aspectDeg={chartData.termAspect} theme="light" />
+                <SeekerThermalDualCard missile={chartData.missile} interactive theme="light" />
+                <MissBudgetWaterfallCard manifest={manifest} theme="light" />
+              </>
+            )}
           </div>
         </section>
       )}

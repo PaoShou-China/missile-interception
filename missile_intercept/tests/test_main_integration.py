@@ -210,3 +210,22 @@ def test_guidance_law_selection_is_wired():
         sim_main.make_terminal_guidance("does-not-exist")
     with pytest.raises(ValueError):
         sim_main.make_autopilot("does-not-exist", 0.005)
+
+
+def test_telemetry_none_profile_matches_full_trajectory():
+    """Zero-allocation telemetry_profile='none' reproduces exact dynamics & scalar summaries."""
+    full = sim_main.Simulation(_short_cfg(t_end=2.5, max_steps=2000,
+                                          telemetry_profile="full"))
+    full.run()
+    none_sim = sim_main.Simulation(_short_cfg(t_end=2.5, max_steps=1,
+                                              telemetry_profile="none"))
+    none_sim.run()
+
+    assert none_sim.sol.success
+    assert not none_sim.telemetry.enabled
+    assert none_sim.telemetry.n == 0
+    assert none_sim.telemetry.data.shape[0] == 0
+    assert np.allclose(none_sim.sol.y, full.sol.y, rtol=1e-12, atol=1e-12)
+    assert none_sim.miss_distance == pytest.approx(full.miss_distance, rel=1e-12, abs=1e-12)
+    assert np.isfinite(none_sim._acc["boost_peak_alpha"])
+    assert none_sim._acc["boost_cnt"] > 0

@@ -219,7 +219,7 @@ def integrate(rhs, t_span, y0, step, events=None, before_step=None,
               after_step=None, max_steps=2000000,
               event_time_tolerance=1e-10, event_guard_tolerance=1e-10,
               max_event_iterations=40, method="rk4", rtol=1e-8, atol=1e-10,
-              save_trajectory=False):
+              save_trajectory=False, stepper=None):
     """Integrate ``dy/dt = rhs(t, y)`` with a fixed outer step.
 
     Parameters
@@ -239,6 +239,10 @@ def integrate(rhs, t_span, y0, step, events=None, before_step=None,
         ones); used to refresh cached state.  ``dy`` is the accepted average
         derivative over that step, not the endpoint derivative, so an INS can
         integrate it exactly.
+    stepper : callable(t, y, h) -> (y_next, f_avg, nfev_used), optional
+        Compiled fused RK4 / multi-substep stepper that advances the frozen
+        ZOH interval inside a single JIT call (eliminates 4x Python<->Numba
+        boundary crossings & temporary array allocations).
     """
     t0 = float(t_span[0])
     t1 = float(t_span[1])
@@ -292,8 +296,12 @@ def integrate(rhs, t_span, y0, step, events=None, before_step=None,
 
         while t < step_end - 1e-15:
             h = step_end - t
-            y_next, _f_start, _f_end, f_avg = rk4_step(rhs, t, y, h)
-            nfev += 4
+            if stepper is not None:
+                y_next, f_avg, used_fev = stepper(t, y, h)
+                nfev += used_fev
+            else:
+                y_next, _f_start, _f_end, f_avg = rk4_step(rhs, t, y, h)
+                nfev += 4
             nsteps += 1
 
             next_guards = [_guard(ev, t + h, y_next, event_guard_tolerance)

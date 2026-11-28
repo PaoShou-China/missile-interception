@@ -32,7 +32,7 @@ import math_utils as MU
 # the tables) keeps the controller and the plant from drifting apart.
 from vehicle.missile import (cn_alpha as _cn_alpha_of_mach, cp_max,
                              static_margin, cm_gain, cm_de, fin_effective,
-                             cn_shape, fin_slope_ratio)
+                             cn_shape, fin_slope_ratio, fin_lever)
 
 
 class SecondOrderFilter:
@@ -100,6 +100,86 @@ class FirstOrderFilter:
         return self.y
 
 
+class BendingModePlant:
+    """First-order elastic body bending mode oscillator (pitch & yaw axes).
+
+    Driven by dynamic pressure and virtual fin deflections, producing elastic
+    slope-rate disturbances that couple into the strapdown rate gyro when
+    ``SimConfig.enable_flex_mode`` is enabled.
+    """
+
+    def __init__(self, freq_hz=C.FLEX_FREQ_HZ, zeta=C.FLEX_ZETA,
+                 gain=C.FLEX_GAIN):
+        self.wn = 2.0 * math.pi * float(freq_hz)
+        self.zeta = float(zeta)
+        self.gain = float(gain)
+        self.eta = np.zeros(2, dtype=float)       # [pitch, yaw] modal coord
+        self.eta_dot = np.zeros(2, dtype=float)   # modal velocity
+
+    def reset(self):
+        self.eta[:] = 0.0
+        self.eta_dot[:] = 0.0
+
+    def step(self, d_p, d_y, q_dyn, dt):
+        """Advance elastic mode and return body-rate disturbance ``[0, dq, dr]``."""
+        dt = float(min(max(dt, 1e-5), 0.02))
+        q_scale = min(max(float(q_dyn) / max(C.AP_REF_Q, 1.0), 0.0), 12.0)
+        u = np.array([float(d_p), float(d_y)], dtype=float) * self.gain * q_scale
+        h = dt * 0.25
+        wn2 = self.wn * self.wn
+        c_d = 2.0 * self.zeta * self.wn
+        for _ in range(4):
+            acc = wn2 * (u - self.eta) - c_d * self.eta_dot
+            self.eta_dot += acc * h
+            self.eta += self.eta_dot * h
+        return np.array([0.0, float(self.eta_dot[0]), float(self.eta_dot[1])],
+                        dtype=float)
+
+
+class BiquadNotchFilter:
+    """Second-order digital biquad notch filter to reject body bending modes."""
+
+    def __init__(self, notch_hz=C.FLEX_FREQ_HZ, bw_hz=C.FLEX_NOTCH_BW_HZ,
+                 dt=C.DT_AUTOPILOT):
+        self.notch_hz = float(notch_hz)
+        self.bw_hz = float(bw_hz)
+        self.dt = float(dt)
+        self._build_coeffs(self.dt)
+        self._x1 = np.zeros(3, dtype=float)
+        self._x2 = np.zeros(3, dtype=float)
+        self._y1 = np.zeros(3, dtype=float)
+        self._y2 = np.zeros(3, dtype=float)
+
+    def _build_coeffs(self, dt):
+        fs = 1.0 / max(float(dt), 1e-5)
+        w0 = 2.0 * math.pi * min(self.notch_hz, 0.45 * fs) / fs
+        q_fac = max(self.notch_hz / max(self.bw_hz, 0.2), 0.5)
+        alpha = math.sin(w0) / (2.0 * q_fac)
+        cw = math.cos(w0)
+        a0 = 1.0 + alpha
+        self.b0 = 1.0 / a0
+        self.b1 = (-2.0 * cw) / a0
+        self.b2 = 1.0 / a0
+        self.a1 = (-2.0 * cw) / a0
+        self.a2 = (1.0 - alpha) / a0
+
+    def reset(self):
+        self._x1[:] = 0.0
+        self._x2[:] = 0.0
+        self._y1[:] = 0.0
+        self._y2[:] = 0.0
+
+    def update(self, vec3):
+        x = np.asarray(vec3, dtype=float).reshape(3)
+        y = (self.b0 * x + self.b1 * self._x1 + self.b2 * self._x2
+             - self.a1 * self._y1 - self.a2 * self._y2)
+        self._x2 = self._x1.copy()
+        self._x1 = x.copy()
+        self._y2 = self._y1.copy()
+        self._y1 = y.copy()
+        return y
+
+
 class Autopilot:
     """Three-loop PID autopilot returning virtual fins [delta_P, delta_Y, delta_R]."""
 
@@ -144,7 +224,7 @@ class Autopilot:
         self._state = np.zeros(29)
         self.alpha_f = SecondOrderFilter(C.AP_PREFILTER_HZ, 0.707)
         self.beta_f = SecondOrderFilter(C.AP_PREFILTER_HZ, 0.707)
-        self.trim_f = FirstOrderFilter(0.1)
+        self.trim_f = FirstOrderFilter(C.AP_TRIM_FF_TAU)
         self.int_angle_p = 0.0
         self.int_angle_y = 0.0
         self.int_rate_p = 0.0
@@ -227,8 +307,8 @@ class Autopilot:
         target = np.array([d_y, d_y, d_p - d_r, d_p + d_r])
         max_step = C.FIN_RATE_MAX * dt
         alpha = dt / (C.FIN_TAU + dt)
-        delta = np.clip(target - fins, -max_step, max_step)
-        achieved = np.clip(fins + alpha * delta, -C.FIN_MAX, C.FIN_MAX)
+        step = np.clip(alpha * (target - fins), -max_step, max_step)
+        achieved = np.clip(fins + step, -C.FIN_MAX, C.FIN_MAX)
         self._state[23:27] = achieved
         # Observer input: the virtual command the airframe actually applied.
         self._state[16] = 0.5 * (achieved[2] + achieved[3])
@@ -240,25 +320,52 @@ class Autopilot:
 
     # --------------------------------------------------------
     def _gain_scale(self, q_dyn, cn_alpha, mass):
-        """Rate-loop gain factor.
-
-        The factor is derived from the instantaneous plant: the pitch-rate
-        crossover is held at ``AP_OMEGA_Q`` given the fin authority
-        ``(cn_alpha - CN_ALPHA_BODY) * FIN_LEVER / LENGTH``, the current
-        inertia and q.  Geometry or DATCOM changes therefore need no offline
-        re-tuning.
-        """
+        """Pitch rate-loop gain factor (live CG fin lever arm + inertia)."""
         if C.MASS0 > C.DRY_MASS:
             fuel_f = min(max((mass - C.DRY_MASS) /
                              (C.MASS0 - C.DRY_MASS), 0.0), 1.0)
         else:
             fuel_f = 0.0
         iyy = C.IYY_DRY + fuel_f * (C.IYY_FULL - C.IYY_DRY)
-        cm_de = max((float(cn_alpha) - C.CN_ALPHA_BODY) * C.FIN_LEVER
-                    / C.LENGTH, 1.0e-3)
+        cg = C.CG_DRY + fuel_f * (C.CG_FULL - C.CG_DRY)
+        lever = fin_lever(cg)
+        cm_de_val = max((float(cn_alpha) - C.CN_ALPHA_BODY) * lever
+                        / C.LENGTH, 1.0e-3)
         kp_req = C.AP_OMEGA_Q * iyy / (
-            max(float(q_dyn), 1.0) * C.S_REF * C.LENGTH * cm_de)
+            max(float(q_dyn), 1.0) * C.S_REF * C.LENGTH * cm_de_val)
         return float(min(max(kp_req / self.KP_RATE,
+                             C.GAIN_SCALE_MIN), C.GAIN_SCALE_MAX))
+
+    def _gain_scale_yaw(self, q_dyn, cn_alpha, mass):
+        """Independent yaw rate-loop gain factor from CN_DR and Izz."""
+        if C.MASS0 > C.DRY_MASS:
+            fuel_f = min(max((mass - C.DRY_MASS) /
+                             (C.MASS0 - C.DRY_MASS), 0.0), 1.0)
+        else:
+            fuel_f = 0.0
+        izz = C.IZZ_DRY + fuel_f * (C.IZZ_FULL - C.IZZ_DRY)
+        ratio = min(max((float(cn_alpha) - C.CN_ALPHA_BODY)
+                        / (10.17 - C.CN_ALPHA_BODY), 0.2), 2.0)
+        cm_dr = max(abs(C.CN_DR) * ratio, 1.0e-3)
+        kp_req = C.AP_OMEGA_R * izz / (
+            max(float(q_dyn), 1.0) * C.S_REF * C.LENGTH * cm_dr)
+        return float(min(max(kp_req / self.KP_RATE_Y,
+                             C.GAIN_SCALE_MIN), C.GAIN_SCALE_MAX))
+
+    def _gain_scale_roll(self, q_dyn, cn_alpha, mass):
+        """Independent roll rate-loop gain factor from CL_DA and Ixx."""
+        if C.MASS0 > C.DRY_MASS:
+            fuel_f = min(max((mass - C.DRY_MASS) /
+                             (C.MASS0 - C.DRY_MASS), 0.0), 1.0)
+        else:
+            fuel_f = 0.0
+        ixx = C.IXX_DRY + fuel_f * (C.IXX_FULL - C.IXX_DRY)
+        ratio = min(max((float(cn_alpha) - C.CN_ALPHA_BODY)
+                        / (10.17 - C.CN_ALPHA_BODY), 0.2), 2.0)
+        cl_da = max(abs(C.CL_DA) * ratio, 1.0e-3)
+        kp_req = C.AP_OMEGA_P * ixx / (
+            max(float(q_dyn), 1.0) * C.S_REF * C.LENGTH * cl_da)
+        return float(min(max(kp_req / self.KP_ROLL,
                              C.GAIN_SCALE_MIN), C.GAIN_SCALE_MAX))
 
     # --------------------------------------------------------
@@ -378,18 +485,21 @@ class Autopilot:
                 cn_body += blend * (math.copysign(abs(cn_newton), alpha)
                                     - cn_body)
         d_pe = fin_effective(d_p)
-        margin = static_margin(mach, self._cg_position(mass))
+        cg_now = self._cg_position(mass)
+        margin = static_margin(mach, cg_now)
         cm = (-margin / C.LENGTH * cn_body * cm_gain(mach, alpha)
-              + cm_de(mach) * d_pe)
+              + cm_de(mach, cg_now) * d_pe)
         cn_beta = C.CN_BETA * ratio * (margin / (C.X_REF - C.CG_FULL))
         cn_yaw = -cn_beta * beta + C.CN_DR * ratio * fin_effective(d_y)
-        cl = C.CL_DA * ratio * fin_effective(d_r)
+        cl = (C.CL_DA * ratio * fin_effective(d_r)
+              + C.CL_ALPHA_BETA * ratio * alpha * beta)
 
         p, qq, r = omega
         v = max(float(speed), 1.0)
-        cm_tot = cm + C.CM_Q * (qq * C.LENGTH / (2.0 * v))
-        cn_tot = cn_yaw + C.CN_R * (r * C.LENGTH / (2.0 * v))
-        cl_tot = cl + C.CL_P * (p * C.LENGTH / (2.0 * v))
+        damp_scale = min(max(ratio, 0.70), 1.5)
+        cm_tot = cm + C.CM_Q * damp_scale * (qq * C.LENGTH / (2.0 * v))
+        cn_tot = cn_yaw + C.CN_R * damp_scale * (r * C.LENGTH / (2.0 * v))
+        cl_tot = cl + C.CL_P * damp_scale * (p * C.LENGTH / (2.0 * v))
         q_sl = max(float(q_dyn), 0.0) * C.S_REF * C.LENGTH
         mb = np.array([cl_tot, cm_tot, cn_tot]) * q_sl
 
@@ -543,13 +653,19 @@ class Autopilot:
 
         a_b = MU.quat_rotate_inv(q_used, np.asarray(a_cmd_eci, dtype=float))
 
-        # Lift-vector alignment: roll the body so the commanded acceleration
-        # lies in the pitch plane (body -Z).  Without this the command is split
-        # between the strong alpha channel and the weak beta (side-force)
-        # channel, and the yaw fins sit on their stops for the whole flight.
+        # Lift-vector alignment (symmetric BTT shortest-axis alignment):
+        # Because the airframe is symmetric in +/-alpha, wrap the bank angle
+        # error to [-pi/2, +pi/2] so a manoeuvre reversal pulls negative alpha
+        # immediately instead of spending ~0.8 s rolling 180 deg.
         ay, az = float(a_b[1]), float(a_b[2])
-        if roll_align and (ay * ay + az * az) > 1.0e-2:
-            p_cmd = C.AP_ROLL_ANGLE_GAIN * float(np.arctan2(ay, -az))
+        a_lat = math.hypot(ay, az)
+        if roll_align and a_lat > 0.1:
+            phi_err = float(math.atan2(ay, -az))
+            if phi_err > 0.5 * math.pi:
+                phi_err -= math.pi
+            elif phi_err < -0.5 * math.pi:
+                phi_err += math.pi
+            p_cmd = C.AP_ROLL_ANGLE_GAIN * phi_err * min(a_lat / 6.0, 1.0)
             p_cmd = float(np.clip(p_cmd, -C.AP_ROLL_RATE_MAX, C.AP_ROLL_RATE_MAX))
             # High-alpha roll-rate taper (see fastcore): alpha * p coupling
             # builds sideslip far faster than the yaw channel can trim it.
@@ -611,23 +727,30 @@ class Autopilot:
         beta_act = float(beta_used)
         p, qq, r = omega_used
 
-        # Low-q protection and gain scheduling.
+        # Low-q protection and independent per-axis gain scheduling.
         low_q = q_dyn < 100.0
-        gain_scale = (self._gain_scale(q_dyn, cn_alpha, mass)
-                      if self.GAIN_SCHED else 1.0)
+        gain_scale_p = (self._gain_scale(q_dyn, cn_alpha, mass)
+                        if self.GAIN_SCHED else 1.0)
+        gain_scale_y = (self._gain_scale_yaw(q_dyn, cn_alpha, mass)
+                        if self.GAIN_SCHED else 1.0)
+        gain_scale_r = (self._gain_scale_roll(q_dyn, cn_alpha, mass)
+                        if self.GAIN_SCHED else 1.0)
         ki_scale = self._ki_scale(q_dyn) if self.GAIN_SCHED else 1.0
         freeze = bool(is_saturated or low_q)
 
-        # Outer loop: pseudo-angle error -> body-rate command, with the
-        # reference rate as feed-forward so the feedback only corrects error.
-        # q > 0 is nose-up; r > 0 is nose-right.
+        # Outer loop: pseudo-angle error -> body-rate command, with fast
+        # reversal bleed so stale integrals never fight a sudden weave reversal.
         e_alpha = alpha_ref - alpha_act
         e_beta = beta_ref - beta_act
         if not freeze:
+            if self.int_angle_p * e_alpha < 0.0:
+                self.int_angle_p *= max(1.0 - dt / 0.12, 0.0)
+            if self.int_angle_y * e_beta < 0.0:
+                self.int_angle_y *= max(1.0 - dt / 0.12, 0.0)
             self.int_angle_p += e_alpha * dt
             self.int_angle_y += e_beta * dt
-        self.int_angle_p = float(min(max(self.int_angle_p, -0.5), 0.5))
-        self.int_angle_y = float(min(max(self.int_angle_y, -0.5), 0.5))
+        self.int_angle_p = float(min(max(self.int_angle_p, -0.15), 0.15))
+        self.int_angle_y = float(min(max(self.int_angle_y, -0.15), 0.15))
         ki_angle_p = self.KI_ANGLE * ki_scale
         ki_angle_y = self.KI_ANGLE_Y * ki_scale
         q_cmd = (alpha_ref_dot + self.KP_ANGLE * e_alpha
@@ -635,15 +758,11 @@ class Autopilot:
         r_cmd = -(beta_ref_dot + self.KP_ANGLE_Y * e_beta
                   + ki_angle_y * self.int_angle_y)
 
-        # Direct load-factor loop: trim the pitch-rate command with the error
-        # between the commanded and measured body normal load factor.  The
-        # alpha loop cannot see the difference between a commanded and an
-        # achieved g, which is exactly the lag seen in the terminal phase.
+        # Direct load-factor loop (q-scheduled so cruise at 70 kPa / 10 ms stays
+        # calm while endgame at 300-850 kPa / 5 ms gets full n_z authority).
         if kp_nz != 0.0 or ki_nz != 0.0:
+            nz_q_scale = float(min(max((q_dyn - 80000.0) / 140000.0, 0.25), 1.0))
             n_cmd = -float(a_b[2]) / C.G0
-            # Lead compensation: a low-passed derivative of the measured load
-            # factor anticipates the value the PI should act on, adding phase
-            # near the loop crossover without pure differentiation noise.
             n_used = n_meas
             if nz_lead > 0.0:
                 tau_l = C.AP_NZ_LEAD_LPF
@@ -653,74 +772,80 @@ class Autopilot:
                 n_used = n_meas + nz_lead * n_dot
             e_n = n_cmd - n_used
             if not freeze:
+                if self._state[27] * e_n < 0.0:
+                    self._state[27] *= max(1.0 - dt / 0.12, 0.0)
                 self._state[27] += e_n * dt
-            self._state[27] = float(min(max(self._state[27], -50.0), 50.0))
-            q_cmd += kp_nz * e_n + ki_nz * self._state[27]
+            self._state[27] = float(min(max(self._state[27], -15.0), 15.0))
+            q_cmd += nz_q_scale * (kp_nz * e_n + ki_nz * self._state[27])
 
         # Middle loop: rate error -> virtual fin.
         e_q = q_cmd - qq
         e_r = r_cmd - r
         if not freeze:
+            if self.int_rate_p * e_q < 0.0:
+                self.int_rate_p *= max(1.0 - dt / 0.12, 0.0)
+            if self.int_rate_y * e_r < 0.0:
+                self.int_rate_y *= max(1.0 - dt / 0.12, 0.0)
             self.int_rate_p += e_q * dt
             self.int_rate_y += e_r * dt
-        self.int_rate_p = float(min(max(self.int_rate_p, -5.0), 5.0))
-        self.int_rate_y = float(min(max(self.int_rate_y, -5.0), 5.0))
-        kp_p = self.KP_RATE * gain_scale
-        ki_p = self.KI_RATE * gain_scale * 0.1 * ki_scale
-        kp_y = self.KP_RATE_Y * gain_scale
-        ki_y = self.KI_RATE_Y * gain_scale * 0.1 * ki_scale
+        self.int_rate_p = float(min(max(self.int_rate_p, -1.5), 1.5))
+        self.int_rate_y = float(min(max(self.int_rate_y, -1.5), 1.5))
+        kp_p = self.KP_RATE * gain_scale_p
+        ki_p = self.KI_RATE * gain_scale_p * 0.15 * ki_scale
+        kp_y = self.KP_RATE_Y * gain_scale_y
+        ki_y = self.KI_RATE_Y * gain_scale_y * 0.15 * ki_scale
         # Positive pitch fin produces a nose-down moment (CM_DE < 0),
         # hence the negative feedback sign on the pitch channel.
         d_p_raw = -kp_p * e_q - ki_p * self.int_rate_p
         d_y_raw = kp_y * e_r + ki_y * self.int_rate_y
 
-        # Model feed-forward trim: low-passed and scaled by 0.3.  The pitch
-        # stiffness grows as fuel burn moves the CG forward, so the trim
-        # schedule is scaled by the same static-margin ratio used in the
-        # moment equations instead of freezing the all-up CM_ALPHA.
+        # Model feed-forward trim using live CG, live fin lever arm and
+        # conservative hypersonic static margin (avoids >100 % over-trim at M>5).
         if C.MASS0 > C.DRY_MASS:
             fuel_f = min(max((mass - C.DRY_MASS) /
                              (C.MASS0 - C.DRY_MASS), 0.0), 1.0)
         else:
             fuel_f = 0.0
         cg = C.CG_DRY + fuel_f * (C.CG_FULL - C.CG_DRY)
-        # Trim feed-forward must use the same Mach-dependent derivatives as
-        # the moment model.  The constant M = 2 values (CM_DE = -1.03,
-        # CM_ALPHA = -0.51) under-trim by ~3x at M ~ 10, where the fin lever
-        # arm gives |cm_de| ~ 0.41 but the static margin gives |cm_alpha| ~
-        # 0.60: the elevator would sit at half the angle the airframe needs,
-        # leaving a large alpha error for the (clamped) integral to chase.
-        cm_de_ff = max((float(cn_alpha) - C.CN_ALPHA_BODY) * C.FIN_LEVER
+        lever_now = fin_lever(cg)
+        cm_de_ff = max((float(cn_alpha) - C.CN_ALPHA_BODY) * lever_now
                        / C.LENGTH, 1.0e-3)
-        cm_alpha_ff = float(cn_alpha) * (C.X_REF - cg) / C.LENGTH
-        trim_raw = -float(alpha_used) * cm_alpha_ff / cm_de_ff
-        trim = 0.3 * self.trim_f.update(trim_raw, dt)
+        sm_ff = max(0.58 + (C.CG_FULL - cg), 0.25)
+        cm_alpha_ff = float(cn_alpha) * sm_ff / C.LENGTH
+        trim_raw = -float(alpha_ref) * cm_alpha_ff / cm_de_ff
+        trim = C.AP_TRIM_FF_GAIN * self.trim_f.update(trim_raw, dt)
         d_p_raw += trim
 
         d_p = float(np.clip(d_p_raw, -C.FIN_MAX, C.FIN_MAX))
         d_y = float(np.clip(d_y_raw, -C.FIN_MAX, C.FIN_MAX))
 
-        # Roll loop: PI on the body roll rate.
+        # Roll loop: PI on the body roll rate with independent roll scheduling.
         e_p = p_cmd - p
         if not freeze:
             self.int_roll += e_p * dt
         else:
             self.int_roll *= 0.98
         self.int_roll = float(min(max(self.int_roll, -1.0), 1.0))
-        d_r = self.KP_ROLL * gain_scale * e_p + self.KI_ROLL * self.int_roll
+        d_r_raw = self.KP_ROLL * gain_scale_r * e_p + self.KI_ROLL * gain_scale_r * self.int_roll
+        d_r = float(np.clip(d_r_raw, -C.FIN_MAX, C.FIN_MAX))
 
         # Actuator/mixer in the loop: the model returns the command unchanged
         # but stores the achieved (rate/lag/position limited) virtual fins.
-        # Cascade PID uses the shortfall for back-calculation anti-windup.
+        # Back-calculation uses the pre-clip shortfall so position saturation
+        # actively unwinds the rate integrator.
         d_p, d_y, d_r = self._mixer_feedback(d_p, d_y, d_r, dt)
         if not freeze:
+            d_p_lim = float(np.clip(d_p_raw, -2.0 * C.FIN_MAX, 2.0 * C.FIN_MAX))
+            d_y_lim = float(np.clip(d_y_raw, -2.0 * C.FIN_MAX, 2.0 * C.FIN_MAX))
+            d_r_lim = float(np.clip(d_r_raw, -2.0 * C.FIN_MAX, 2.0 * C.FIN_MAX))
             if ki_p > 1e-9:
-                self.int_rate_p += 0.5 * (d_p - self._state[16]) / ki_p
+                self.int_rate_p += 0.5 * (d_p_lim - self._state[16]) / ki_p
             if ki_y > 1e-9:
-                self.int_rate_y -= 0.5 * (d_y - self._state[19]) / ki_y
-            self.int_rate_p = float(min(max(self.int_rate_p, -5.0), 5.0))
-            self.int_rate_y = float(min(max(self.int_rate_y, -5.0), 5.0))
-            self.int_roll += 0.5 * (d_r - self._state[22]) / max(self.KI_ROLL, 1e-6)
+                self.int_rate_y -= 0.5 * (d_y_lim - self._state[19]) / ki_y
+            self.int_rate_p = float(min(max(self.int_rate_p, -1.5), 1.5))
+            self.int_rate_y = float(min(max(self.int_rate_y, -1.5), 1.5))
+            ki_r_eff = max(self.KI_ROLL * gain_scale_r, 1e-6)
+            self.int_roll += 0.5 * (d_r_lim - self._state[22]) / ki_r_eff
             self.int_roll = float(min(max(self.int_roll, -1.0), 1.0))
 
         out = np.array([d_p, d_y, d_r], dtype=float)

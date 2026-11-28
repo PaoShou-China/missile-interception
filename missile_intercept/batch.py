@@ -21,7 +21,7 @@ import csv
 import json
 import os
 import time
-from concurrent.futures import ProcessPoolExecutor, as_completed
+from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, replace
 
 import numpy as np
@@ -144,7 +144,9 @@ def _handover_fields(sim):
 
 
 def _terminal_fields(sim):
-    """Endgame command/response summary from the basic telemetry columns."""
+    """Endgame command/response summary (uses O(1) summary when telemetry is off)."""
+    if not sim.telemetry.enabled or sim.telemetry.n == 0:
+        return sim.terminal_summary()
     nan = float("nan")
     try:
         d = sim.telemetry.as_dict()
@@ -200,6 +202,8 @@ def _stage_fields(sim):
     terminal) so a single experiment can report every stage instead of only
     the final miss distance.
     """
+    if not sim.telemetry.enabled or sim.telemetry.n == 0:
+        return sim.stage_summary()
     nan = float("nan")
     try:
         d = sim.telemetry.as_dict()
@@ -403,7 +407,8 @@ def _append_checkpoint(path, record):
 
 def run_batch(n_cases, workers=None, base_seed=2026, cfg=None,
               dispersion=None, lethal_radius=C.WARHEAD_LETHAL_RADIUS,
-              output_dir=None, plot=True, checkpoint=None, resume=False):
+              output_dir=None, plot=True, checkpoint=None, resume=False,
+              use_threads=False):
     """Run n_cases test firings in parallel and aggregate the statistics.
 
     ``checkpoint`` is a JSONL file appended after every completed case;
@@ -417,13 +422,13 @@ def run_batch(n_cases, workers=None, base_seed=2026, cfg=None,
     workers = int(workers) if workers is not None else (os.cpu_count() or 1)
     workers = max(1, min(workers, n_cases))
 
-    # Per-case config: quiet, pre-allocate telemetry capacity from the log period (avoid 75MB preallocation per core)
+    # Per-case config: quiet, zero-allocation scalar-only telemetry mode.
     case_cfg = replace(
         cfg,
         verbose=False,
         enable_plot=False,
-        telemetry_profile="basic",
-        max_steps=max(int(round(cfg.t_end / max(cfg.dt_log, 1e-6))) + 1000, 1000),
+        telemetry_profile="none",
+        max_steps=1,
     )
     payloads = [build_case(i, base_seed, case_cfg, dispersion)
                 for i in range(n_cases)]
@@ -439,8 +444,9 @@ def run_batch(n_cases, workers=None, base_seed=2026, cfg=None,
                   % (len(done), len(payloads)))
 
     if cfg.verbose:
-        print("Batch test firing: %d cases | workers: %d | seed: %s | t_end=%.1fs"
-              % (n_cases, workers, base_seed, cfg.t_end))
+        mode = "threads" if (use_threads and workers > 1) else "processes"
+        print("Batch test firing: %d cases | workers: %d (%s) | seed: %s | t_end=%.1fs"
+              % (n_cases, workers, mode, base_seed, cfg.t_end))
 
     t_wall = time.time()
 
@@ -457,7 +463,8 @@ def run_batch(n_cases, workers=None, base_seed=2026, cfg=None,
             if cfg.verbose:
                 _print_progress(k, len(payloads), res)
     else:
-        with ProcessPoolExecutor(max_workers=workers) as pool:
+        pool_cls = ThreadPoolExecutor if use_threads else ProcessPoolExecutor
+        with pool_cls(max_workers=workers) as pool:
             futures = {pool.submit(run_case, p): p[0] for p in payloads}
             done = 0
             for fut in as_completed(futures):
@@ -610,6 +617,8 @@ def main(argv=None):
                         help="Resume from the checkpoint file")
     parser.add_argument("--no-plot", action="store_true",
                         help="Do not plot the distribution")
+    parser.add_argument("--threads", action="store_true",
+                        help="Use ThreadPoolExecutor (nogil Numba, no spawn overhead)")
     parser.add_argument("--midcourse-law", type=str, default="bezier",
                         choices=["bezier", "pip_pn"],
                         help="Midcourse guidance law")
@@ -648,7 +657,8 @@ def main(argv=None):
         args.cases, workers=args.workers, base_seed=args.seed, cfg=cfg,
         dispersion=dispersion, lethal_radius=args.lethal_radius,
         output_dir=args.out or os.path.join(cfg.output_dir, "batch"),
-        plot=cfg.enable_plot, checkpoint=args.checkpoint, resume=args.resume)
+        plot=cfg.enable_plot, checkpoint=args.checkpoint, resume=args.resume,
+        use_threads=args.threads)
 
 
 if __name__ == "__main__":

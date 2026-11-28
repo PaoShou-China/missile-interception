@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { useI18n } from "../i18n";
 import { navigate, useRoute, type RoutePath } from "../app/router";
 
@@ -39,6 +39,78 @@ export function LangSwitch() {
   );
 }
 
+function PresentationToggle() {
+  const { t } = useI18n();
+  const [on, setOn] = useState(() => {
+    try {
+      return window.localStorage.getItem("av-presentation") === "1";
+    } catch {
+      return false;
+    }
+  });
+
+  useEffect(() => {
+    document.documentElement.dataset.presentation = on ? "true" : "false";
+    try {
+      window.localStorage.setItem("av-presentation", on ? "1" : "0");
+    } catch {
+      // ignore storage errors
+    }
+  }, [on]);
+
+  return (
+    <button
+      type="button"
+      className={`present-btn ${on ? "is-active" : ""}`}
+      onClick={() => setOn((v) => !v)}
+      aria-pressed={on}
+      title={t("nav.presentHint")}
+    >
+      {t("nav.present")}
+    </button>
+  );
+}
+
+function QuickTour() {
+  const { t } = useI18n();
+  const [open, setOpen] = useState(false);
+
+  return (
+    <div className="quick-tour">
+      {open && (
+        <aside className="quick-tour__card" role="dialog" aria-label={t("tour.title")}>
+          <div className="quick-tour__head">
+            <strong>{t("tour.title")}</strong>
+            <button type="button" onClick={() => setOpen(false)} aria-label={t("common.close")}>×</button>
+          </div>
+          <ol className="quick-tour__list">
+            <li>
+              <a href="#/" onClick={() => setOpen(false)}>{t("tour.step1")}</a>
+            </li>
+            <li>
+              <a href="#/explore" onClick={() => setOpen(false)}>{t("tour.step2")}</a>
+            </li>
+            <li>
+              <a href="#/results" onClick={() => setOpen(false)}>{t("tour.step3")}</a>
+            </li>
+            <li>
+              <a href="#/compare" onClick={() => setOpen(false)}>{t("tour.step4")}</a>
+            </li>
+          </ol>
+        </aside>
+      )}
+      <button
+        type="button"
+        className="quick-tour__fab"
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+      >
+        {open ? t("common.close") : t("tour.button")}
+      </button>
+    </div>
+  );
+}
+
 export function SiteLayout({ children }: { children: ReactNode }) {
   const { t } = useI18n();
   const route = useRoute();
@@ -73,6 +145,7 @@ export function SiteLayout({ children }: { children: ReactNode }) {
           ))}
         </nav>
         <div className="site-header__actions">
+          <PresentationToggle />
           <LangSwitch />
           <a className="btn btn--primary btn--sm" href="#/explore">{t("nav.explore")}</a>
         </div>
@@ -93,6 +166,7 @@ export function SiteLayout({ children }: { children: ReactNode }) {
           <a href="#/resources">{t("nav.legacy")}</a>
         </div>
       </footer>
+      <QuickTour />
     </div>
   );
 }

@@ -36,6 +36,29 @@ export interface SampledState {
   finDeflectionsRad: FinDeflectionsRad;
   /** Recorded body rates (rad/s). Zero when the source has no rate data. */
   bodyRatesRadS: BodyRatesRadS;
+  heatFluxMWm2?: number;
+  wallTempK?: number;
+  aspectDeg?: number;
+  targetRcsM2?: number;
+  radarSnrDb?: number;
+  irSnrDb?: number;
+  seekerAzDeg?: number;
+  seekerElDeg?: number;
+  wallTempEqK?: number;
+  unstartFlag?: number;
+  stageSep?: number;
+  cgPos?: number;
+  cpPos?: number;
+  bodyForceX?: number;
+  bodyForceY?: number;
+  bodyForceZ?: number;
+  decoyActive?: number;
+  decoyAzDeg?: number;
+  decoyElDeg?: number;
+  immPCv?: number;
+  immPCa?: number;
+  immPCt?: number;
+  fuzePk?: number;
 }
 
 const lerp = (a: number, b: number, u: number) => a + (b - a) * u;
@@ -127,6 +150,29 @@ export class TrajectorySampler {
         q: lerp(a.bodyRatesRadS?.q ?? 0, b.bodyRatesRadS?.q ?? 0, u),
         r: lerp(a.bodyRatesRadS?.r ?? 0, b.bodyRatesRadS?.r ?? 0, u),
       },
+      heatFluxMWm2: a.heatFluxMWm2 !== undefined && b.heatFluxMWm2 !== undefined ? lerp(a.heatFluxMWm2, b.heatFluxMWm2, u) : a.heatFluxMWm2,
+      wallTempK: a.wallTempK !== undefined && b.wallTempK !== undefined ? lerp(a.wallTempK, b.wallTempK, u) : a.wallTempK,
+      aspectDeg: a.aspectDeg !== undefined && b.aspectDeg !== undefined ? lerp(a.aspectDeg, b.aspectDeg, u) : a.aspectDeg,
+      targetRcsM2: a.targetRcsM2 !== undefined && b.targetRcsM2 !== undefined ? lerp(a.targetRcsM2, b.targetRcsM2, u) : a.targetRcsM2,
+      radarSnrDb: a.radarSnrDb !== undefined && b.radarSnrDb !== undefined ? lerp(a.radarSnrDb, b.radarSnrDb, u) : a.radarSnrDb,
+      irSnrDb: a.irSnrDb !== undefined && b.irSnrDb !== undefined ? lerp(a.irSnrDb, b.irSnrDb, u) : a.irSnrDb,
+      seekerAzDeg: a.seekerAzDeg !== undefined && b.seekerAzDeg !== undefined ? lerp(a.seekerAzDeg, b.seekerAzDeg, u) : a.seekerAzDeg,
+      seekerElDeg: a.seekerElDeg !== undefined && b.seekerElDeg !== undefined ? lerp(a.seekerElDeg, b.seekerElDeg, u) : a.seekerElDeg,
+      wallTempEqK: a.wallTempEqK !== undefined && b.wallTempEqK !== undefined ? lerp(a.wallTempEqK, b.wallTempEqK, u) : a.wallTempEqK,
+      unstartFlag: u < 0.5 ? a.unstartFlag : b.unstartFlag,
+      stageSep: u < 0.5 ? a.stageSep : b.stageSep,
+      cgPos: a.cgPos !== undefined && b.cgPos !== undefined ? lerp(a.cgPos, b.cgPos, u) : a.cgPos,
+      cpPos: a.cpPos !== undefined && b.cpPos !== undefined ? lerp(a.cpPos, b.cpPos, u) : a.cpPos,
+      bodyForceX: a.bodyForceX !== undefined && b.bodyForceX !== undefined ? lerp(a.bodyForceX, b.bodyForceX, u) : a.bodyForceX,
+      bodyForceY: a.bodyForceY !== undefined && b.bodyForceY !== undefined ? lerp(a.bodyForceY, b.bodyForceY, u) : a.bodyForceY,
+      bodyForceZ: a.bodyForceZ !== undefined && b.bodyForceZ !== undefined ? lerp(a.bodyForceZ, b.bodyForceZ, u) : a.bodyForceZ,
+      decoyActive: u < 0.5 ? a.decoyActive : b.decoyActive,
+      decoyAzDeg: a.decoyAzDeg !== undefined && b.decoyAzDeg !== undefined ? lerp(a.decoyAzDeg, b.decoyAzDeg, u) : a.decoyAzDeg,
+      decoyElDeg: a.decoyElDeg !== undefined && b.decoyElDeg !== undefined ? lerp(a.decoyElDeg, b.decoyElDeg, u) : a.decoyElDeg,
+      immPCv: a.immPCv !== undefined && b.immPCv !== undefined ? lerp(a.immPCv, b.immPCv, u) : a.immPCv,
+      immPCa: a.immPCa !== undefined && b.immPCa !== undefined ? lerp(a.immPCa, b.immPCa, u) : a.immPCa,
+      immPCt: a.immPCt !== undefined && b.immPCt !== undefined ? lerp(a.immPCt, b.immPCt, u) : a.immPCt,
+      fuzePk: a.fuzePk !== undefined && b.fuzePk !== undefined ? lerp(a.fuzePk, b.fuzePk, u) : a.fuzePk,
     };
   }
 

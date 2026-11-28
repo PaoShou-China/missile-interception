@@ -58,6 +58,19 @@ export function ExploreApp() {
           missileSampler: new TrajectorySampler(missile),
           targetSampler: new TrajectorySampler(target),
         });
+        // Deep-link hydration (?t=...&view=...&rate=...&xray=1) from search or hash query.
+        const hashQ = window.location.hash.includes("?") ? window.location.hash.split("?")[1] : "";
+        const params = new URLSearchParams(hashQ || window.location.search);
+        const st = useAppStore.getState();
+        const rawT = Number(params.get("t"));
+        if (params.has("t") && Number.isFinite(rawT)) st.seek(rawT);
+        const view = params.get("view");
+        if (view && (CAMERA_MODES as readonly string[]).includes(view)) {
+          st.setCameraMode(view as (typeof CAMERA_MODES)[number]);
+        }
+        const rawRate = Number(params.get("rate"));
+        if (params.has("rate") && Number.isFinite(rawRate) && rawRate > 0) st.setRate(rawRate);
+        if (params.get("xray") === "1") st.setXrayMode(true);
       })
       .catch((err: unknown) => {
         if (cancelled) return;
@@ -78,6 +91,7 @@ export function ExploreApp() {
       else if (e.key === "r" || e.key === "R") { s.reset(); }
       else if (e.key === "Escape" && s.presentation === "cinematic") { s.setPresentation("scientific"); }
       else if (e.key === "h" || e.key === "H") s.setHudVisible(!s.hudVisible);
+      else if (e.key === "x" || e.key === "X") s.toggleXrayMode();
       else {
         const idx = Number(e.key);
         if (idx >= 1 && idx <= CAMERA_MODES.length) s.setCameraMode(CAMERA_MODES[idx - 1]);

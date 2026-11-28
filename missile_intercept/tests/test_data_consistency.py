@@ -174,3 +174,76 @@ def test_telemetry_rejects_nan():
     logger = TelemetryLogger(max_steps=5)
     with pytest.raises(FloatingPointError):
         logger.send(0.0, [np.nan] * (len(C.TELEMETRY_COLUMNS) - 1))
+
+
+def test_transient_tps_stage_sep_unstart_and_corridor():
+    """Phase 1 physics: 1D transient TPS thermal lag, discrete stage separation
+    CG/inertia jump, scramjet inlet recovery/unstart, and q/qdot corridor."""
+    from vehicle.missile import step_transient_wall_temp, inlet_pressure_recovery
+    from control.thrust_controller import ThrustController
+
+    # 1) 1D transient wall temperature lags behind steady equilibrium and approaches it.
+    tw = 220.0
+    for _ in range(200):
+        tw, q_mw, t_eq, t_rec = step_transient_wall_temp(tw, 25000.0, 2600.0, 8.7, 0.05)
+    assert 400.0 < tw < t_eq < t_rec
+    assert q_mw > 1.5
+
+    # 2) Stage-1 casing separation shifts CG forward and drops inertia discretely.
+    m = Missile()
+    cg_att = m.cg_position(1700.0, separated=False)
+    cg_sep = m.cg_position(1700.0, separated=True)
+    i_att = m.inertia_diag(1700.0, separated=False)
+    i_sep = m.inertia_diag(1700.0, separated=True)
+    assert cg_att - cg_sep == pytest.approx(C.STAGE1_CG_SHIFT, abs=1e-9)
+    assert i_att[1] - i_sep[1] == pytest.approx(C.STAGE1_IYY_DROP, abs=1e-9)
+
+    # 3) Inlet recovery degrades with incidence & unstart cuts ramjet thrust sharply.
+    assert inlet_pressure_recovery(6.0, 0.0, 0.0) > inlet_pressure_recovery(6.0, 0.18, 0.05)
+    mass = C.MASS0 - C.BOOST_FUEL
+    f_ok, _, p_ok = m.propulsion(30.0, mass, 6.0, 20000.0, 60000.0, 0.05, unstart=False)
+    f_un, _, p_un = m.propulsion(30.0, mass, 6.0, 20000.0, 60000.0, 0.05, unstart=True)
+    assert p_ok == "ramjet" and p_un == "ramjet"
+    assert f_un < 0.25 * f_ok
+
+    # 4) Joint q_max / qdot_max corridor cuts ramjet throttle even in terminal phase.
+    ctrl = ThrustController()
+    for _ in range(400):
+        thr_q = ctrl.update(0.01, 8.0, 15000.0, C.CORRIDOR_Q_MAX + 50000.0, "terminal", heat_flux_mw=2.0)
+    assert thr_q == pytest.approx(0.0, abs=1e-3)
+    ctrl.reset()
+    for _ in range(400):
+        thr_h = ctrl.update(0.01, 8.0, 22000.0, 1.0e5, "terminal", heat_flux_mw=C.CORRIDOR_QDOT_MAX + 1.0)
+    assert thr_h == pytest.approx(0.0, abs=1e-3)
+
+
+def test_hypersonic_aero_and_scramjet_stoichiometry():
+    """Eckert compressible friction reduces hypersonic viscous drag, k(M) grows
+    for M > 5, stoichiometric airflow caps high-alt fuel flow, and inlet unstart
+    adds genuine spillage drag."""
+    from vehicle.missile import friction_delta, induced_k, ramjet_isp
+
+    # 1) Eckert compressible skin friction stays lower at M=9 than M=2 at same alt.
+    df_m2 = friction_delta(25000.0, 600.0, mach=2.0)
+    df_m9 = friction_delta(25000.0, 2700.0, mach=9.0)
+    assert df_m9 < df_m2
+
+    # 2) Hypersonic induced-drag factor k(M) increases with 1/CN_alpha above M=5.
+    assert induced_k(9.0) > induced_k(5.0)
+
+    # 3) Hydrocarbon dual-mode scramjet Isp rolls off from 1500 s (M<=3.5) to ~1220 s (M=10).
+    assert ramjet_isp(3.0) == pytest.approx(C.RAMJET_ISP)
+    assert C.RAMJET_ISP_MIN < ramjet_isp(6.5) < C.RAMJET_ISP
+    assert ramjet_isp(10.0) == pytest.approx(C.RAMJET_ISP_MIN)
+
+    # 4) Inlet unstart adds spillage drag along -X body axis.
+    m = Missile()
+    r = MU.llh_to_eci(C.LAUNCH_LAT, C.LAUNCH_LON, 22000.0, 0.0)
+    up = MU.normalize(r)
+    q = MU.quat_from_body_x(up, np.array([0.0, 1.0, 0.0]))
+    v = up * 2200.0 + np.cross(np.array([0.0, 0.0, C.OMEGA_EARTH]), r)
+    state = np.concatenate([r, v, q, np.zeros(3), [1500.0]])
+    _, info_ok = m.derivatives(30.0, state, np.zeros(4), throttle=0.0, unstart=False, use_fast=False)
+    _, info_un = m.derivatives(30.0, state, np.zeros(4), throttle=0.0, unstart=True, use_fast=False)
+    # Unstart spillage drag is stronger than coast additive drag (more negative Fbx).
+    assert info_un["F_body"][0] < info_ok["F_body"][0] - 1000.0

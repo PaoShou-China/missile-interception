@@ -1,6 +1,5 @@
 import { useMemo, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
-import { Html } from "@react-three/drei";
 import * as THREE from "three";
 import { dataClock } from "../data/dataClock";
 import { sampleAt } from "../data/telemetry";
@@ -93,11 +92,9 @@ const THERMAL_FRAG = /* glsl */ `
 function ForceArrow({
   arrowRef,
   color,
-  label,
 }: {
   arrowRef: React.RefObject<THREE.Group | null>;
   color: string;
-  label: string;
 }) {
   return (
     <group ref={arrowRef} visible={false}>
@@ -109,9 +106,6 @@ function ForceArrow({
         <coneGeometry args={[0.068, 0.22, 12]} />
         <meshBasicMaterial color={color} transparent opacity={0.96} depthTest={false} />
       </mesh>
-      <Html position={[0, 1.26, 0]} center zIndexRange={[18, 0]} style={{ pointerEvents: "none" }}>
-        <span className="xray-tag" style={{ borderColor: color, color }}>{label}</span>
-      </Html>
     </group>
   );
 }
@@ -121,11 +115,10 @@ function ForceArrow({
  * Renders:
  *  1) GLSL Mach-angle Bow Shock Cone + Planck Blackbody Aerothermal Nose Glow
  *  2) Toggleable X-Ray Force Vectors (Lift, Drag, Thrust, NMP Tail-Fin Direct Force)
- *     and dynamic CG / CP station spheres + static margin bar.
+ *     and dynamic CG / CP station spheres + static margin bar (pure 3D, no floating HTML text).
  */
 export function AeroPhysicsOverlay() {
   const xrayOpen = useApp((s) => s.xrayOpen);
-  const lang = useApp((s) => s.lang);
 
   const shockRef = useRef<THREE.Mesh>(null);
   const thermalRef = useRef<THREE.Mesh>(null);
@@ -137,7 +130,6 @@ export function AeroPhysicsOverlay() {
   const cgRef = useRef<THREE.Group>(null);
   const cpRef = useRef<THREE.Group>(null);
   const marginBarRef = useRef<THREE.Mesh>(null);
-  const hudTagRef = useRef<HTMLDivElement>(null);
 
   const shockMat = useMemo(
     () =>
@@ -279,13 +271,6 @@ export function AeroPhysicsOverlay() {
       nmpFinRef.current.rotation.set(0, 0, finDirectN >= 0 ? Math.PI : 0);
       nmpFinRef.current.scale.set(1, len, 1);
     }
-
-    if (hudTagRef.current) {
-      const sm = cpStation - cgStation;
-      const unstartTxt = (s.unstartFlag ?? 0) > 0.5 ? " · ⚠ UNSTART" : "";
-      hudTagRef.current.textContent =
-        `CG ${cgStation.toFixed(2)}m | CP ${cpStation.toFixed(2)}m | SM +${sm.toFixed(2)}m | Tw ${tw.toFixed(0)}K | q̇s ${heat.toFixed(2)}MW/m²${unstartTxt}`;
-    }
   });
 
   return (
@@ -307,12 +292,12 @@ export function AeroPhysicsOverlay() {
         <coneGeometry args={[0.255, 1.48, 36, 1, true]} />
       </mesh>
 
-      {/* 3. X-Ray Force Vectors & Dynamic CG / CP Markers */}
+      {/* 3. X-Ray Force Vectors & Dynamic CG / CP Markers (pure 3D visuals) */}
       <group ref={xrayGroupRef} visible={xrayOpen}>
-        <ForceArrow arrowRef={liftRef} color="#4df0a8" label={lang === "zh" ? "升力 L" : "Lift L"} />
-        <ForceArrow arrowRef={dragRef} color="#ff6d59" label={lang === "zh" ? "阻力 D" : "Drag D"} />
-        <ForceArrow arrowRef={thrustRef} color="#ffcb5c" label={lang === "zh" ? "推力 T" : "Thrust T"} />
-        <ForceArrow arrowRef={nmpFinRef} color="#ff66d9" label={lang === "zh" ? "尾舵反向力 (NMP)" : "Fin NMP Force"} />
+        <ForceArrow arrowRef={liftRef} color="#4df0a8" />
+        <ForceArrow arrowRef={dragRef} color="#ff6d59" />
+        <ForceArrow arrowRef={thrustRef} color="#ffcb5c" />
+        <ForceArrow arrowRef={nmpFinRef} color="#ff66d9" />
 
         {/* Dynamic CG marker (Gold) */}
         <group ref={cgRef}>
@@ -320,9 +305,6 @@ export function AeroPhysicsOverlay() {
             <sphereGeometry args={[0.14, 18, 16]} />
             <meshBasicMaterial color="#ffcc4d" depthTest={false} />
           </mesh>
-          <Html position={[0, -0.34, 0]} center zIndexRange={[20, 0]} style={{ pointerEvents: "none" }}>
-            <span className="xray-tag xray-tag--cg">CG</span>
-          </Html>
         </group>
 
         {/* Dynamic CP marker (Cyan) */}
@@ -331,9 +313,6 @@ export function AeroPhysicsOverlay() {
             <sphereGeometry args={[0.13, 18, 16]} />
             <meshBasicMaterial color="#4fd8ff" depthTest={false} />
           </mesh>
-          <Html position={[0, 0.34, 0]} center zIndexRange={[20, 0]} style={{ pointerEvents: "none" }}>
-            <span className="xray-tag xray-tag--cp">CP</span>
-          </Html>
         </group>
 
         {/* Static margin connecting bar */}
@@ -341,11 +320,6 @@ export function AeroPhysicsOverlay() {
           <cylinderGeometry args={[0.025, 0.025, 1, 8]} />
           <meshBasicMaterial color="#a8f0ff" transparent opacity={0.85} depthTest={false} />
         </mesh>
-
-        {/* Floating live physics readout strip */}
-        <Html position={[0.4, 1.55, 0]} center zIndexRange={[22, 0]} style={{ pointerEvents: "none" }}>
-          <div ref={hudTagRef} className="xray-hud-strip" />
-        </Html>
       </group>
     </group>
   );

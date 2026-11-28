@@ -17,7 +17,7 @@ import type { TrajectorySample } from "../scientific/types";
 import type { CameraMode } from "../state/cameraModes";
 
 type WinId = "globe" | "space" | "radar" | "ir" | "lines" | "summary";
-type LineTab = "all" | "traj" | "load" | "ctrl" | "sensor" | "thermal" | "imm";
+type LineTab = "all" | "traj" | "load" | "ctrl" | "sensor" | "thermal" | "mass" | "imm";
 
 function pairs(samples: TrajectorySample[], fn: (s: TrajectorySample) => number) {
   const stride = Math.max(1, Math.ceil(samples.length / 480));
@@ -124,12 +124,18 @@ export function MonitorPage() {
       ],
       qLoad: [
         { name: lang === "zh" ? "动压 kPa" : "q kPa", color: "#2078BF", data: pairs(missile, (s) => +(s.qPa / 1000).toFixed(2)) },
-        { name: lang === "zh" ? "过载 g" : "Load g", color: "#C0562B", data: pairs(missile, (s) => +s.loadG.toFixed(2)), yAxisIndex: 1 },
+        { name: lang === "zh" ? "实际过载 g" : "Load g", color: "#C0562B", data: pairs(missile, (s) => +s.loadG.toFixed(2)), yAxisIndex: 1 },
+        { name: lang === "zh" ? "指令过载 g" : "Cmd g", color: "#F59E0B", data: pairs(missile, (s) => +s.loadCmdG.toFixed(2)), yAxisIndex: 1 },
       ],
       fins: [
         { name: "up°", color: "#005BAC", data: pairs(missile, (s) => +((s.finDeflectionsRad?.up ?? 0) * 57.2958).toFixed(2)) },
         { name: "right°", color: "#37B9D8", data: pairs(missile, (s) => +((s.finDeflectionsRad?.right ?? 0) * 57.2958).toFixed(2)) },
         { name: "q °/s", color: "#C0562B", data: pairs(missile, (s) => +((s.bodyRatesRadS?.q ?? 0) * 57.2958).toFixed(2)), yAxisIndex: 1 },
+      ],
+      massStability: [
+        { name: lang === "zh" ? "质量 kg" : "Mass kg", color: "#38BDF8", data: pairs(missile, (s) => +s.massKg.toFixed(1)) },
+        { name: "CG m", color: "#F59E0B", data: pairs(missile, (s) => +(s.cgPos ?? 4.2).toFixed(2)), yAxisIndex: 1 },
+        { name: "CP m", color: "#22C55E", data: pairs(missile, (s) => +(s.cpPos ?? 4.9).toFixed(2)), yAxisIndex: 1 },
       ],
       snr: [
         { name: "Radar dB", color: "#0F8B5F", data: pairs(missile, (s) => +(s.radarSnrDb ?? -60).toFixed(1)) },
@@ -374,6 +380,7 @@ export function MonitorPage() {
                       ["ctrl", "舵偏/角速率", "Fins & Rates"],
                       ["sensor", "双模SNR", "Dual SNR"],
                       ["thermal", "气动热", "Aerothermal"],
+                      ["mass", "质量/CG-CP", "Mass/CG-CP"],
                       ["imm", "IMM滤波", "IMM Filter"],
                     ] as [LineTab, string, string][]
                   ).map(([id, zh, en]) => (
@@ -409,6 +416,9 @@ export function MonitorPage() {
                 )}
                 {(lineTab === "all" || lineTab === "thermal") && (
                   <AcademicChart title={t("science.aerothermal")} xUnit="s" unitA="MW/m²" unitB="K" series={data.thermal} cursorT={time} theme="dark" />
+                )}
+                {(lineTab === "all" || lineTab === "mass") && (
+                  <AcademicChart title={lang === "zh" ? "实时质量与质心 CG / 压心 CP 位置" : "Vehicle Mass & CG / CP Station"} xUnit="s" unitA="kg" unitB="m" series={data.massStability} cursorT={time} theme="dark" />
                 )}
                 {(lineTab === "all" || lineTab === "imm") && (
                   <AcademicChart title={lang === "zh" ? "IMM 三模型滤波权重（CV / CA / 3D-CT）" : "IMM 3-Model Filter (CV / CA / 3D-CT)"} xUnit="s" unitA="prob" unitB="" series={data.imm} cursorT={time} theme="dark" />

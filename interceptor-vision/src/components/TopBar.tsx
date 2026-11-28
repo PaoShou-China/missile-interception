@@ -13,6 +13,7 @@ export function TopBar() {
   const toggleRight = useApp((s) => s.toggleRight);
   const lang = useApp((s) => s.lang);
   const setLang = useApp((s) => s.setLang);
+  const chartsOpen = useApp((s) => s.chartsOpen);
   const setChartsOpen = useApp((s) => s.setChartsOpen);
   const seekerOpen = useApp((s) => s.seekerOpen);
   const setSeekerOpen = useApp((s) => s.setSeekerOpen);
@@ -28,24 +29,20 @@ export function TopBar() {
   const setHudCharts = useApp((s) => s.setHudCharts);
   const toggleCommandDeck = useApp((s) => s.toggleCommandDeck);
   const setMethodsOpen = useApp((s) => s.setMethodsOpen);
-  const telemetry = useApp((s) => s.telemetry);
   const compact = useApp((s) => s.compact);
 
   const uiVisible = leftOpen || rightOpen;
   const deckAllOpen = hudSpace && hudRadar && hudIr && hudCharts;
+  const chartsActive = hudCharts || chartsOpen;
   const fromSite = typeof window !== "undefined" && new URLSearchParams(window.location.search).get("from") === "site";
-  // Read the headline from the payload instead of hard-coding a class label:
-  // the validated case is 1655 km downrange with a 29.9 km apogee.
-  const downrange = telemetry?.metrics?.downrangeKM;
-  const apogee = telemetry?.metrics?.maxAltitudeM;
-  const scenarioTitle =
-    typeof downrange === "number" && typeof apogee === "number"
-      ? lang === "zh"
-        ? `${Math.round(downrange)} km 下程 · 顶点 ${(apogee / 1000).toFixed(1)} km`
-        : `${Math.round(downrange)} km downrange · ${(apogee / 1000).toFixed(1)} km apogee`
-      : t("scenario");
-  const scenarioId = typeof downrange === "number" ? `IV-${Math.round(downrange)}` : "IV-2000";
-  const miss = telemetry?.metrics?.missDistanceM;
+
+  const onToggleCharts = () => {
+    if (chartsOpen) {
+      setChartsOpen(false);
+    } else {
+      setHudCharts(!hudCharts);
+    }
+  };
 
   return (
     <header className="topbar">
@@ -61,17 +58,6 @@ export function TopBar() {
           <div className="brand__name">{t("brandLatin")}</div>
           <div className="brand__sub">{t("tagline")}</div>
         </div>
-      </div>
-
-      <div className="topbar__scenario">
-        <span className="topbar__id">{scenarioId}</span>
-        <span className="topbar__title">{scenarioTitle}</span>
-        {typeof miss === "number" && (
-          <span className="topbar__kpi" title={t("nearMiss")}>
-            <span>{t("missShort")}</span>
-            <b>{miss.toFixed(1)} m</b>
-          </span>
-        )}
       </div>
 
       <div className="topbar__actions">
@@ -129,9 +115,9 @@ export function TopBar() {
           </button>
           <button
             type="button"
-            className={`ghost-btn ghost-btn--sm topbar__hud-btn ${hudCharts ? "is-active" : ""}`}
+            className={`ghost-btn ghost-btn--sm topbar__hud-btn topbar__charts-btn ${chartsActive ? "is-active" : ""}`}
             title={t("hudChartsHint")}
-            onClick={() => setHudCharts(!hudCharts)}
+            onClick={onToggleCharts}
           >
             📈 <span className="topbar__hud-label">{t("hudCharts")}</span>
           </button>
@@ -164,9 +150,6 @@ export function TopBar() {
         <button type="button" className="icon-button" title={t("methods")} onClick={() => setMethodsOpen(true)}>
           ⓘ
         </button>
-        <button type="button" className="icon-button" title={t("charts")} onClick={() => setChartsOpen(true)}>
-          ▤
-        </button>
         <button type="button" className="icon-button" onClick={() => setLang(lang === "zh" ? "en" : "zh")}>
           {t("lang")}
         </button>
@@ -176,7 +159,6 @@ export function TopBar() {
           title={uiVisible ? t("hideUi") : t("showUi")}
           onClick={() => {
             if (compact) {
-              // One drawer at a time on phones; the handle is the way back.
               if (uiVisible) useApp.setState({ leftOpen: false, rightOpen: false });
               else toggleLeft();
               return;

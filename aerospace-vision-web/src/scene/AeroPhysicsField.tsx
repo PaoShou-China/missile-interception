@@ -1,6 +1,5 @@
 import { useMemo, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
-import { Html } from "@react-three/drei";
 import * as THREE from "three";
 import { simClock, useAppStore } from "../state/store";
 
@@ -106,7 +105,6 @@ export function AeroPhysicsField() {
   const nmpRef = useRef<THREE.Group>(null);
   const cgRef = useRef<THREE.Mesh>(null);
   const cpRef = useRef<THREE.Mesh>(null);
-  const tagRef = useRef<HTMLDivElement>(null);
 
   const shockMat = useMemo(
     () =>
@@ -225,9 +223,6 @@ export function AeroPhysicsField() {
       nmpRef.current.rotation.set(finNmpN >= 0 ? Math.PI / 2 : -Math.PI / 2, 0, 0);
       nmpRef.current.scale.set(1, scl(finNmpN, 1200), 1);
     }
-    if (tagRef.current) {
-      tagRef.current.textContent = `CG ${cgStn.toFixed(2)}m · CP ${cpStn.toFixed(2)}m · Tw ${tw.toFixed(0)}K`;
-    }
   });
 
   return (
@@ -251,21 +246,6 @@ export function AeroPhysicsField() {
           <sphereGeometry args={[0.00013, 14, 12]} />
           <meshBasicMaterial color="#4fd8ff" depthTest={false} />
         </mesh>
-        <Html position={[0.0006, 0, -0.0015]} center zIndexRange={[20, 0]} style={{ pointerEvents: "none" }}>
-          <div
-            ref={tagRef}
-            style={{
-              fontFamily: "var(--mono, monospace)",
-              fontSize: 10,
-              color: "#d4f2ff",
-              background: "rgba(4,12,24,0.82)",
-              border: "1px solid rgba(90,210,255,0.45)",
-              borderRadius: 4,
-              padding: "2px 6px",
-              whiteSpace: "nowrap",
-            }}
-          />
-        </Html>
       </group>
     </group>
   );

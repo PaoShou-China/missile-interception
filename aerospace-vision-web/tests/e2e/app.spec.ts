@@ -214,26 +214,33 @@ test("interceptor-vision 3D explorer renders new payload, X-Ray, SeekerOverlay a
 
   await page.goto("/interceptor-vision/?from=site");
   await expect(page.locator(".topbar")).toBeVisible({ timeout: 45_000 });
-  await expect(page.locator(".topbar__kpi")).toBeVisible({ timeout: 45_000 });
-  await expect(page.locator(".topbar__kpi")).toContainText("1.5 m");
+  await expect(page.locator(".kpi-hero__value")).toBeVisible({ timeout: 45_000 });
+  await expect(page.locator(".kpi-hero__value")).toContainText("1.5");
+  await expect(page.locator(".topbar__scenario")).toHaveCount(0);
 
   const canvas = page.locator("canvas").first();
   await expect(canvas).toBeVisible();
 
-  // X-Ray physics toggle
+  // X-Ray physics toggle (pure 3D vectors & shock cone — zero cluttered HTML missile tags)
   const xrayBtn = page.locator(".topbar__xray-btn");
   await expect(xrayBtn).toBeVisible();
   await xrayBtn.click();
   await expect(xrayBtn).toHaveClass(/is-active/);
+  await expect(page.locator(".xray-tag")).toHaveCount(0);
   await xrayBtn.click();
   await expect(xrayBtn).not.toHaveClass(/is-active/);
 
-  // Multi-window floating HUD Command Deck opens 4 synchronized windows (Space/Radar/IR/Plots)
+  // Multi-window floating HUD Command Deck opens 4 synchronized windows (Space/Radar/IR/Unified Charts)
   const deckBtn = page.locator(".topbar__deck-btn");
   await expect(deckBtn).toBeVisible();
   await deckBtn.click();
   await expect(page.locator(".hud-win")).toHaveCount(4);
   await page.screenshot({ path: path.join(SHOTS, "04-hud-command-deck.png"), animations: "disabled" });
+  // Expand unified Charts PiP window into full-screen 18-chart overlay
+  await page.locator(".hud-win--charts .hud-win__pill-btn").click();
+  await expect(page.locator(".charts-overlay .chart-card")).toHaveCount(18);
+  await page.keyboard.press("Escape");
+  await expect(page.locator(".charts-overlay")).toHaveCount(0);
   await deckBtn.click();
   await expect(page.locator(".hud-win")).toHaveCount(0);
 
@@ -259,10 +266,11 @@ test("interceptor-vision 3D explorer renders new payload, X-Ray, SeekerOverlay a
   const after = await clock.textContent();
   expect(after).not.toBe(before);
 
-  // 0.1x bullet-time jumps to terminal endgame
-  await page.locator(".transport__right button", { hasText: "0.1×" }).click();
-  await page.waitForTimeout(300);
-  await expect(page.locator(".transport__rate")).toHaveText("0.1×");
+  // Single unified playback speed selector switches cleanly to 0.1x
+  const rateSelect = page.locator(".transport__rate-select");
+  await expect(rateSelect).toBeVisible();
+  await rateSelect.selectOption("0.1");
+  await expect(rateSelect).toHaveValue("0.1");
 
   // Pause before final capture so software WebGL (SwiftShader CI) doesn't stall screenshot
   if ((await playBtn.textContent())?.trim() !== "▶") {
@@ -285,7 +293,7 @@ test("interceptor-vision stays usable on a narrow screen", async ({ page }) => {
 test("measures animation frame rate on interceptor-vision", async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== "chromium", "Hardware FPS gate is measured on Chromium only");
   await page.goto("/interceptor-vision/?from=site");
-  await expect(page.locator(".topbar__kpi")).toBeVisible({ timeout: 45_000 });
+  await expect(page.locator(".kpi-hero__value")).toBeVisible({ timeout: 45_000 });
   await page.locator(".transport__play").click();
   await page.waitForTimeout(1000);
   const renderer = await page.evaluate(() => {

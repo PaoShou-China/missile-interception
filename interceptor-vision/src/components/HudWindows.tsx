@@ -5,7 +5,7 @@ import { dataClock, sampleAt, seekDataTime, targetSampleAt, type Telemetry } fro
 
 type RadarView = "bscope" | "rd";
 type IrPalette = "ironbow" | "whitehot" | "nvg";
-type PlotTab = "traj" | "load" | "ctrl" | "snr" | "thermal";
+type PlotTab = "traj" | "aero" | "ctrl" | "snr" | "tps" | "mass" | "ecm";
 
 const FOV_DEG = 30;
 const CFAR_DB = 13.0;
@@ -453,7 +453,7 @@ function SpaceHudWindow({ telemetry, onClose }: { telemetry: Telemetry; onClose:
       <canvas
         ref={canvasRef}
         className="hud-win__canvas"
-        style={{ height: wide ? 275 : 205, cursor: "crosshair" }}
+        style={{ height: wide ? 260 : 172, cursor: "crosshair" }}
         onClick={onClickCanvas}
         title={lang === "zh" ? "点击轨道或纵剖面跳转时刻" : "Click track or profile to seek"}
       />
@@ -819,73 +819,241 @@ function IrHudWindow({ telemetry, onClose }: { telemetry: Telemetry; onClose: ()
 }
 
 /* ========================================================================= */
-/* 4) Compact Live State Line Charts PiP Window (Multi-Tab SVG + Cursor)     */
+/* 4) Unified Rich Telemetry Charts PiP Window (7 Tabs × Dual Stacked SVG)   */
 /* ========================================================================= */
-const SVG_W = 300;
-const SVG_H = 128;
+const SVG_W = 340;
+const SVG_H = 88;
+
+interface MiniPlotGroup {
+  title: string;
+  unit: string;
+  lo: number;
+  hi: number;
+  series: { name: string; color: string; d: string; unit: string; hi: number }[];
+}
 
 function ChartsHudWindow({ telemetry, onClose }: { telemetry: Telemetry; onClose: () => void }) {
   const t = useT();
   const lang = useApp((s) => s.lang);
   const [tab, setTab] = useState<PlotTab>("traj");
-  const cursorRef = useRef<SVGLineElement>(null);
+  const cursorARef = useRef<SVGLineElement>(null);
+  const cursorBRef = useRef<SVGLineElement>(null);
   const footRef = useRef<HTMLDivElement>(null);
 
-  const plots = useMemo(() => {
-    const step = Math.max(1, Math.ceil(telemetry.samples.length / 260));
+  const plots = useMemo<Record<PlotTab, [MiniPlotGroup, MiniPlotGroup]>>(() => {
+    const step = Math.max(1, Math.ceil(telemetry.samples.length / 280));
     const rows = telemetry.samples.filter((_, i) => i % step === 0);
     const span = telemetry.end - telemetry.start || 1;
-    const makePath = (fn: (s: (typeof rows)[number]) => number, lo: number, hi: number) => {
-      const denom = Math.max(1e-6, hi - lo);
-      return rows
-        .map((s, i) => {
-          const x = ((s.t - telemetry.start) / span) * SVG_W;
-          const y = SVG_H - ((fn(s) - lo) / denom) * (SVG_H - 10) - 5;
-          return `${i === 0 ? "M" : "L"}${x.toFixed(1)},${y.toFixed(1)}`;
-        })
-        .join(" ");
-    };
-    const rangeOf = (fn: (s: (typeof rows)[number]) => number) => {
-      let lo = Infinity, hi = -Infinity;
-      for (const s of rows) {
-        const v = fn(s);
-        if (v < lo) lo = v;
-        if (v > hi) hi = v;
+
+    const buildPlot = (
+      title: string,
+      unit: string,
+      items: { name: string; color: string; unit?: string; fn: (s: (typeof rows)[number]) => number }[],
+      sharedAxis = true,
+    ): MiniPlotGroup => {
+      if (sharedAxis) {
+        let lo = Infinity, hi = -Infinity;
+        for (const it of items) {
+          for (const s of rows) {
+            const v = it.fn(s);
+            if (v < lo) lo = v;
+            if (v > hi) hi = v;
+          }
+        }
+        if (!Number.isFinite(lo)) { lo = 0; hi = 1; }
+        if (hi - lo < 1e-4) { lo -= 0.5; hi += 0.5; }
+        const pad = (hi - lo) * 0.08;
+        lo -= pad; hi += pad;
+        const denom = Math.max(1e-6, hi - lo);
+        return {
+          title,
+          unit,
+          lo,
+          hi,
+          series: items.map((it) => {
+            let sHi = -Infinity;
+            const d = rows
+              .map((s, i) => {
+                const v = it.fn(s);
+                if (v > sHi) sHi = v;
+                const x = ((s.t - telemetry.start) / span) * SVG_W;
+                const y = SVG_H - ((v - lo) / denom) * (SVG_H - 8) - 4;
+                return `${i === 0 ? "M" : "L"}${x.toFixed(1)},${y.toFixed(1)}`;
+              })
+              .join(" ");
+            return { name: it.name, color: it.color, unit: it.unit ?? unit, hi: sHi, d };
+          }),
+        };
       }
-      if (!Number.isFinite(lo)) return [0, 1] as const;
-      if (hi - lo < 1e-4) return [lo - 1, hi + 1] as const;
-      return [lo, hi] as const;
+      // Independently normalized curves when units differ (e.g. km + m/s)
+      let firstLo = 0, firstHi = 1;
+      const built = items.map((it, idx) => {
+        let lo = Infinity, hi = -Infinity;
+        for (const s of rows) {
+          const v = it.fn(s);
+          if (v < lo) lo = v;
+          if (v > hi) hi = v;
+        }
+        if (!Number.isFinite(lo)) { lo = 0; hi = 1; }
+        if (hi - lo < 1e-4) { lo -= 0.5; hi += 0.5; }
+        if (idx === 0) { firstLo = lo; firstHi = hi; }
+        const denom = Math.max(1e-6, hi - lo);
+        const d = rows
+          .map((s, i) => {
+            const x = ((s.t - telemetry.start) / span) * SVG_W;
+            const y = SVG_H - ((it.fn(s) - lo) / denom) * (SVG_H - 8) - 4;
+            return `${i === 0 ? "M" : "L"}${x.toFixed(1)},${y.toFixed(1)}`;
+          })
+          .join(" ");
+        return { name: it.name, color: it.color, unit: it.unit ?? "", hi, d };
+      });
+      return { title, unit, lo: firstLo, hi: firstHi, series: built };
     };
 
-    const buildGroup = (items: { name: string; color: string; fn: (s: (typeof rows)[number]) => number; unit: string }[]) =>
-      items.map((it) => {
-        const [lo, hi] = rangeOf(it.fn);
-        return { ...it, lo, hi, d: makePath(it.fn, lo, hi) };
-      });
-
+    const zh = lang === "zh";
     return {
-      traj: buildGroup([
-        { name: lang === "zh" ? "高度" : "Alt", unit: "km", color: "#38bdf8", fn: (s) => s.altM / 1000 },
-        { name: "Mach", unit: "", color: "#f59e0b", fn: (s) => s.mach },
-      ]),
-      load: buildGroup([
-        { name: "q∞", unit: "kPa", color: "#60a5fa", fn: (s) => s.qPa / 1000 },
-        { name: lang === "zh" ? "过载" : "Load", unit: "g", color: "#f87171", fn: (s) => s.loadG },
-      ]),
-      ctrl: buildGroup([
-        { name: "α", unit: "°", color: "#38bdf8", fn: (s) => s.alphaDeg ?? 0 },
-        { name: "δ_up", unit: "°", color: "#fbbf24", fn: (s) => (s.finDeflectionsRad?.up ?? 0) * 57.2958 },
-        { name: "δ_rt", unit: "°", color: "#4ade80", fn: (s) => (s.finDeflectionsRad?.right ?? 0) * 57.2958 },
-      ]),
-      snr: buildGroup([
-        { name: "Radar", unit: "dB", color: "#4ade80", fn: (s) => s.radarSnrDb ?? -60 },
-        { name: "MWIR", unit: "dB", color: "#fb923c", fn: (s) => s.irSnrDb ?? -60 },
-      ]),
-      thermal: buildGroup([
-        { name: "q̇s", unit: "MW/m²", color: "#f87171", fn: (s) => s.heatFluxMWm2 ?? 0 },
-        { name: "Tw", unit: "K", color: "#fbbf24", fn: (s) => s.wallTempK ?? 288 },
-        { name: "IMM-CT", unit: "", color: "#34d399", fn: (s) => (s.immPCt ?? 0.33) * 100 },
-      ]),
+      traj: [
+        buildPlot(
+          zh ? "高度与速度" : "Altitude & Speed",
+          "km / m·s⁻¹",
+          [
+            { name: zh ? "高度" : "Alt", unit: "km", color: "#38bdf8", fn: (s) => s.altM / 1000 },
+            { name: zh ? "速度" : "Vel", unit: "m/s", color: "#4ade80", fn: (s) => s.speedMS },
+          ],
+          false,
+        ),
+        buildPlot(
+          zh ? "马赫数与弹目斜距" : "Mach & Slant Range",
+          "Ma / km",
+          [
+            { name: "Mach", unit: "", color: "#fbbf24", fn: (s) => s.mach },
+            { name: zh ? "斜距" : "Range", unit: "km", color: "#a78bfa", fn: (s) => s.rangeM / 1000 },
+          ],
+          false,
+        ),
+      ],
+      aero: [
+        buildPlot(
+          zh ? "动压 q∞ 与过载 (实际/指令)" : "Dyn. Pressure & Load (Act/Cmd)",
+          "kPa / g",
+          [
+            { name: "q∞", unit: "kPa", color: "#60a5fa", fn: (s) => s.qPa / 1000 },
+            { name: zh ? "实际n" : "Load", unit: "g", color: "#f87171", fn: (s) => s.loadG },
+            { name: zh ? "指令nc" : "Cmd", unit: "g", color: "#fbbf24", fn: (s) => s.loadCmdG },
+          ],
+          false,
+        ),
+        buildPlot(
+          zh ? "攻角 α 与侧滑角 β" : "AoA α & Sideslip β",
+          "deg",
+          [
+            { name: "α", color: "#38bdf8", fn: (s) => s.alphaDeg ?? 0 },
+            { name: "β", color: "#fb923c", fn: (s) => s.betaDeg ?? 0 },
+          ],
+          true,
+        ),
+      ],
+      ctrl: [
+        buildPlot(
+          zh ? "四通道尾舵偏转 δ" : "4-Channel Tail Fin Deflections",
+          "deg",
+          [
+            { name: "up", color: "#38bdf8", fn: (s) => (s.finDeflectionsRad?.up ?? 0) * 57.2958 },
+            { name: "down", color: "#fbbf24", fn: (s) => (s.finDeflectionsRad?.down ?? 0) * 57.2958 },
+            { name: "left", color: "#4ade80", fn: (s) => (s.finDeflectionsRad?.left ?? 0) * 57.2958 },
+            { name: "right", color: "#f472b6", fn: (s) => (s.finDeflectionsRad?.right ?? 0) * 57.2958 },
+          ],
+          true,
+        ),
+        buildPlot(
+          zh ? "三轴角速率 p/q/r 与 DACS" : "Body Rates p/q/r & DACS",
+          "°/s",
+          [
+            { name: "p", color: "#38bdf8", fn: (s) => (s.bodyRatesRadS?.p ?? 0) * 57.2958 },
+            { name: "q", color: "#fb923c", fn: (s) => (s.bodyRatesRadS?.q ?? 0) * 57.2958 },
+            { name: "r", color: "#4ade80", fn: (s) => (s.bodyRatesRadS?.r ?? 0) * 57.2958 },
+          ],
+          true,
+        ),
+      ],
+      snr: [
+        buildPlot(
+          zh ? "双模导引头信噪比 (Radar / MWIR)" : "Dual-Mode SNR (Radar / MWIR)",
+          "dB",
+          [
+            { name: "Radar", color: "#4ade80", fn: (s) => s.radarSnrDb ?? -60 },
+            { name: "MWIR", color: "#fb923c", fn: (s) => s.irSnrDb ?? -60 },
+            { name: "CFAR", color: "#fde047", fn: () => 13 },
+          ],
+          true,
+        ),
+        buildPlot(
+          zh ? "目标 RCS σ 与导引头离轴角 FOV" : "Target RCS & Seeker Off-Boresight",
+          "m² / °",
+          [
+            { name: "RCS", unit: "m²", color: "#38bdf8", fn: (s) => s.targetRcsM2 ?? 0.005 },
+            { name: "FOV", unit: "°", color: "#c084fc", fn: (s) => s.fovDeg },
+          ],
+          false,
+        ),
+      ],
+      tps: [
+        buildPlot(
+          zh ? "高超声速驻点气动热流 q̇s" : "Stagnation Heat Flux q̇s",
+          "MW/m²",
+          [{ name: "q̇s", color: "#f87171", fn: (s) => s.heatFluxMWm2 ?? 0 }],
+          true,
+        ),
+        buildPlot(
+          zh ? "瞬态壁温 Tw vs 辐射平衡壁温 Teq" : "Transient Tw vs Equilibrium Teq",
+          "K",
+          [
+            { name: "Tw", color: "#fbbf24", fn: (s) => s.wallTempK ?? 288 },
+            { name: "Teq", color: "#f472b6", fn: (s) => s.wallTempEqK ?? s.wallTempK ?? 288 },
+          ],
+          true,
+        ),
+      ],
+      mass: [
+        buildPlot(
+          zh ? "实时弹体质量（含13s级间分离）" : "Vehicle Mass (w/ 13s Stage Sep)",
+          "kg",
+          [{ name: zh ? "质量" : "Mass", color: "#38bdf8", fn: (s) => s.massKg }],
+          true,
+        ),
+        buildPlot(
+          zh ? "质心 CG / 压心 CP 与静稳定裕度" : "CG / CP Station & Static Margin",
+          "m",
+          [
+            { name: "CG", color: "#fbbf24", fn: (s) => s.cgPos ?? 4.2 },
+            { name: "CP", color: "#38bdf8", fn: (s) => s.cpPos ?? 4.9 },
+            { name: "SM", color: "#4ade80", fn: (s) => (s.cpPos ?? 4.9) - (s.cgPos ?? 4.2) },
+          ],
+          true,
+        ),
+      ],
+      ecm: [
+        buildPlot(
+          zh ? "IMM 三模型滤波权重 (CV / CA / 3D-CT)" : "IMM 3-Model Filter Probabilities",
+          "prob",
+          [
+            { name: "CV", color: "#38bdf8", fn: (s) => s.immPCv ?? 0.34 },
+            { name: "CA", color: "#fb923c", fn: (s) => s.immPCa ?? 0.33 },
+            { name: "3D-CT", color: "#4ade80", fn: (s) => s.immPCt ?? 0.33 },
+          ],
+          true,
+        ),
+        buildPlot(
+          zh ? "诱饵对抗 / 不起动标志 / 近炸 Pk" : "Decoy / Unstart Flags & Fuze Pk",
+          "0–1",
+          [
+            { name: "Decoy", color: "#fb923c", fn: (s) => s.decoyActive ?? 0 },
+            { name: "Unstart", color: "#f87171", fn: (s) => s.unstartFlag ?? 0 },
+            { name: "Pk", color: "#4ade80", fn: (s) => s.fuzePk ?? 0 },
+          ],
+          true,
+        ),
+      ],
     };
   }, [telemetry, lang]);
 
@@ -899,22 +1067,29 @@ function ChartsHudWindow({ telemetry, onClose }: { telemetry: Telemetry; onClose
       lastDraw = now;
       const curT = dataClock.t;
       const x = ((Math.max(telemetry.start, Math.min(telemetry.end, curT)) - telemetry.start) / span) * SVG_W;
-      if (cursorRef.current) {
-        cursorRef.current.setAttribute("x1", x.toFixed(1));
-        cursorRef.current.setAttribute("x2", x.toFixed(1));
+      for (const ref of [cursorARef, cursorBRef]) {
+        if (ref.current) {
+          ref.current.setAttribute("x1", x.toFixed(1));
+          ref.current.setAttribute("x2", x.toFixed(1));
+        }
       }
       const ms = sampleAt(curT);
       if (ms && footRef.current) {
         if (tab === "traj") {
-          footRef.current.textContent = `H ${(ms.altM / 1000).toFixed(2)}km · Ma ${ms.mach.toFixed(2)} · R ${(ms.rangeM / 1000).toFixed(1)}km`;
-        } else if (tab === "load") {
-          footRef.current.textContent = `q∞ ${(ms.qPa / 1000).toFixed(1)}kPa · n ${ms.loadG.toFixed(1)}g · m ${ms.massKg.toFixed(0)}kg`;
+          footRef.current.textContent = `H ${(ms.altM / 1000).toFixed(2)}km · V ${ms.speedMS.toFixed(0)}m/s · Ma ${ms.mach.toFixed(2)} · R ${(ms.rangeM / 1000).toFixed(1)}km`;
+        } else if (tab === "aero") {
+          footRef.current.textContent = `q∞ ${(ms.qPa / 1000).toFixed(1)}kPa · n ${ms.loadG.toFixed(1)}/${ms.loadCmdG.toFixed(1)}g · α ${(ms.alphaDeg ?? 0).toFixed(1)}° β ${(ms.betaDeg ?? 0).toFixed(1)}°`;
         } else if (tab === "ctrl") {
-          footRef.current.textContent = `α ${(ms.alphaDeg ?? 0).toFixed(1)}° · δup ${((ms.finDeflectionsRad?.up ?? 0) * 57.3).toFixed(1)}° · CG ${(ms.cgPos ?? 0).toFixed(2)}m`;
+          footRef.current.textContent = `δu ${((ms.finDeflectionsRad?.up ?? 0) * 57.3).toFixed(1)}° δr ${((ms.finDeflectionsRad?.right ?? 0) * 57.3).toFixed(1)}° · q ${((ms.bodyRatesRadS?.q ?? 0) * 57.3).toFixed(1)}°/s`;
         } else if (tab === "snr") {
-          footRef.current.textContent = `Radar ${(ms.radarSnrDb ?? -60).toFixed(1)}dB · IIR ${(ms.irSnrDb ?? -60).toFixed(1)}dB · FOV ${ms.fovDeg.toFixed(1)}°`;
+          footRef.current.textContent = `Radar ${(ms.radarSnrDb ?? -60).toFixed(1)}dB · IIR ${(ms.irSnrDb ?? -60).toFixed(1)}dB · σ ${(ms.targetRcsM2 ?? 0.005).toFixed(4)}m²`;
+        } else if (tab === "tps") {
+          footRef.current.textContent = `q̇s ${(ms.heatFluxMWm2 ?? 0).toFixed(2)}MW/m² · Tw ${(ms.wallTempK ?? 288).toFixed(0)}K · Teq ${(ms.wallTempEqK ?? ms.wallTempK ?? 288).toFixed(0)}K`;
+        } else if (tab === "mass") {
+          const cg = ms.cgPos ?? 4.2, cp = ms.cpPos ?? 4.9;
+          footRef.current.textContent = `m ${ms.massKg.toFixed(0)}kg · CG ${cg.toFixed(2)}m · CP ${cp.toFixed(2)}m · SM +${(cp - cg).toFixed(2)}m`;
         } else {
-          footRef.current.textContent = `q̇s ${(ms.heatFluxMWm2 ?? 0).toFixed(2)}MW/m² · Tw ${(ms.wallTempK ?? 288).toFixed(0)}K · CT ${((ms.immPCt ?? 0.33) * 100).toFixed(0)}%`;
+          footRef.current.textContent = `CV ${((ms.immPCv ?? 0.34) * 100).toFixed(0)}% CA ${((ms.immPCa ?? 0.33) * 100).toFixed(0)}% CT ${((ms.immPCt ?? 0.33) * 100).toFixed(0)}% · Decoy ${(ms.decoyActive ?? 0) > 0.5 ? "ON" : "OFF"}`;
         }
       }
     };
@@ -922,13 +1097,15 @@ function ChartsHudWindow({ telemetry, onClose }: { telemetry: Telemetry; onClose
     return () => cancelAnimationFrame(raf);
   }, [telemetry, tab]);
 
-  const activeSeries = plots[tab];
+  const [plotA, plotB] = plots[tab];
   const tabs: [PlotTab, string, string][] = [
     ["traj", "弹道", "Traj"],
-    ["load", "动压", "Load"],
-    ["ctrl", "舵偏", "Ctrl"],
-    ["snr", "SNR", "SNR"],
-    ["thermal", "热/IMM", "TPS"],
+    ["aero", "气动", "Aero"],
+    ["ctrl", "姿控", "Ctrl"],
+    ["snr", "感知", "SNR"],
+    ["tps", "气动热", "TPS"],
+    ["mass", "质量", "Mass"],
+    ["ecm", "对抗", "IMM"],
   ];
 
   const onClickSvg = (e: React.MouseEvent<SVGSVGElement>) => {
@@ -937,13 +1114,60 @@ function ChartsHudWindow({ telemetry, onClose }: { telemetry: Telemetry; onClose
     seekDataTime(telemetry.start + frac * (telemetry.end - telemetry.start));
   };
 
+  const renderSubPlot = (p: MiniPlotGroup, cRef: React.RefObject<SVGLineElement | null>) => {
+    const dec = Math.abs(p.hi) >= 100 ? 0 : Math.abs(p.hi) >= 10 ? 1 : 2;
+    return (
+      <div className="hud-win__subplot">
+        <div className="hud-win__subplot-head">
+          <span>{p.title}</span>
+          <em>{p.unit}</em>
+        </div>
+        <div className="hud-win__svg-wrap">
+          <svg
+            viewBox={`0 0 ${SVG_W} ${SVG_H}`}
+            preserveAspectRatio="none"
+            className="hud-win__svg hud-win__svg--sm"
+            onClick={onClickSvg}
+          >
+            {[0.25, 0.5, 0.75].map((r) => (
+              <line key={r} x1={0} x2={SVG_W} y1={SVG_H * r} y2={SVG_H * r} stroke="rgba(120,165,205,0.15)" strokeWidth={1} />
+            ))}
+            {p.series.map((s) => (
+              <path key={s.name} d={s.d} fill="none" stroke={s.color} strokeWidth={1.45} vectorEffect="non-scaling-stroke" />
+            ))}
+            <line ref={cRef} x1={0} x2={0} y1={0} y2={SVG_H} stroke="#fbbf24" strokeWidth={1.3} strokeDasharray="3 2" />
+          </svg>
+          <span className="hud-win__ymax">{p.hi.toFixed(dec)}</span>
+          <span className="hud-win__ymin">{p.lo.toFixed(dec)}</span>
+        </div>
+        <div className="hud-win__legend">
+          {p.series.map((s) => (
+            <span key={s.name} style={{ color: s.color }}>
+              ● {s.name} ({s.hi >= 100 ? s.hi.toFixed(0) : s.hi.toFixed(1)}{s.unit})
+            </span>
+          ))}
+        </div>
+      </div>
+    );
+  };
+
   return (
     <DraggableHudWindow
       winKey="charts"
       icon="📈"
       title={t("hudChartsTitle")}
-      defaultPos={() => ({ x: 18, y: Math.max(305, window.innerHeight - 365) })}
-      width={326}
+      defaultPos={() => ({ x: 18, y: Math.max(306, window.innerHeight - 404) })}
+      width={356}
+      headerExtra={
+        <button
+          type="button"
+          className="hud-win__pill-btn"
+          onClick={() => useApp.getState().setChartsOpen(true)}
+          title={t("hudExpand")}
+        >
+          {lang === "zh" ? "全屏18图" : "All 18"}
+        </button>
+      }
       onExpand={() => useApp.getState().setChartsOpen(true)}
       expandTitle={t("hudExpand")}
       onClose={onClose}
@@ -955,26 +1179,9 @@ function ChartsHudWindow({ telemetry, onClose }: { telemetry: Telemetry; onClose
           </button>
         ))}
       </div>
-      <svg
-        viewBox={`0 0 ${SVG_W} ${SVG_H}`}
-        preserveAspectRatio="none"
-        className="hud-win__svg"
-        onClick={onClickSvg}
-      >
-        {[0.25, 0.5, 0.75].map((r) => (
-          <line key={r} x1={0} x2={SVG_W} y1={SVG_H * r} y2={SVG_H * r} stroke="rgba(120,165,205,0.16)" strokeWidth={1} />
-        ))}
-        {activeSeries.map((s) => (
-          <path key={s.name} d={s.d} fill="none" stroke={s.color} strokeWidth={1.5} vectorEffect="non-scaling-stroke" />
-        ))}
-        <line ref={cursorRef} x1={0} x2={0} y1={0} y2={SVG_H} stroke="#fbbf24" strokeWidth={1.4} strokeDasharray="3 2" />
-      </svg>
-      <div className="hud-win__legend">
-        {activeSeries.map((s) => (
-          <span key={s.name} style={{ color: s.color }}>
-            ● {s.name} ({s.hi >= 100 ? s.hi.toFixed(0) : s.hi.toFixed(1)}{s.unit})
-          </span>
-        ))}
+      <div className="hud-win__plots">
+        {renderSubPlot(plotA, cursorARef)}
+        {renderSubPlot(plotB, cursorBRef)}
       </div>
       <div className="hud-win__foot" ref={footRef}>LIVE TELEMETRY</div>
     </DraggableHudWindow>

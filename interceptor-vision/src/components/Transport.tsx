@@ -3,7 +3,6 @@ import { useApp } from "../state";
 import { useT } from "../i18n";
 import { CINEMATIC_SECONDS } from "../scene/assets";
 import {
-  cycleDataRate,
   dataClock,
   formatMissionTime,
   seekDataTime,
@@ -76,14 +75,6 @@ export function Transport() {
       unsub();
     };
   }, [dataMode, telemetry]);
-
-  const enterBulletTime = () => {
-    if (!telemetry) return;
-    const tJump = Math.max(telemetry.start, telemetry.end - 2.2);
-    useApp.getState().setDataRate(0.1);
-    seekDataTime(tJump, false);
-    if (!useApp.getState().dataPlaying) toggleDataPlay();
-  };
 
   const copyDeepLink = () => {
     const s = useApp.getState();
@@ -184,7 +175,6 @@ export function Transport() {
         <div className="transport__labels">
           <span>{dataMode ? t("flightTime") : t("shot")}</span>
           <b ref={clockRef}>{dataMode ? formatMissionTime(dataClock.t) : fmt(time)}</b>
-          {dataMode && <em className="transport__rate">{dataRate}×</em>}
         </div>
         {dataMode ? (
           <div className="transport__track">
@@ -227,23 +217,23 @@ export function Transport() {
       <div className="transport__right">
         {dataMode && (
           <>
-            <button
-              type="button"
-              className={`ghost-btn ghost-btn--sm ${dataRate <= 0.15 ? "is-active" : ""}`}
-              onClick={enterBulletTime}
-              title={t("bulletTimeHint")}
-            >
-              0.1×
-            </button>
-            <button
-              type="button"
-              className="ghost-btn ghost-btn--sm"
-              onClick={() => cycleDataRate()}
-              title={t("rateHint")}
-              aria-label={t("rateHint")}
-            >
-              {dataRate}×
-            </button>
+            <label className="transport__speed" title={t("rateHint")}>
+              <span>{t("rate")}</span>
+              <select
+                className="transport__rate-select"
+                aria-label={t("rate")}
+                value={String(dataRate)}
+                onChange={(e) => useApp.getState().setDataRate(Number(e.target.value))}
+              >
+                <option value="0.1">0.1× {lang === "zh" ? "慢放" : "Slow"}</option>
+                <option value="0.25">0.25×</option>
+                <option value="0.5">0.5×</option>
+                <option value="1">1× {lang === "zh" ? "实时" : "1:1"}</option>
+                <option value="5">5×</option>
+                <option value="20">20×</option>
+                <option value="60">60×</option>
+              </select>
+            </label>
             <button
               type="button"
               className="ghost-btn ghost-btn--sm"

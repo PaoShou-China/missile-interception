@@ -36,6 +36,7 @@ export function HomePage() {
           <p className="lede">{t("home.lede")}</p>
           <div className="hero__actions">
             <a className="btn btn--primary" href="#/explore">{t("home.cta.explore")}</a>
+            <a className="btn btn--ghost" href="#/monitor">{t("home.cta.monitor")}</a>
             <a className="btn btn--ghost" href="#/results">{t("home.cta.results")}</a>
             <a className="btn btn--ghost" href="#/compare">{t("home.cta.compare")}</a>
           </div>

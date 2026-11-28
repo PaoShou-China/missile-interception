@@ -8,6 +8,7 @@ export type RoutePath =
   | "/"
   | "/methodology"
   | "/results"
+  | "/monitor"
   | "/verification"
   | "/resources"
   | "/compare"
@@ -17,6 +18,7 @@ const ROUTES: RoutePath[] = [
   "/",
   "/methodology",
   "/results",
+  "/monitor",
   "/verification",
   "/resources",
   "/compare",

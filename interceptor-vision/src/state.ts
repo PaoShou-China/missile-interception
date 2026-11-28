@@ -75,6 +75,10 @@ interface AppState {
   chartsOpen: boolean;
   seekerOpen: boolean;
   xrayOpen: boolean;
+  hudSpace: boolean;
+  hudRadar: boolean;
+  hudIr: boolean;
+  hudCharts: boolean;
   setTelemetry: (t: Telemetry | null) => void;
   setDataStatus: (s: "idle" | "loading" | "ready" | "error") => void;
   setDataTime: (t: number) => void;
@@ -83,6 +87,11 @@ interface AppState {
   setChartsOpen: (v: boolean) => void;
   setSeekerOpen: (v: boolean) => void;
   setXrayOpen: (v: boolean) => void;
+  setHudSpace: (v: boolean) => void;
+  setHudRadar: (v: boolean) => void;
+  setHudIr: (v: boolean) => void;
+  setHudCharts: (v: boolean) => void;
+  toggleCommandDeck: () => void;
 
   /** Terminal re-solve ("what if") driven by the left-panel controls. */
   simParams: SimParams;
@@ -176,6 +185,10 @@ export const useApp = create<AppState>((set) => ({
   chartsOpen: false,
   seekerOpen: false,
   xrayOpen: false,
+  hudSpace: false,
+  hudRadar: false,
+  hudIr: false,
+  hudCharts: false,
   setTelemetry: (telemetry) => set({ telemetry }),
   setDataStatus: (dataStatus) => set({ dataStatus }),
   setDataTime: (dataTime) => {
@@ -193,6 +206,32 @@ export const useApp = create<AppState>((set) => ({
   setChartsOpen: (chartsOpen) => set({ chartsOpen }),
   setSeekerOpen: (seekerOpen) => set({ seekerOpen }),
   setXrayOpen: (xrayOpen) => set({ xrayOpen }),
+  setHudSpace: (hudSpace) => set({ hudSpace }),
+  setHudRadar: (hudRadar) => set({ hudRadar }),
+  setHudIr: (hudIr) => set({ hudIr }),
+  setHudCharts: (hudCharts) => set({ hudCharts }),
+  toggleCommandDeck: () =>
+    set((s) => {
+      const allOpen = s.hudSpace && s.hudRadar && s.hudIr && s.hudCharts;
+      if (allOpen) {
+        return {
+          hudSpace: false,
+          hudRadar: false,
+          hudIr: false,
+          hudCharts: false,
+          leftOpen: !s.compact,
+          rightOpen: !s.compact,
+        };
+      }
+      return {
+        hudSpace: true,
+        hudRadar: true,
+        hudIr: true,
+        hudCharts: true,
+        leftOpen: false,
+        rightOpen: false,
+      };
+    }),
 
   simParams: {
     model: "sixdof",

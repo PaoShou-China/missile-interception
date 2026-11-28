@@ -231,6 +231,24 @@ export function ChartsOverlay() {
         series: [
           { name: "q̇s (MW/m²)", color: "#ff7466", points: pick((s) => s!.heatFluxMWm2 ?? 0) },
           { name: "Tw (×100 K)", color: "#ffc96b", points: pick((s) => (s!.wallTempK ?? 288) / 100) },
+          { name: "Teq (×100 K)", color: "#f08fb0", points: pick((s) => (s!.wallTempEqK ?? s!.wallTempK ?? 288) / 100) },
+        ],
+      },
+      {
+        title: t("immFilter"),
+        unit: "prob",
+        series: [
+          { name: "CV", color: "#6fd4ff", points: pick((s) => s!.immPCv ?? 0.34) },
+          { name: "CA/Singer", color: "#ffb36b", points: pick((s) => s!.immPCa ?? 0.33) },
+          { name: "3D-CT", color: "#79e3a8", points: pick((s) => s!.immPCt ?? 0.33) },
+        ],
+      },
+      {
+        title: t("cgCpMargin"),
+        unit: "m",
+        series: [
+          { name: "CG", color: "#ffcc4d", points: pick((s) => s!.cgPos ?? 4.2) },
+          { name: "CP", color: "#4fd8ff", points: pick((s) => s!.cpPos ?? 4.8) },
         ],
       },
     ];

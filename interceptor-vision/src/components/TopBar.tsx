@@ -16,11 +16,23 @@ export function TopBar() {
   const setChartsOpen = useApp((s) => s.setChartsOpen);
   const seekerOpen = useApp((s) => s.seekerOpen);
   const setSeekerOpen = useApp((s) => s.setSeekerOpen);
+  const xrayOpen = useApp((s) => s.xrayOpen);
+  const setXrayOpen = useApp((s) => s.setXrayOpen);
+  const hudSpace = useApp((s) => s.hudSpace);
+  const hudRadar = useApp((s) => s.hudRadar);
+  const hudIr = useApp((s) => s.hudIr);
+  const hudCharts = useApp((s) => s.hudCharts);
+  const setHudSpace = useApp((s) => s.setHudSpace);
+  const setHudRadar = useApp((s) => s.setHudRadar);
+  const setHudIr = useApp((s) => s.setHudIr);
+  const setHudCharts = useApp((s) => s.setHudCharts);
+  const toggleCommandDeck = useApp((s) => s.toggleCommandDeck);
   const setMethodsOpen = useApp((s) => s.setMethodsOpen);
   const telemetry = useApp((s) => s.telemetry);
   const compact = useApp((s) => s.compact);
 
   const uiVisible = leftOpen || rightOpen;
+  const deckAllOpen = hudSpace && hudRadar && hudIr && hudCharts;
   const fromSite = typeof window !== "undefined" && new URLSearchParams(window.location.search).get("from") === "site";
   // Read the headline from the payload instead of hard-coding a class label:
   // the validated case is 1655 km downrange with a 29.9 km apogee.
@@ -90,6 +102,57 @@ export function TopBar() {
           </select>
         </label>
 
+        <div className="topbar__hud-group" role="group" aria-label={t("hudDeck")}>
+          <button
+            type="button"
+            className={`ghost-btn ghost-btn--sm topbar__hud-btn ${hudSpace ? "is-active" : ""}`}
+            title={t("hudSpaceHint")}
+            onClick={() => setHudSpace(!hudSpace)}
+          >
+            🛰 <span className="topbar__hud-label">{t("hudSpace")}</span>
+          </button>
+          <button
+            type="button"
+            className={`ghost-btn ghost-btn--sm topbar__hud-btn ${hudRadar ? "is-active" : ""}`}
+            title={t("hudRadarHint")}
+            onClick={() => setHudRadar(!hudRadar)}
+          >
+            📡 <span className="topbar__hud-label">{t("hudRadar")}</span>
+          </button>
+          <button
+            type="button"
+            className={`ghost-btn ghost-btn--sm topbar__hud-btn ${hudIr ? "is-active" : ""}`}
+            title={t("hudIrHint")}
+            onClick={() => setHudIr(!hudIr)}
+          >
+            🔥 <span className="topbar__hud-label">{t("hudIr")}</span>
+          </button>
+          <button
+            type="button"
+            className={`ghost-btn ghost-btn--sm topbar__hud-btn ${hudCharts ? "is-active" : ""}`}
+            title={t("hudChartsHint")}
+            onClick={() => setHudCharts(!hudCharts)}
+          >
+            📈 <span className="topbar__hud-label">{t("hudCharts")}</span>
+          </button>
+          <button
+            type="button"
+            className={`ghost-btn ghost-btn--sm topbar__deck-btn ${deckAllOpen ? "is-active" : ""}`}
+            title={t("hudDeckHint")}
+            onClick={toggleCommandDeck}
+          >
+            ⊞ <span className="topbar__hud-label">{t("hudDeck")}</span>
+          </button>
+        </div>
+
+        <button
+          type="button"
+          className={`ghost-btn ghost-btn--sm topbar__xray-btn ${xrayOpen ? "is-active" : ""}`}
+          title={t("xrayHint")}
+          onClick={() => setXrayOpen(!xrayOpen)}
+        >
+          ✦ {t("xrayBtn")}
+        </button>
         <button
           type="button"
           className={`ghost-btn ghost-btn--sm topbar__seeker-btn ${seekerOpen ? "is-active" : ""}`}

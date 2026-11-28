@@ -10,12 +10,14 @@ import { ResourcesPage } from "../pages/ResourcesPage";
 // The explorer pulls in three.js/postprocessing; ECharts is only needed by the
 // results page. Lazy-loading them keeps the academic reading pages light.
 const ResultsPage = lazy(() => import("../pages/ResultsPage").then((m) => ({ default: m.ResultsPage })));
+const MonitorPage = lazy(() => import("../pages/MonitorPage").then((m) => ({ default: m.MonitorPage })));
 const ComparePage = lazy(() => import("../pages/ComparePage").then((m) => ({ default: m.ComparePage })));
 
 const META: Record<RoutePath, { nav: string; desc: string }> = {
   "/": { nav: "nav.home", desc: "meta.description.home" },
   "/methodology": { nav: "nav.methodology", desc: "meta.description.methodology" },
   "/results": { nav: "nav.results", desc: "meta.description.results" },
+  "/monitor": { nav: "nav.monitor", desc: "meta.description.monitor" },
   "/verification": { nav: "nav.verification", desc: "meta.description.verification" },
   "/resources": { nav: "nav.resources", desc: "meta.description.resources" },
   "/compare": { nav: "nav.compare", desc: "meta.description.compare" },
@@ -126,6 +128,11 @@ export default function App() {
         {route === "/results" && (
           <Suspense fallback={<RouteFallback />}>
             <ResultsPage />
+          </Suspense>
+        )}
+        {route === "/monitor" && (
+          <Suspense fallback={<RouteFallback />}>
+            <MonitorPage />
           </Suspense>
         )}
         {route === "/verification" && <VerificationPage />}

@@ -2458,3 +2458,289 @@ html[data-presentation="true"] .site-footer { opacity: 0.55; }
   border-color: rgba(0, 91, 172, 0.35);
   box-shadow: 0 24px 46px -28px rgba(0, 91, 172, 0.38);
 }
+
+/* ------------------------------------------------------------------ */
+/* Multi-Window Mission Control Monitor (#/monitor) & SpaceBasedCard   */
+/* ------------------------------------------------------------------ */
+.monitor-page {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+  overflow-x: clip;
+}
+.monitor-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 20px;
+  flex-wrap: wrap;
+}
+.monitor-head h1 {
+  margin: 0 0 10px;
+  font-size: clamp(24px, 3vw, 36px);
+  line-height: 1.18;
+  color: var(--bh-deep);
+}
+.monitor-head__actions {
+  display: flex;
+  gap: 10px;
+  flex-shrink: 0;
+}
+.mon-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: rgba(8, 22, 42, 0.94);
+  border: 1px solid rgba(90, 175, 225, 0.24);
+  box-shadow: 0 14px 30px -18px rgba(7, 26, 51, 0.55);
+}
+.mon-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(120, 175, 215, 0.24);
+  background: rgba(15, 34, 60, 0.65);
+  color: rgba(206, 228, 248, 0.78);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+.mon-pill:hover {
+  border-color: rgba(99, 230, 255, 0.55);
+  color: #fff;
+}
+.mon-pill.is-active {
+  background: linear-gradient(135deg, rgba(0, 108, 198, 0.7), rgba(55, 185, 216, 0.55));
+  border-color: rgba(126, 228, 255, 0.7);
+  color: #fff;
+}
+.mon-pill--ghost {
+  margin-left: auto;
+  background: transparent;
+}
+.mon-live-strip {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  background: #071528;
+  border: 1px solid rgba(90, 175, 225, 0.22);
+  font-family: var(--mono);
+  font-size: 11.5px;
+  color: #dbeeff;
+}
+.mon-live-strip b {
+  color: #6ee7ff;
+  font-weight: 600;
+  margin-right: 4px;
+}
+.mon-timeline-wrap {
+  width: 100%;
+}
+.mon-timeline-wrap .timeline {
+  position: static;
+  left: auto;
+  right: auto;
+  bottom: auto;
+  width: 100%;
+  box-sizing: border-box;
+  overflow: hidden;
+  background: #071528;
+  border: 1px solid rgba(90, 175, 225, 0.25);
+  box-shadow: 0 12px 30px -18px rgba(4, 12, 24, 0.7);
+}
+.mon-timeline-wrap .timeline__controls {
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.mon-timeline-wrap .rate-group {
+  margin-left: 0;
+  flex-wrap: wrap;
+}
+.mon-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  align-items: stretch;
+}
+.mon-win {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  border-radius: 14px;
+  overflow: hidden;
+  background: #081322;
+  border: 1px solid rgba(96, 178, 228, 0.24);
+  box-shadow: 0 20px 44px -26px rgba(5, 16, 34, 0.65);
+  color: #e6f2fc;
+}
+.mon-win--wide {
+  grid-column: 1 / -1;
+}
+.mon-win__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 10px 14px;
+  background: rgba(12, 28, 50, 0.92);
+  border-bottom: 1px solid rgba(96, 178, 228, 0.18);
+}
+.mon-win__title {
+  font-size: 13px;
+  font-weight: 600;
+  color: #eaf5ff;
+  letter-spacing: 0.01em;
+}
+.mon-win__tools {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+.mon-mini-btn {
+  border: 1px solid rgba(120, 175, 215, 0.25);
+  background: rgba(18, 40, 68, 0.72);
+  color: #c5dff5;
+  border-radius: 6px;
+  padding: 4px 8px;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.mon-mini-btn:hover {
+  border-color: rgba(126, 228, 255, 0.65);
+  color: #fff;
+}
+.mon-mini-btn.is-active {
+  background: rgba(55, 185, 216, 0.28);
+  border-color: rgba(126, 228, 255, 0.8);
+  color: #eefaff;
+}
+.mon-win__stage {
+  position: relative;
+  width: 100%;
+  height: 360px;
+  background: #02060d;
+  overflow: hidden;
+}
+.mon-win--wide .mon-win__stage {
+  height: 480px;
+}
+.mon-win__body {
+  padding: 12px;
+  flex: 1;
+  min-width: 0;
+}
+.mon-win .chart-card--large {
+  border: 0;
+  background: transparent;
+}
+.mon-win .chart-card--large .chart-card__canvas {
+  height: 295px;
+}
+.mon-win__charts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  padding: 12px;
+}
+.mon-win__pair {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  padding: 12px;
+}
+.mon-win__pair > * {
+  grid-column: auto !important;
+}
+.academic-chart--dark {
+  background: #0b182a;
+  border-color: rgba(96, 178, 228, 0.2);
+  color: #e6f2fc;
+}
+.academic-chart--dark figcaption {
+  color: #d7ecff;
+}
+.academic-chart--dark .chart-export-btn {
+  background: rgba(55, 185, 216, 0.14);
+  border-color: rgba(126, 228, 255, 0.3);
+  color: #9be8ff;
+}
+.sensor-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 12px 12px;
+  border-radius: 10px;
+  background: #06101e;
+  border: 1px solid rgba(96, 178, 228, 0.2);
+  color: #d8ecff;
+}
+.sensor-card--light {
+  background: #fff;
+  border-color: var(--bh-line);
+  color: var(--bh-deep);
+}
+.sensor-card__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+  font-size: 12px;
+  font-weight: 600;
+}
+.sensor-card__head em {
+  font-style: normal;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: #38bdf8;
+}
+.sensor-card--light .sensor-card__head em {
+  color: var(--bh-blue);
+}
+.sensor-card__canvas {
+  width: 100%;
+  height: 240px;
+  display: block;
+  border-radius: 7px;
+  cursor: crosshair;
+}
+.sensor-card__canvas--tall {
+  height: 315px;
+}
+
+@media (max-width: 900px) {
+  .mon-grid,
+  .mon-win__charts,
+  .mon-win__pair {
+    grid-template-columns: 1fr;
+  }
+  .mon-pill--ghost {
+    margin-left: 0;
+  }
+  .mon-timeline-wrap .timeline {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+  .mon-timeline-wrap .timeline__meta {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .mon-win__stage {
+    height: 300px;
+  }
+}

@@ -50,6 +50,38 @@ test("route metadata updates title, description and canonical URL", async ({ pag
   await page.goto("/#/results");
   await expect(page).toHaveTitle(/Results · Aerospace Vision/);
   await expect(page.locator("main")).toBeVisible();
+  await expect(page.locator(".sensor-card__canvas")).toBeVisible({ timeout: 30_000 });
+});
+
+test("multi-window monitor page renders globe, SBIRS map, radar, IR and state charts", async ({ page }) => {
+  const errors: string[] = [];
+  page.on("pageerror", (err) => errors.push(String(err)));
+
+  await page.addInitScript(() => window.localStorage.setItem("av.lang", "zh"));
+  await page.goto("/#/monitor");
+  await expect(page.locator(".monitor-page")).toBeVisible({ timeout: 45_000 });
+  await expect(page.locator(".mon-win")).toHaveCount(6, { timeout: 45_000 });
+  await expect(page.locator(".mon-win__stage canvas")).toBeVisible({ timeout: 45_000 });
+  await expect(page.locator(".sensor-card__canvas")).toBeVisible();
+  await expect(page.locator(".mon-live-strip")).toContainText("Ma");
+
+  // Toggle one window off and back on via toolbar pill
+  const firstPill = page.locator(".mon-pill").first();
+  await firstPill.click();
+  await expect(page.locator(".mon-win")).toHaveCount(5);
+  await firstPill.click();
+  await expect(page.locator(".mon-win")).toHaveCount(6);
+
+  await page.screenshot({ path: path.join(SHOTS, "05-monitor-console.png"), fullPage: true });
+
+  // Narrow-screen zero horizontal overflow
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.waitForTimeout(200);
+  const overflow = await page.evaluate(
+    () => document.documentElement.scrollWidth > window.innerWidth + 1,
+  );
+  expect(overflow).toBe(false);
+  expect(errors, `page errors: ${errors.join("\n")}`).toEqual([]);
 });
 
 test("configuration studio loads registry options and real Run A", async ({ page }) => {
@@ -194,6 +226,15 @@ test("interceptor-vision 3D explorer renders new payload, X-Ray, SeekerOverlay a
   await expect(xrayBtn).toHaveClass(/is-active/);
   await xrayBtn.click();
   await expect(xrayBtn).not.toHaveClass(/is-active/);
+
+  // Multi-window floating HUD Command Deck opens 4 synchronized windows (Space/Radar/IR/Plots)
+  const deckBtn = page.locator(".topbar__deck-btn");
+  await expect(deckBtn).toBeVisible();
+  await deckBtn.click();
+  await expect(page.locator(".hud-win")).toHaveCount(4);
+  await page.screenshot({ path: path.join(SHOTS, "04-hud-command-deck.png") });
+  await deckBtn.click();
+  await expect(page.locator(".hud-win")).toHaveCount(0);
 
   // Dual-mode SeekerOverlay opens with 4 sensor canvases and closes via Escape
   const seekerBtn = page.locator(".topbar__seeker-btn");

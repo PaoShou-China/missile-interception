@@ -3,6 +3,7 @@ import { useI18n } from "../i18n";
 import { fmt, formatClock } from "../utils/format";
 import { AcademicChart } from "../components/AcademicChart";
 import { MissBudgetWaterfallCard, PerformanceRadarCard, RcsPolarCard, SeekerThermalDualCard } from "../components/SensorAnalyticsCards";
+import { SpaceBasedCard } from "../components/SpaceBasedCard";
 import { useManifest } from "./useManifest";
 import type { TrajectorySample } from "../scientific/types";
 
@@ -23,6 +24,7 @@ export function ResultsPage() {
   const chartData = useMemo(() => {
     if (!manifest) return null;
     const missile = manifest.entities.find((e) => e.kind === "missile")?.samples;
+    const target = manifest.entities.find((e) => e.kind === "target")?.samples ?? [];
     if (!missile) return null;
     return {
       altSpeed: [
@@ -58,6 +60,7 @@ export function ResultsPage() {
         { name: "3D-CT", color: "#0F8B5F", data: pairs(missile, (s) => +(s.immPCt ?? 0.33).toFixed(3)) },
       ],
       missile,
+      target,
       termAspect: missile[missile.length - 1]?.aspectDeg ?? 75,
     };
   }, [manifest]);
@@ -152,6 +155,9 @@ export function ResultsPage() {
             )}
             {manifest && (
               <>
+                <div style={{ gridColumn: "1 / -1" }}>
+                  <SpaceBasedCard manifest={manifest} missile={chartData.missile} target={chartData.target} theme="light" />
+                </div>
                 <PerformanceRadarCard manifest={manifest} missile={chartData.missile} theme="light" />
                 <RcsPolarCard aspectDeg={chartData.termAspect} theme="light" />
                 <SeekerThermalDualCard missile={chartData.missile} interactive theme="light" />

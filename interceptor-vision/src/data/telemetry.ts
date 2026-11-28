@@ -312,7 +312,7 @@ export async function loadTelemetry(): Promise<Telemetry> {
   const { setDataStatus, setTelemetry, setDataTime } = useApp.getState();
   setDataStatus("loading");
   try {
-    const url = `${import.meta.env.BASE_URL}data/scenario.json?v=1`;
+    const url = `${import.meta.env.BASE_URL}data/scenario.json?v=2`;
     const res = await fetch(url);
     if (!res.ok) throw new Error(`scenario ${res.status}`);
     const raw = await res.json();

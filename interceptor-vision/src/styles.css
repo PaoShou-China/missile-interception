@@ -1393,6 +1393,16 @@ input[type="range"]::-moz-range-thumb {
 .story-btn--accent:hover {
   background: linear-gradient(135deg, #005bac, #37b9d8);
 }
+.story-btn--demo {
+  background: rgba(24, 118, 80, 0.42);
+  border-color: rgba(88, 232, 166, 0.52);
+  color: #c8ffe4;
+}
+.story-btn--demo.is-active {
+  background: rgba(180, 56, 48, 0.58);
+  border-color: rgba(255, 130, 118, 0.72);
+  color: #fff;
+}
 
 /* ------------------------------------------------------------------ */
 /* Multi-Window Draggable HUD (Space / Radar / IR / Live State Plots)  */

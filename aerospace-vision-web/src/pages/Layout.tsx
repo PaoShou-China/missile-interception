@@ -6,6 +6,7 @@ const LINKS: { path: RoutePath; key: string }[] = [
   { path: "/", key: "nav.home" },
   { path: "/methodology", key: "nav.methodology" },
   { path: "/results", key: "nav.results" },
+  { path: "/monitor", key: "nav.monitor" },
   { path: "/verification", key: "nav.verification" },
   { path: "/resources", key: "nav.resources" },
   { path: "/compare", key: "nav.compare" },

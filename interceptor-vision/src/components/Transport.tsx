@@ -107,7 +107,38 @@ export function Transport() {
     setPlaying(!playing);
   };
 
+  const jumpStory = (targetT: number, view: "macro" | "chase" | "target" | "free", rate: number, openSeeker = false) => {
+    if (!telemetry) return;
+    const clamped = Math.max(telemetry.start, Math.min(telemetry.end, targetT));
+    const st = useApp.getState();
+    st.setCameraMode(view);
+    st.setDataRate(rate);
+    st.setSeekerOpen(openSeeker);
+    seekDataTime(clamped, false);
+    if (!useApp.getState().dataPlaying) toggleDataPlay();
+  };
+
+  const lang = useApp((s) => s.lang);
+
   return (
+    <div className="transport-wrap">
+      {dataMode && (
+        <div className="story-bar" role="group" aria-label={lang === "zh" ? "一键看高光" : "Quick Highlights"}>
+          <span className="story-bar__label">{lang === "zh" ? "一键看高光" : "Quick Jump"}</span>
+          <button type="button" className="story-btn" onClick={() => jumpStory(3.0, "chase", 1, false)}>
+            {lang === "zh" ? "1. 发射升空" : "1. Launch"}
+          </button>
+          <button type="button" className="story-btn" onClick={() => jumpStory(12.0, "chase", 1, false)}>
+            {lang === "zh" ? "2. 级间分离" : "2. Stage Sep"}
+          </button>
+          <button type="button" className="story-btn" onClick={() => jumpStory(telemetry.end - 9.0, "chase", 0.5, true)}>
+            {lang === "zh" ? "3. 双模锁定" : "3. Seeker Lock"}
+          </button>
+          <button type="button" className="story-btn story-btn--accent" onClick={() => jumpStory(telemetry.end - 3.0, "target", 0.25, false)}>
+            {lang === "zh" ? "4. 末段命中慢放" : "4. Terminal Hit"}
+          </button>
+        </div>
+      )}
     <div className="transport">
       <button
         type="button"
@@ -202,6 +233,7 @@ export function Transport() {
         </button>
       </div>
       <div className="transport__hint">{t("hint")}</div>
+    </div>
     </div>
   );
 }

@@ -333,20 +333,20 @@ function buildVehicle() {
   const flapL = add(flap.clone(), panel, 0, 0.165, 0);
   flapL.scale.z = -1;
 
-  // Canted twin vertical tails (31 deg outboard).
+  // Canted twin vertical tails (~31 deg outboard: +rotX tilts +y toward +z).
   const fin = plateGeometry(
     [
-      [-2.6, 0.0],
-      [-4.45, 2.75],
-      [-5.35, 2.75],
-      [-5.55, 0.0],
+      [-3.1, 0.0],
+      [-4.65, 2.55],
+      [-5.55, 2.55],
+      [-5.75, 0.0],
     ],
-    0.12,
+    0.11,
   );
-  const finR = add(fin, skin, 0, 0.32, 1.18);
-  finR.rotation.x = -0.58;
-  const finL = add(fin.clone(), skin, 0, 0.32, -1.18);
-  finL.rotation.x = 0.58;
+  const finR = add(fin, skin, 0, 0.30, 0.92);
+  finR.rotation.x = 0.54;
+  const finL = add(fin.clone(), skin, 0, 0.30, -0.92);
+  finL.rotation.x = -0.54;
 
   // All-moving horizontal stabilators.
   const stab = planeGeometry(

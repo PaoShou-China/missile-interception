@@ -208,6 +208,7 @@ test("synthetic scenario is labelled and withholds differences", async ({ page }
 });
 
 test("interceptor-vision 3D explorer renders new payload, X-Ray, SeekerOverlay and transport", async ({ page }) => {
+  test.setTimeout(150_000);
   const errors: string[] = [];
   page.on("pageerror", (err) => errors.push(String(err)));
 
@@ -232,7 +233,7 @@ test("interceptor-vision 3D explorer renders new payload, X-Ray, SeekerOverlay a
   await expect(deckBtn).toBeVisible();
   await deckBtn.click();
   await expect(page.locator(".hud-win")).toHaveCount(4);
-  await page.screenshot({ path: path.join(SHOTS, "04-hud-command-deck.png") });
+  await page.screenshot({ path: path.join(SHOTS, "04-hud-command-deck.png"), animations: "disabled" });
   await deckBtn.click();
   await expect(page.locator(".hud-win")).toHaveCount(0);
 
@@ -242,7 +243,7 @@ test("interceptor-vision 3D explorer renders new payload, X-Ray, SeekerOverlay a
   await seekerBtn.click();
   await expect(page.locator(".seeker-grid")).toBeVisible();
   await expect(page.locator(".seeker-canvas")).toHaveCount(4);
-  await page.screenshot({ path: path.join(SHOTS, "03-seeker-overlay.png") });
+  await page.screenshot({ path: path.join(SHOTS, "03-seeker-overlay.png"), animations: "disabled" });
   await page.keyboard.press("Escape");
   await expect(page.locator(".seeker-grid")).toHaveCount(0);
 
@@ -263,7 +264,11 @@ test("interceptor-vision 3D explorer renders new payload, X-Ray, SeekerOverlay a
   await page.waitForTimeout(300);
   await expect(page.locator(".transport__rate")).toHaveText("0.1×");
 
-  await page.screenshot({ path: path.join(SHOTS, "01-interceptor-vision.png") });
+  // Pause before final capture so software WebGL (SwiftShader CI) doesn't stall screenshot
+  if ((await playBtn.textContent())?.trim() !== "▶") {
+    await playBtn.click();
+  }
+  await page.screenshot({ path: path.join(SHOTS, "01-interceptor-vision.png"), animations: "disabled" });
   expect(errors, `page errors: ${errors.join("\n")}`).toEqual([]);
 });
 

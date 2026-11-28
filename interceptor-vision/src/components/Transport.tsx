@@ -118,23 +118,55 @@ export function Transport() {
     if (!useApp.getState().dataPlaying) toggleDataPlay();
   };
 
+  const [demoRunning, setDemoRunning] = useState(false);
+  const demoTimers = useRef<number[]>([]);
+
+  const stopDemo = () => {
+    demoTimers.current.forEach((id) => window.clearTimeout(id));
+    demoTimers.current = [];
+    setDemoRunning(false);
+  };
+
+  useEffect(() => () => stopDemo(), []);
+
+  const toggleAutoDemo = () => {
+    if (demoRunning) {
+      stopDemo();
+      return;
+    }
+    if (!telemetry) return;
+    setDemoRunning(true);
+    jumpStory(2.5, "chase", 1, false);
+    const t1 = window.setTimeout(() => jumpStory(12.0, "chase", 1, false), 3500);
+    const t2 = window.setTimeout(() => jumpStory(telemetry.end - 9.0, "chase", 0.5, true), 7000);
+    const t3 = window.setTimeout(() => jumpStory(telemetry.end - 2.8, "target", 0.25, false), 11500);
+    const t4 = window.setTimeout(() => setDemoRunning(false), 16000);
+    demoTimers.current = [t1, t2, t3, t4];
+  };
+
   const lang = useApp((s) => s.lang);
 
   return (
     <div className="transport-wrap">
       {dataMode && (
         <div className="story-bar" role="group" aria-label={lang === "zh" ? "一键看高光" : "Quick Highlights"}>
-          <span className="story-bar__label">{lang === "zh" ? "一键看高光" : "Quick Jump"}</span>
-          <button type="button" className="story-btn" onClick={() => jumpStory(3.0, "chase", 1, false)}>
+          <button
+            type="button"
+            className={`story-btn story-btn--demo ${demoRunning ? "is-active" : ""}`}
+            onClick={toggleAutoDemo}
+          >
+            {demoRunning ? (lang === "zh" ? "■ 停止演示" : "■ Stop Demo") : (lang === "zh" ? "▶ 15秒自动演示" : "▶ 15s Auto-Demo")}
+          </button>
+          <button type="button" className="story-btn" onClick={() => { stopDemo(); jumpStory(3.0, "chase", 1, false); }}>
             {lang === "zh" ? "1. 发射升空" : "1. Launch"}
           </button>
-          <button type="button" className="story-btn" onClick={() => jumpStory(12.0, "chase", 1, false)}>
+          <button type="button" className="story-btn" onClick={() => { stopDemo(); jumpStory(12.0, "chase", 1, false); }}>
             {lang === "zh" ? "2. 级间分离" : "2. Stage Sep"}
           </button>
-          <button type="button" className="story-btn" onClick={() => jumpStory(telemetry.end - 9.0, "chase", 0.5, true)}>
+          <button type="button" className="story-btn" onClick={() => { stopDemo(); jumpStory(telemetry.end - 9.0, "chase", 0.5, true); }}>
             {lang === "zh" ? "3. 双模锁定" : "3. Seeker Lock"}
           </button>
-          <button type="button" className="story-btn story-btn--accent" onClick={() => jumpStory(telemetry.end - 3.0, "target", 0.25, false)}>
+          <button type="button" className="story-btn story-btn--accent" onClick={() => { stopDemo(); jumpStory(telemetry.end - 3.0, "target", 0.25, false); }}>
             {lang === "zh" ? "4. 末段命中慢放" : "4. Terminal Hit"}
           </button>
         </div>

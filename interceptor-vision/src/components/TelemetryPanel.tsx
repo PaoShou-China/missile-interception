@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useApp } from "../state";
 import { useT, type StringKey } from "../i18n";
 import { sampleAt, formatMissionTime, seekDataTime, type FlightEvent } from "../data/telemetry";
@@ -15,9 +16,11 @@ const EVENT_KEY: Record<string, StringKey> = {
 
 export function TelemetryPanel() {
   const t = useT();
+  const lang = useApp((s) => s.lang);
   const telemetry = useApp((s) => s.telemetry);
   const status = useApp((s) => s.dataStatus);
   const dataTime = useApp((s) => s.dataTime);
+  const [showMore, setShowMore] = useState(false);
 
   if (status !== "ready" || !telemetry) {
     return (
@@ -42,32 +45,41 @@ export function TelemetryPanel() {
             {sample.seekerLock ? `LOCK ${Math.round(sample.fovDeg)}°` : "SEARCH"}
           </span>
         </div>
-        <dl className="kv kv--compact">
-          <dt>{t("altitude")}</dt>
-          <dd>{(sample.altM / 1000).toFixed(2)} km</dd>
-          <dt>{t("speed")}</dt>
-          <dd>{sample.speedMS.toFixed(0)} m/s</dd>
-          <dt>{t("mach")}</dt>
-          <dd>{sample.mach.toFixed(2)}</dd>
-          <dt>{t("dynPressure")}</dt>
-          <dd>{(sample.qPa / 1000).toFixed(1)} kPa</dd>
-          <dt>{t("load")}</dt>
-          <dd>{sample.loadG.toFixed(2)} g</dd>
-          <dt>{t("range")}</dt>
-          <dd>{(sample.rangeM / 1000).toFixed(1)} km</dd>
-          <dt>{t("seekerFov")}</dt>
-          <dd>{sample.fovDeg.toFixed(1)}°</dd>
-          <dt>{t("mass")}</dt>
-          <dd>{sample.massKg.toFixed(0)} kg</dd>
-          {fins && (
-            <>
-              <dt>{t("fins")}</dt>
-              <dd>
-                {deg(fins.up)}/{deg(fins.down)}/{deg(fins.left)}/{deg(fins.right)}°
-              </dd>
-            </>
-          )}
-        </dl>
+        <div className="tel-kpi-grid">
+          <div className="tel-kpi"><span>{t("mach")}</span><strong>Ma {sample.mach.toFixed(2)}</strong></div>
+          <div className="tel-kpi"><span>{t("altitude")}</span><strong>{(sample.altM / 1000).toFixed(1)} km</strong></div>
+          <div className="tel-kpi"><span>{t("range")}</span><strong>{(sample.rangeM / 1000).toFixed(1)} km</strong></div>
+          <div className="tel-kpi"><span>{t("load")}</span><strong>{sample.loadG.toFixed(1)} g</strong></div>
+        </div>
+        <button
+          type="button"
+          className="sim-adv-toggle"
+          onClick={() => setShowMore((v) => !v)}
+          aria-expanded={showMore}
+        >
+          <span>{lang === "zh" ? "详细遥测（速度 / 动压 / 视场 / 舵偏）" : "More Telemetry"}</span>
+          <span>{showMore ? "▴" : "▾"}</span>
+        </button>
+        {showMore && (
+          <dl className="kv kv--compact" style={{ marginTop: 8 }}>
+            <dt>{t("speed")}</dt>
+            <dd>{sample.speedMS.toFixed(0)} m/s</dd>
+            <dt>{t("dynPressure")}</dt>
+            <dd>{(sample.qPa / 1000).toFixed(1)} kPa</dd>
+            <dt>{t("seekerFov")}</dt>
+            <dd>{sample.fovDeg.toFixed(1)}°</dd>
+            <dt>{t("mass")}</dt>
+            <dd>{sample.massKg.toFixed(0)} kg</dd>
+            {fins && (
+              <>
+                <dt>{t("fins")}</dt>
+                <dd>
+                  {deg(fins.up)}/{deg(fins.down)}/{deg(fins.left)}/{deg(fins.right)}°
+                </dd>
+              </>
+            )}
+          </dl>
+        )}
       </section>
 
       <section className="group">

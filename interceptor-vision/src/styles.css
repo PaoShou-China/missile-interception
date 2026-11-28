@@ -100,8 +100,8 @@ button, select, input { font-family: inherit; color: inherit; }
   height: 66px;
   display: flex;
   align-items: center;
-  gap: 24px;
-  padding: 0 22px;
+  gap: 12px;
+  padding: 0 16px;
   z-index: 30;
   background: linear-gradient(180deg, rgba(3, 7, 12, 0.9), rgba(3, 7, 12, 0.2) 80%, transparent);
 }
@@ -122,7 +122,7 @@ button, select, input { font-family: inherit; color: inherit; }
   margin-top: 3px;
   white-space: nowrap;
 }
-.topbar__scenario { display: flex; align-items: center; gap: 13px; flex: 1; min-width: 0; }
+.topbar__scenario { display: flex; align-items: center; gap: 10px; flex: 1; min-width: 0; overflow: hidden; }
 .topbar__id {
   font-family: var(--mono);
   font-size: 11px;
@@ -1577,6 +1577,13 @@ input[type="range"]::-moz-range-thumb {
   text-overflow: ellipsis;
 }
 
+@media (max-width: 1460px) {
+  .topbar__title,
+  .topbar__id,
+  .brand__sub {
+    display: none;
+  }
+}
 @media (max-width: 1320px) {
   .topbar__hud-label {
     display: none;
@@ -1655,4 +1662,147 @@ input[type="range"]::-moz-range-thumb {
 .sim-adv-toggle:hover {
   color: #eaf3fc;
   border-color: rgba(126, 228, 255, 0.45);
+}
+
+
+/* Intercept Banner, Welcome Toast, Shortcuts Modal, Telemetry 4-KPI */
+.intercept-banner {
+  position: fixed;
+  top: 72px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 45;
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  padding: 9px 18px;
+  border-radius: 999px;
+  background: rgba(6, 20, 32, 0.88);
+  backdrop-filter: blur(14px);
+  border: 1px solid rgba(87, 227, 160, 0.55);
+  box-shadow: 0 14px 36px rgba(0, 0, 0, 0.5), 0 0 24px rgba(87, 227, 160, 0.2);
+  color: #ecfdf5;
+  font-size: 13px;
+  font-family: var(--mono);
+  pointer-events: none;
+}
+.intercept-banner.is-miss {
+  border-color: rgba(255, 178, 87, 0.55);
+  box-shadow: 0 14px 36px rgba(0, 0, 0, 0.5);
+}
+.intercept-banner__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #57e3a0;
+  box-shadow: 0 0 10px #57e3a0;
+}
+.welcome-toast {
+  position: fixed;
+  top: 74px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 40;
+  padding: 8px 16px;
+  border-radius: 999px;
+  background: rgba(7, 16, 28, 0.84);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(126, 228, 255, 0.3);
+  color: #dbeeff;
+  font-size: 12.5px;
+  pointer-events: none;
+}
+.shortcuts-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  background: rgba(2, 6, 14, 0.65);
+  backdrop-filter: blur(6px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.shortcuts-modal {
+  width: min(380px, calc(100vw - 32px));
+  padding: 18px 20px;
+  border-radius: 14px;
+  background: rgba(8, 16, 28, 0.96);
+  border: 1px solid rgba(126, 228, 255, 0.28);
+  color: #eaf3fc;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.6);
+}
+.shortcuts-modal__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+  font-size: 14px;
+}
+.shortcuts-modal__head button {
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font-size: 20px;
+  cursor: pointer;
+}
+.shortcuts-list {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.shortcuts-list > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 12.5px;
+}
+.shortcuts-list dt {
+  font-family: var(--mono);
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 5px;
+  background: rgba(126, 228, 255, 0.14);
+  color: #7ee4ff;
+}
+.shortcuts-list dd { margin: 0; color: rgba(219, 231, 244, 0.85); }
+
+.tel-kpi-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin: 8px 0;
+}
+.tel-kpi {
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(132, 170, 206, 0.16);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.tel-kpi span { font-size: 10px; color: var(--muted); }
+.tel-kpi strong { font-family: var(--mono); font-size: 15px; color: #fff; }
+
+.story-btn--demo {
+  background: rgba(16, 185, 129, 0.18);
+  border-color: rgba(87, 227, 160, 0.45);
+  color: #a7f3d0;
+}
+.story-btn--demo.is-active {
+  background: rgba(239, 68, 68, 0.25);
+  border-color: rgba(248, 113, 113, 0.6);
+  color: #fecaca;
+}
+@media (max-width: 900px) {
+  .story-bar {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    max-width: 100%;
+    justify-content: flex-start;
+    scrollbar-width: none;
+  }
+  .story-bar::-webkit-scrollbar { display: none; }
 }

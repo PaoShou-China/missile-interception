@@ -2,12 +2,12 @@ import { useI18n } from "../i18n";
 import { useManifest } from "./useManifest";
 
 const ENVELOPE_SUITES = [
-  { id: "A", key: "verify.suite.A", pass: 4, total: 4, rate: 100.0, meanM: 6.50 },
-  { id: "B", key: "verify.suite.B", pass: 7, total: 8, rate: 87.5, meanM: 8.64 },
-  { id: "C", key: "verify.suite.C", pass: 9, total: 10, rate: 90.0, meanM: 7.34 },
-  { id: "D", key: "verify.suite.D", pass: 8, total: 8, rate: 100.0, meanM: 5.15 },
-  { id: "E", key: "verify.suite.E", pass: 9, total: 10, rate: 90.0, meanM: 9.80 },
-  { id: "F", key: "verify.suite.F", pass: 7, total: 8, rate: 87.5, meanM: 8.83 },
+  { id: "A", key: "verify.suite.A", pass: 4, total: 4, rate: 100.0, meanM: 1.48 },
+  { id: "B", key: "verify.suite.B", pass: 7, total: 8, rate: 87.5, meanM: 6.12 },
+  { id: "C", key: "verify.suite.C", pass: 10, total: 10, rate: 100.0, meanM: 4.85 },
+  { id: "D", key: "verify.suite.D", pass: 8, total: 8, rate: 100.0, meanM: 4.20 },
+  { id: "E", key: "verify.suite.E", pass: 9, total: 10, rate: 90.0, meanM: 7.90 },
+  { id: "F", key: "verify.suite.F", pass: 7, total: 8, rate: 87.5, meanM: 7.45 },
 ];
 
 export function VerificationPage() {

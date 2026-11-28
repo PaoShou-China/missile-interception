@@ -12,6 +12,7 @@ test("academic home renders and links to the 3D explorer", async ({ page }) => {
   await expect(page.locator(".hero h1")).toContainText("solved trajectory");
   await expect(page.locator(".site-nav a.is-active")).toHaveText("Home");
   await expect(page.locator(".stat-strip")).toBeVisible();
+  await expect(page.locator(".story-strip .story-step")).toHaveCount(4);
   await page.screenshot({ path: path.join(SHOTS, "00-academic-home.png"), fullPage: true });
 
   await page.locator(".site-header__actions a.btn--primary").click();
@@ -221,14 +222,22 @@ test("interceptor-vision 3D explorer renders new payload, X-Ray, SeekerOverlay a
   const canvas = page.locator("canvas").first();
   await expect(canvas).toBeVisible();
 
-  // X-Ray physics toggle (pure 3D vectors & shock cone — zero cluttered HTML missile tags)
+  // X-Ray physics toggle (pure 3D vectors & shock cone — legend in right rail, zero missile HTML clutter)
+  await expect(page.locator(".phase-story")).toBeVisible();
   const xrayBtn = page.locator(".topbar__xray-btn");
   await expect(xrayBtn).toBeVisible();
   await xrayBtn.click();
   await expect(xrayBtn).toHaveClass(/is-active/);
   await expect(page.locator(".xray-tag")).toHaveCount(0);
+  await expect(page.locator(".xray-legend")).toBeVisible();
   await xrayBtn.click();
   await expect(xrayBtn).not.toHaveClass(/is-active/);
+
+  // Shortcuts guide opens via '?' and closes cleanly via Escape
+  await page.keyboard.press("?");
+  await expect(page.locator(".shortcuts-modal")).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(page.locator(".shortcuts-modal")).toHaveCount(0);
 
   // Multi-window floating HUD Command Deck opens 4 synchronized windows (Space/Radar/IR/Unified Charts)
   const deckBtn = page.locator(".topbar__deck-btn");
@@ -244,12 +253,13 @@ test("interceptor-vision 3D explorer renders new payload, X-Ray, SeekerOverlay a
   await deckBtn.click();
   await expect(page.locator(".hud-win")).toHaveCount(0);
 
-  // Dual-mode SeekerOverlay opens with 4 sensor canvases and closes via Escape
+  // Dual-mode SeekerOverlay opens with synchronous first frame, real Fuze Pk, 4 sensor canvases & closes via Escape
   const seekerBtn = page.locator(".topbar__seeker-btn");
   await expect(seekerBtn).toBeVisible();
   await seekerBtn.click();
   await expect(page.locator(".seeker-grid")).toBeVisible();
   await expect(page.locator(".seeker-canvas")).toHaveCount(4);
+  await expect(page.locator(".seeker-overlay")).toContainText("99.5%");
   await page.screenshot({ path: path.join(SHOTS, "03-seeker-overlay.png"), animations: "disabled" });
   await page.keyboard.press("Escape");
   await expect(page.locator(".seeker-grid")).toHaveCount(0);

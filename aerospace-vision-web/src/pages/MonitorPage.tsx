@@ -229,8 +229,8 @@ export function MonitorPage() {
         </button>
       </div>
 
-      {/* Live synchronized numeric readout strip */}
-      {curSample && (
+      {/* Live synchronized numeric readout strip + milestone quick-jumps */}
+      {curSample && manifest && (
         <div className="mon-live-strip">
           <span><b>T</b> {curSample.t.toFixed(1)} s</span>
           <span><b>{lang === "zh" ? "阶段" : "PHASE"}</b> {curSample.phase.toUpperCase()}</span>
@@ -242,6 +242,23 @@ export function MonitorPage() {
           <span><b>Radar</b> {(curSample.radarSnrDb ?? -60).toFixed(1)} dB</span>
           <span><b>MWIR</b> {(curSample.irSnrDb ?? -60).toFixed(1)} dB</span>
           <span><b>{lang === "zh" ? "斜距" : "R"}</b> {(curSample.rangeM / 1000).toFixed(2)} km</span>
+          <div className="mon-jumps" role="group" aria-label={lang === "zh" ? "高光时刻快跳" : "Milestone jumps"}>
+            <button type="button" className="mon-mini-btn" onClick={() => seek(2.0)}>
+              {lang === "zh" ? "发射" : "Launch"}
+            </button>
+            <button type="button" className="mon-mini-btn" onClick={() => seek(13.0)}>
+              {lang === "zh" ? "13s 分离" : "13s Sep"}
+            </button>
+            <button type="button" className="mon-mini-btn" onClick={() => seek(300.0)}>
+              {lang === "zh" ? "Ma 9 巡航" : "Ma 9 Cruise"}
+            </button>
+            <button type="button" className="mon-mini-btn" onClick={() => seek(Math.max(0, manifest.time.endS - 9.0))}>
+              {lang === "zh" ? "双模截获" : "Seeker Lock"}
+            </button>
+            <button type="button" className="mon-mini-btn is-active" onClick={() => seek(Math.max(0, manifest.time.endS - 2.5))}>
+              {lang === "zh" ? "末段拦截" : "Endgame"}
+            </button>
+          </div>
         </div>
       )}
 

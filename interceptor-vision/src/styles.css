@@ -1690,6 +1690,57 @@ input[type="range"]::-moz-range-thumb {
   grid-auto-rows: minmax(175px, auto);
   flex: none;
 }
+.phase-story {
+  margin: 0 0 8px;
+  padding: 7px 9px;
+  border-radius: 7px;
+  background: rgba(16, 38, 64, 0.56);
+  border-left: 2.5px solid var(--accent);
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: #cfe6fa;
+}
+.xray-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px 9px;
+  margin-bottom: 8px;
+  padding: 6px 8px;
+  border-radius: 7px;
+  background: rgba(10, 22, 38, 0.78);
+  border: 1px solid rgba(96, 200, 255, 0.28);
+  font-family: var(--mono);
+  font-size: 10px;
+  color: #d8eeff;
+}
+.xray-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.xray-legend i {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+}
+.seeker-midcourse-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: rgba(18, 44, 72, 0.65);
+  border: 1px solid rgba(96, 205, 255, 0.34);
+  font-size: 12px;
+  color: #d6eeff;
+}
+button.welcome-toast {
+  cursor: pointer;
+  pointer-events: auto;
+}
 @media (max-width: 1200px) {
   .charts-grid--full { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }

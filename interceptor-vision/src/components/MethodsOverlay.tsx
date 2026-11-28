@@ -187,9 +187,13 @@ export function MethodsOverlay() {
               in the last 10 s are presentation devices, not recorded events.
             </li>
             <li>
-              The first-stage separation at T+13.0 s is a visual milestone derived from the payload mass curve: the
-              booster burn ends there, but the source records no discrete stage state, and the released booster uses
-              a simplified relative-motion model (no six-degree-of-freedom separation dynamics).
+              The source 6-DoF backend explicitly models the T+13.0 s discrete booster stage separation
+              (instantaneous mass, CG and inertia step recorded in <code>stage_sep</code>), 1D transient
+              thin-wall dome aerothermal conduction coupled into sapphire MWIR window transmittance, scramjet
+              inlet unstart hysteresis (<code>unstart_flag</code>), 2nd-order fin servos with high-q hinge-moment
+              derating, IMM-UKF (CV/CA/3D-CT) anti-flare/chaff tracking, and a proximity-fuze directional
+              fragmentation kill model. Visually, the jettisoned booster animation uses a simplified relative
+              separation curve.
             </li>
             <li>
               “Trajectory solve” re-integrates the terminal leg live from the recorded hand-over state. The default

@@ -223,8 +223,7 @@ export function SeekerOverlay() {
     let lastHudSync = 0;
     let lastDrawnT = -1;
 
-    const renderFrame = (nowMs: number) => {
-      raf = requestAnimationFrame(renderFrame);
+    const drawFrame = (nowMs: number, force = false) => {
       const tel = telemetry;
       if (!tel) return;
       const curT = dataClock.t;
@@ -233,9 +232,9 @@ export function SeekerOverlay() {
 
       // Decouple dynamic sensor canvases (Radar B-Scope/R-D, MWIR FPA, RCS) from
       // the 60+ FPS WebGL loop to authentic 25 Hz sensor frame rate (40 ms),
-      // while still repainting immediately when the user scrubs while paused.
+      // while still repainting immediately on mount or when scrubbed while paused.
       const scrubbed = Math.abs(curT - lastDrawnT) > 1e-4 && !useApp.getState().dataPlaying;
-      if (!scrubbed && lastCanvasSync > 0 && nowMs - lastCanvasSync < 40) {
+      if (!force && !scrubbed && lastCanvasSync > 0 && nowMs - lastCanvasSync < 40) {
         return;
       }
       lastCanvasSync = nowMs;
@@ -334,10 +333,16 @@ export function SeekerOverlay() {
       // 3) Draw 360-deg Target RCS Polar Plot
       drawRcsPolar(rcsRef.current, aspectDeg, rcsM2);
 
-      // Throttle React state updates to ~12 Hz for crisp telemetry numbers.
-      if (nowMs - lastHudSync > 80) {
+      // Throttle React state updates to ~12 Hz (always immediate on first paint!).
+      if (force || nowMs - lastHudSync > 80) {
         lastHudSync = nowMs;
-        const fuzeMetric = typeof tel.metrics.fuzePk === "number" ? tel.metrics.fuzePk * 100 : (bplane?.pkPct ?? 0);
+        const rawPk =
+          typeof tel.metrics.fuzePk === "number"
+            ? tel.metrics.fuzePk
+            : typeof tel.metrics.killProbability === "number"
+              ? tel.metrics.killProbability
+              : null;
+        const fuzeMetric = rawPk !== null ? rawPk * 100 : (bplane?.pkPct ?? 0);
         setHud({
           time: curT,
           rangeM,
@@ -366,6 +371,12 @@ export function SeekerOverlay() {
       }
     };
 
+    const renderFrame = (nowMs: number) => {
+      drawFrame(nowMs, false);
+      raf = requestAnimationFrame(renderFrame);
+    };
+
+    drawFrame(performance.now(), true);
     raf = requestAnimationFrame(renderFrame);
     return () => cancelAnimationFrame(raf);
   }, [telemetry, radarView, irPalette, bplane]);
@@ -422,6 +433,23 @@ export function SeekerOverlay() {
             onChange={(e) => seekDataTime(Number(e.target.value), true)}
           />
           <span>{formatMissionTime(telemetry.end)}</span>
+        </div>
+      )}
+
+      {jumpMarks && hud.rangeM > 40000 && (
+        <div className="seeker-midcourse-bar" role="status">
+          <span>
+            {lang === "zh"
+              ? `当前处于中段数据链巡航（距目标 ${(hud.rangeM / 1000).toFixed(0)} km），末制导导引头待机中。`
+              : `Midcourse datalink cruise (${(hud.rangeM / 1000).toFixed(0)} km from target) — terminal seeker on standby.`}
+          </span>
+          <button
+            type="button"
+            className="ghost-btn ghost-btn--sm"
+            onClick={() => seekDataTime(jumpMarks.endgame, false)}
+          >
+            {lang === "zh" ? "⚡ 跳至末段双模锁定" : "⚡ Jump to Terminal Lock"}
+          </button>
         </div>
       )}
 
@@ -658,8 +686,8 @@ function drawRadar(
       ctx.setLineDash([]);
     }
 
-    // Blind zone arc (200 m)
-    const blindR = Math.max(8, (0.2 / maxRngKm) * rad);
+    // Blind zone arc (BLIND_M = 120 m)
+    const blindR = Math.max(8, (BLIND_M / 1000 / maxRngKm) * rad);
     ctx.strokeStyle = "rgba(255, 96, 96, 0.75)";
     ctx.lineWidth = 1.5;
     ctx.beginPath();
@@ -722,7 +750,7 @@ function drawRadar(
       ctx.fillStyle = inBlind ? "#ff8888" : radarDet ? "#a4ffd0" : "#ffd68a";
       ctx.font = "10px ui-monospace, monospace";
       ctx.fillText(
-        inBlind ? "BLIND <200m" : radarDet ? `TRK ${rangeKm.toFixed(2)}km` : `CUE ${rangeKm.toFixed(1)}km`,
+        inBlind ? `BLIND <${BLIND_M}m` : radarDet ? `TRK ${rangeKm.toFixed(2)}km` : `CUE ${rangeKm.toFixed(1)}km`,
         tx + 12,
         ty + 3,
       );
@@ -750,7 +778,7 @@ function drawRadar(
     // Top HUD annotations
     ctx.fillStyle = "rgba(130, 240, 178, 0.85)";
     ctx.font = "10px ui-monospace, monospace";
-    ctx.fillText(`SCALE ${maxRngKm} km · FOV ±20°`, 10, 16);
+    ctx.fillText(`SCALE ${maxRngKm} km · FOV ±${FOV_LIMIT_DEG}°`, 10, 16);
     ctx.textAlign = "right";
     ctx.fillText(inFov ? "IN FOV" : "OFF BORESIGHT", w - 10, 16);
   } else {
@@ -1046,11 +1074,11 @@ function drawIir(
   ctx.fillStyle = "rgba(245, 250, 255, 0.9)";
   ctx.font = "10px ui-monospace, monospace";
   ctx.textAlign = "left";
-  ctx.fillText(`MWIR FPA · FOV ±20°${decoyActive ? " · ANTI-DECOY" : ""}`, 10, 16);
+  ctx.fillText(`MWIR FPA · FOV ±${FOV_LIMIT_DEG}°${decoyActive ? " · ANTI-DECOY" : ""}`, 10, 16);
   ctx.fillText(`DOME ~${Math.round(220 + 0.22 * Math.max(wallTempK - 220, 0))} K`, 10, h - 10);
   ctx.textAlign = "right";
   ctx.fillStyle = inBlind ? "#ff8888" : irLock ? "#8effc1" : "#ffdb8a";
-  ctx.fillText(inBlind ? "BLIND <200m" : irLock ? "IIR TRACK LOCK" : "SEARCH / CUE", w - 10, 16);
+  ctx.fillText(inBlind ? `BLIND <${BLIND_M}m` : irLock ? "IIR TRACK LOCK" : "SEARCH / CUE", w - 10, 16);
   ctx.fillStyle = "rgba(240, 248, 255, 0.85)";
   ctx.fillText(`R ${rangeM >= 1000 ? `${(rangeM / 1000).toFixed(2)} km` : `${rangeM.toFixed(0)} m`}`, w - 10, h - 10);
 }

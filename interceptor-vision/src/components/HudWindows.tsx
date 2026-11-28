@@ -643,10 +643,20 @@ function RadarHudWindow({ telemetry, onClose }: { telemetry: Telemetry; onClose:
       defaultPos={() => ({ x: Math.max(18, window.innerWidth - 338), y: 70 })}
       width={320}
       headerExtra={
-        <div className="hud-win__seg">
-          <button type="button" className={mode === "bscope" ? "is-active" : ""} onClick={() => setMode("bscope")}>B</button>
-          <button type="button" className={mode === "rd" ? "is-active" : ""} onClick={() => setMode("rd")}>R-D</button>
-        </div>
+        <>
+          <button
+            type="button"
+            className="hud-win__pill-btn"
+            onClick={() => seekDataTime(Math.max(telemetry.start, telemetry.end - 3.5), false)}
+            title="Jump to terminal seeker lock"
+          >
+            锁定
+          </button>
+          <div className="hud-win__seg">
+            <button type="button" className={mode === "bscope" ? "is-active" : ""} onClick={() => setMode("bscope")}>B</button>
+            <button type="button" className={mode === "rd" ? "is-active" : ""} onClick={() => setMode("rd")}>R-D</button>
+          </div>
+        </>
       }
       onExpand={() => useApp.getState().setSeekerOpen(true)}
       expandTitle={t("hudExpand")}
@@ -802,11 +812,21 @@ function IrHudWindow({ telemetry, onClose }: { telemetry: Telemetry; onClose: ()
       defaultPos={() => ({ x: Math.max(18, window.innerWidth - 338), y: Math.max(305, window.innerHeight - 365) })}
       width={320}
       headerExtra={
-        <div className="hud-win__seg">
-          <button type="button" className={pal === "ironbow" ? "is-active" : ""} onClick={() => setPal("ironbow")}>IR</button>
-          <button type="button" className={pal === "whitehot" ? "is-active" : ""} onClick={() => setPal("whitehot")}>WH</button>
-          <button type="button" className={pal === "nvg" ? "is-active" : ""} onClick={() => setPal("nvg")}>NV</button>
-        </div>
+        <>
+          <button
+            type="button"
+            className="hud-win__pill-btn"
+            onClick={() => seekDataTime(Math.max(telemetry.start, telemetry.end - 3.5), false)}
+            title="Jump to terminal IR lock"
+          >
+            锁定
+          </button>
+          <div className="hud-win__seg">
+            <button type="button" className={pal === "ironbow" ? "is-active" : ""} onClick={() => setPal("ironbow")}>IR</button>
+            <button type="button" className={pal === "whitehot" ? "is-active" : ""} onClick={() => setPal("whitehot")}>WH</button>
+            <button type="button" className={pal === "nvg" ? "is-active" : ""} onClick={() => setPal("nvg")}>NV</button>
+          </div>
+        </>
       }
       onExpand={() => useApp.getState().setSeekerOpen(true)}
       expandTitle={t("hudExpand")}

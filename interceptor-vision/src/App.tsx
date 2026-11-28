@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { SceneCanvas } from "./scene/Scene";
 import { TopBar } from "./components/TopBar";
 import { LeftPanel } from "./components/LeftPanel";
@@ -59,6 +59,8 @@ export function App() {
   const ready = useApp((s) => s.ready);
   const [welcome, setWelcome] = useState(false);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
+  const shortcutsRef = useRef(false);
+  shortcutsRef.current = shortcutsOpen;
 
   useEffect(() => {
     if (!ready) return;
@@ -136,13 +138,13 @@ export function App() {
         s.setSeekerOpen(false);
       } else if (e.key === "Escape" && s.methodsOpen) {
         s.setMethodsOpen(false);
+      } else if (e.key === "Escape" && shortcutsRef.current) {
+        setShortcutsOpen(false);
       } else if (e.key === "Escape" && (s.hudSpace || s.hudRadar || s.hudIr || s.hudCharts)) {
         s.setHudSpace(false);
         s.setHudRadar(false);
         s.setHudIr(false);
         s.setHudCharts(false);
-      } else if (e.key === "Escape" && shortcutsOpen) {
-        setShortcutsOpen(false);
       } else if (e.key === "?" || (e.key === "/" && e.shiftKey)) {
         setShortcutsOpen((v) => !v);
       } else if (e.key === "1") {
@@ -187,26 +189,36 @@ export function App() {
       <TopBar />
       <InterceptBanner />
       {welcome && (
-        <div className="welcome-toast" role="status">
+        <button
+          type="button"
+          className="welcome-toast"
+          role="status"
+          onClick={() => {
+            setWelcome(false);
+            setShortcutsOpen(true);
+          }}
+        >
           {lang === "zh"
-            ? "拖动旋转视角 · 点击下方按钮一键看高光 · 按 ? 查看快捷键"
-            : "Drag to orbit · Use Quick Jump below · Press ? for shortcuts"}
-        </div>
+            ? "拖动旋转视角 · 点下方「15秒自动演示」快速导览 · 按 ? 查看快捷键"
+            : "Drag to orbit · Try 15s Auto-Demo below · Press ? for shortcuts"}
+        </button>
       )}
       {shortcutsOpen && (
         <div className="shortcuts-backdrop" onClick={() => setShortcutsOpen(false)}>
           <div className="shortcuts-modal" onClick={(e) => e.stopPropagation()} role="dialog">
             <div className="shortcuts-modal__head">
-              <strong>{lang === "zh" ? "快捷键速查" : "Keyboard Shortcuts"}</strong>
+              <strong>{lang === "zh" ? "快捷键与操作指南" : "Shortcuts & Quick Guide"}</strong>
               <button type="button" onClick={() => setShortcutsOpen(false)}>×</button>
             </div>
             <dl className="shortcuts-list">
-              <div><dt>Space</dt><dd>{lang === "zh" ? "播放 / 暂停" : "Play / Pause"}</dd></div>
+              <div><dt>Space</dt><dd>{lang === "zh" ? "播放 / 暂停仿真" : "Play / Pause"}</dd></div>
               <div><dt>1 / 2 / 3 / 4</dt><dd>{lang === "zh" ? "切换 宏观 / 尾追 / 目标 / 自由 视角" : "Switch Macro / Chase / Target / Free"}</dd></div>
-              <div><dt>R</dt><dd>{lang === "zh" ? "打开 / 关闭 双模雷达与红外导引头" : "Toggle Dual-Mode Radar/IR Seeker"}</dd></div>
-              <div><dt>H</dt><dd>{lang === "zh" ? "隐藏 / 显示 左右面板" : "Toggle Side Panels"}</dd></div>
-              <div><dt>S / F</dt><dd>{lang === "zh" ? "高清截图 / 全屏切换" : "Screenshot / Fullscreen"}</dd></div>
-              <div><dt>?</dt><dd>{lang === "zh" ? "打开 / 关闭 本快捷键面板" : "Toggle Shortcuts"}</dd></div>
+              <div><dt>W</dt><dd>{lang === "zh" ? "一键开关四联指挥舱（天基·雷达·红外·全套图表）" : "Toggle 4-Window Mission Control Deck"}</dd></div>
+              <div><dt>G / I / C</dt><dd>{lang === "zh" ? "独立开关 天基图 / 红外热像 / 遥测图表 浮窗" : "Toggle Space / MWIR / Charts HUD"}</dd></div>
+              <div><dt>R</dt><dd>{lang === "zh" ? "打开 / 关闭 全屏双模导引头（含 RCS 与 B-Plane）" : "Toggle Full Dual-Mode Seeker Monitor"}</dd></div>
+              <div><dt>X</dt><dd>{lang === "zh" ? "开关 X 光物理场（激波锥 / 受力矢量 / CG-CP）" : "Toggle X-Ray Aero-Physics Field"}</dd></div>
+              <div><dt>H / S / F</dt><dd>{lang === "zh" ? "隐藏面板 / 高清截图 / 全屏切换" : "Hide Rails / Screenshot / Fullscreen"}</dd></div>
+              <div><dt>? / Esc</dt><dd>{lang === "zh" ? "开关本指南 / 关闭浮窗与弹窗" : "Toggle Guide / Close Overlays"}</dd></div>
             </dl>
           </div>
         </div>

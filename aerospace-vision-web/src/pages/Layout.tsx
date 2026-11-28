@@ -89,10 +89,10 @@ function QuickTour() {
               <a href="#/" onClick={() => setOpen(false)}>{t("tour.step1")}</a>
             </li>
             <li>
-              <a href="#/explore" onClick={() => setOpen(false)}>{t("tour.step2")}</a>
+              <a href="#/monitor" onClick={() => setOpen(false)}>{t("tour.step2")}</a>
             </li>
             <li>
-              <a href="#/results" onClick={() => setOpen(false)}>{t("tour.step3")}</a>
+              <a href="#/explore" onClick={() => setOpen(false)}>{t("tour.step3")}</a>
             </li>
             <li>
               <a href="#/compare" onClick={() => setOpen(false)}>{t("tour.step4")}</a>

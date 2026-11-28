@@ -71,6 +71,19 @@ export function HomePage() {
       </section>
 
       <section className="section">
+        <h2 className="section__title">{t("home.story.title")}</h2>
+        <ol className="story-strip">
+          {[1, 2, 3, 4].map((n) => (
+            <li className="story-step" key={n}>
+              <span className="story-step__time">{t(`home.story.${n}.time`)}</span>
+              <h3>{t(`home.story.${n}.title`)}</h3>
+              <p>{t(`home.story.${n}.body`)}</p>
+            </li>
+          ))}
+        </ol>
+      </section>
+
+      <section className="section">
         <h2 className="section__title">{t("home.features.title")}</h2>
         <div className="feature-grid">
           {[

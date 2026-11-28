@@ -11,7 +11,6 @@ import { ResourcesPage } from "../pages/ResourcesPage";
 // results page. Lazy-loading them keeps the academic reading pages light.
 const ResultsPage = lazy(() => import("../pages/ResultsPage").then((m) => ({ default: m.ResultsPage })));
 const ComparePage = lazy(() => import("../pages/ComparePage").then((m) => ({ default: m.ComparePage })));
-const ExploreApp = lazy(() => import("./ExploreApp").then((m) => ({ default: m.ExploreApp })));
 
 const META: Record<RoutePath, { nav: string; desc: string }> = {
   "/": { nav: "nav.home", desc: "meta.description.home" },
@@ -21,7 +20,6 @@ const META: Record<RoutePath, { nav: string; desc: string }> = {
   "/resources": { nav: "nav.resources", desc: "meta.description.resources" },
   "/compare": { nav: "nav.compare", desc: "meta.description.compare" },
   "/explore": { nav: "explore.title", desc: "meta.description.explore" },
-  "/explore-legacy": { nav: "explore.title", desc: "meta.description.explore" },
 };
 
 const BASE_URL = "https://paoshou-china.github.io/missile-interception/";
@@ -115,17 +113,6 @@ export default function App() {
       <I18nProvider>
         <RouteMeta route={route} />
         <ExploreRedirect />
-      </I18nProvider>
-    );
-  }
-
-  if (route === "/explore-legacy") {
-    return (
-      <I18nProvider>
-        <RouteMeta route={route} />
-        <Suspense fallback={<RouteFallback />}>
-          <ExploreApp />
-        </Suspense>
       </I18nProvider>
     );
   }

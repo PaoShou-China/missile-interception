@@ -163,7 +163,6 @@ export function SiteLayout({ children }: { children: ReactNode }) {
           <a href="https://github.com/PaoShou-China/missile-interception" target="_blank" rel="noreferrer">
             PaoShou-China/missile-interception
           </a>
-          <a href="#/resources">{t("nav.legacy")}</a>
         </div>
       </footer>
       <QuickTour />

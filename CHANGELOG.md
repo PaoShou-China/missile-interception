@@ -4,17 +4,34 @@
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-11-28
+
 ### Added
 
-- 仓库级 README、MIT 许可证、贡献指南、行为准则、安全策略与 Issue/PR 模板
-- GitHub Pages 站点首页与 `.nojekyll`，发布概览、分析与测试三份报告
-- GitHub Actions CI：在 push / PR 时运行测试集
+- **High-adversarial & hypersonic 6DOF physics** (strictly isomorphic in Python & Numba `fastcore.py`):
+  - 1D transient thin-wall nose-cap thermal conduction coupled to sapphire MWIR seeker window transmittance & thermal background noise, plus joint $q_{\max}$–$\dot{q}_{\max}$ midcourse/throttle corridor (peak $q_\infty$ reduced from 881 kPa to 632.5 kPa)
+  - Discrete Stage-1 booster separation at 13 s (95 kg casing jettison with CG/inertia step), scramjet inlet pressure recovery & Unstart hysteresis (`unstart_flag`), JP-10 Mach-dependent $I_{sp}$, oblique-shock stoichiometric air-capture ceiling, Eckert compressible skin friction, Mach-dependent induced drag, Hoerner base-drag relief, and coast/unstart inlet spillage drag
+  - Terminal IR flare & radar chaff countermeasure ejection (`vehicle/target.py::decoy_state`), Blom–Bar-Shalom 3-model IMM target tracker (CV + CA/Singer + 3D-CT), dual-band/Doppler anti-decoy gating, and ±30° gimballed AESA/MWIR seeker FOV
+  - 32 Hz / $\zeta=0.7$ 2nd-order electromechanical fin servos with >400 kPa hinge-moment torque cap, tail-fin NMP predictive compensation + Zarchan finite-horizon OGL glint roll-off, optional 22 Hz elastic bending mode + notch filter, and 3D directed-fragmentation proximity fuze lethality (`vehicle/warhead.py`)
+- **3D physical-field visualization & high-fidelity vehicle meshes** (both `aerospace-vision-web` and `interceptor-vision`):
+  - Custom GLSL Mach-dependent shock cone, Planck blackbody nose-cap heating, X-Ray 3D lift/drag/thrust/NMP fin force vectors & dynamic CG/CP markers (hotkey `X`)
+  - Procedural 8.11 m Von Kármán ogive scramjet interceptor (twin 2D inlets, dorsal spine, strakes, separating booster, volumetric GLSL Mach-diamond plume) and 15.7 m F-35A (Have Glass V chined fuselage, gold ITO canopy, DSI inlets, sapphire EOTS, 15-petal F135 nozzle + GLSL afterburner, live IR flares)
+  - Dual-mode `SeekerOverlay` & `SensorAnalyticsCards` with anti-decoy gate rendering + B-Plane miss-budget waterfall linked to `tools/miss_budget.py`, 3D Monte-Carlo trajectory bundles & handover point clouds in `#/compare`, and semantic event timeline + `0.1×` bullet-time + `?t=&view=&compare=` deep links
+- **Full-stack 6-item performance acceleration**:
+  - Fused zero-allocation `nogil=True` Numba RK4 (`rk4_multi_step_system_into`) & 3-model IMM (`imm_predict_all`) kernels + optional `--threads` pool
+  - Phase-adaptive 20 ms pure-cruise step size (seamless 10 ms / 5 ms transition for dive, handover & terminal)
+  - Zero-allocation `telemetry_profile="none"` with $O(1)$ scalar summaries for batch/validation + scalar-math hotspot elimination (`math_utils`, `midcourse_guidance`, `seeker`)
+  - Binary compressed `.npz` telemetry I/O by default (`--csv` opt-in), with 0.79 s `build_scenario.py` float64 ingestion
+  - 25 Hz decoupled low-res FPA sensor canvases (`128×84` / `128×96` reusable `ImageData`), zero-React-rerender playback (`useRef` + `subscribe` + `rAF`), and `InstancedMesh` instancing for F-35A nozzle petals & IR flares
 
 ### Changed
 
-- 自动驾驶仪调节参数（`AP_KP_ANGLE` / `AP_KP_RATE`）迁入 `config.py` 统一管理
-- 导航与姿态控制模型重构，更新中制导交接逻辑
-- 移除 `tools/tune_gain_schedule.py`（由 `tune_autopilot.py` 取代）
+- Nominal 6DOF intercept refined to **1.48 m** miss at `680.47 s` (`Pk(fuze) = 99.5%`); 48-case validation matrix passes **6/6 suites (45/48 = 93.8%)** in `200.3 s` (2.31× faster; single-shot zero-alloc 5.33× faster at `21.42 s`)
+- Updated backend tests to **103 passed** (`missile_intercept`), **36 passed** (`tests/`), **11/11** `verify_scenario.py`, **66/66** Vitest, **28/28** aero & **12/12** 6-DoF explorer validators
+
+### Removed
+
+- Legacy static HTML reports (`intercept-report/`, `missile-intercept-overview/`, `test-report/`), root `index.html`, `/explore-legacy` route (`ExploreApp.tsx`), and obsolete `tools/audit_reports.py` / `tests/test_report_audit.py`
 
 ## [0.2.0] - 2026-11-22
 

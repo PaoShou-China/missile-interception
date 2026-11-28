@@ -68,6 +68,8 @@
 | UI 刷新 | 遥测 store 镜像由 12 Hz 降到约 7 Hz；3D 场景直接读连续时钟，不再受 UI 步进影响。 |
 | 卫星瓦片上传 | 每张瓦片 landing 后只标脏，由渲染循环统一在 200 ms 窗口内上传一次（原来每张瓦片都整体上传 2048² 纹理并重建 mipmap，是卡顿主因）；关闭 mipmap 生成。 |
 | 近景抖动 | 弹体姿态改用连续仿真时钟采样（原来按 12 Hz 的 UI 时间步进），并随相机距离衰减摆动幅度；弹道特写相机对准/姿态做阻尼平滑；修复 60× 播放时 `simClock` 被 7 Hz 镜像回写导致的周期性倒退。 |
+| 传感器监控画布（2026-11-28） | `SeekerOverlay.tsx` 将 R-D 雷达热图（`48×28`）与 MWIR 红外焦平面（`128×84`）改为复用离屏 `ImageData` 位图拷贝（替代逐帧 1,344 次 `fillRect`+`rgb()` 字符串），DPR 上限 `1.25`，动态重绘频率与 60 FPS 3D 主循环解耦至 **25 Hz**（暂停拖动瞬时响应），静态 B-Plane/瀑布图面板拆离为独立 `useEffect`。 |
+| 播放态零 React 重渲染（2026-11-28） | `Transport.tsx` 移除播放态对高频 `dataTime` 的 React 状态订阅，改用 `useRef` + `requestAnimationFrame` + Zustand `subscribe` 直接更新进度条与时钟文本，消除 60 Hz 组件树重渲染。 |
 
 ## 复现
 

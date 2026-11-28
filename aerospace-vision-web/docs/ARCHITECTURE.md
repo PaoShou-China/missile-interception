@@ -3,20 +3,23 @@
 ## 1. Layering
 
 ```
-                 ┌────────────────────────────┐
-                 │ tools/data-adapter (Python)│
-                 │ CSV → schema v1.0.0 JSON   │
-                 └─────────────┬──────────────┘
+                 ┌──────────────────────────────┐
+                 │ tools/data-adapter (Python)  │
+                 │ NPZ/CSV → schema v1.1.0 JSON │
+                 └─────────────┬────────────────┘
                                │ scenario.json
 ┌──────────────────────────────▼───────────────────────────────┐
-│ app/          composition, loading, keyboard, error boundary  │
-│ components/   DOM UI (panels, timeline, charts, cinematic)    │
-│ state/        SimulationClock (authority) + Zustand mirror    │
+│ app/          hash router, loading, keyboard, error boundary  │
+│ components/   DOM UI (25 Hz SensorAnalyticsCards, zero-       │
+│               rerender useRef Timeline, charts, compare UI)   │
+│ state/        SimulationClock (authority) + throttled Zustand │
 │ scientific/   pure TS: types, geodesy, quaternions, sampler,  │
 │               clock, attitude, scenario validation            │
-│ scene/        R3F: Earth, atmosphere, stars, entities, trail, │
-│               camera director                                 │
-│ cinematic/    shot list and captions                          │
+│ scene/        R3F: Earth, atmosphere, stars, high-fidelity    │
+│               InstancedMesh entities, GLSL AeroPhysicsField,  │
+│               trail, camera director                          │
+│ compare/      registry, manifest, matching, Monte-Carlo 3D    │
+│               bundles & handover point clouds                 │
 └───────────────────────────────────────────────────────────────┘
 ```
 
@@ -27,12 +30,13 @@ Dependencies point downward: `scene`/`components` → `state`/`scientific`;
 
 `SimulationClock` (scientific/clock.ts) owns playback state. A `ClockDriver`
 inside the R3F canvas calls `clock.tick(delta)` once per frame; every visual
-consumer reads `simClock.time` during its own `useFrame`. UI text subscribes to
-a Zustand copy updated at 20 Hz. Seeks write the clock and the mirror in the
-same action. Consequences:
+consumer reads `simClock.time` during its own `useFrame`. `ClockDriver` skips
+Zustand sync while paused and throttles active playback mirroring to ~8 Hz
+(`125 ms`), while `Timeline.tsx` drives its playhead, slider, phase badge and
+mission clock directly via `useRef` + `rAF` + Zustand `subscribe`. Consequences:
 
-- camera, model, trail, HUD and charts share one time value;
-- playing does not trigger 60 Hz React renders;
+- camera, model, GLSL physics shaders, trail, HUD and charts share one time value;
+- playing triggers zero React tree re-renders on `Timeline` and throttled `25 Hz` offscreen `ImageData` redraws on `SensorAnalyticsCards`;
 - pause/scrub/step are frame-accurate.
 
 ## 3. Data flow at runtime
@@ -120,15 +124,14 @@ loader URL can become a query parameter (`?scenario=...`) without touching scene
 code. Additional entities can be added by extending `SceneEntity.kind` and the
 visual switch in `Entities.tsx`.
 
-## 8. V4 structure (bilingual academic site)
+## 8. V4+ structure (bilingual academic site & Compare Studio)
 
 ```
 src/
   app/
-    App.tsx           hash-router shell; academic routes vs. explorer
+    App.tsx           hash-router shell; academic routes + Compare Studio
     router.ts         "/", "/methodology", "/results", "/verification",
-                      "/resources", "/explore"
-    ExploreApp.tsx    the 3D application (mounts only at #/explore)
+                      "/resources", "/compare" (3D explorer lives at /interceptor-vision/)
   i18n/
     messages.ts       flat zh/en catalogue with {var} interpolation
     index.tsx         provider, persistence (localStorage), <html lang>, title
@@ -136,18 +139,16 @@ src/
     Layout.tsx        sticky academic header, nav, language switch, footer
     HomePage.tsx      hero, live metrics, capability grid, audit callout
     MethodologyPage.tsx / ResultsPage.tsx / VerificationPage.tsx /
-    ResourcesPage.tsx (legacy paths + audit docs + source links)
+    ResourcesPage.tsx / ComparePage.tsx
   scientific/
     astronomy.ts      NOAA solar + low-precision lunar ECEF directions
-    types.ts          schema 1.1.0 (fin deflection, body rates, experiment)
-  cinematic/shots.ts  independent 180 s presentation timeline
-  state/
-    cameraModes.ts    10 ordered modes (numeric hotkeys 1..0)
+    types.ts          schema 1.1.0 (fin deflection, body rates, aerothermal, IMM, decoys, fuze)
+  scene/
+    Entities.tsx      procedural 8.11 m scramjet interceptor + 15.7 m F-35A (InstancedMesh)
+    AeroPhysicsField.tsx  GLSL shock cone, blackbody heat & 3D X-Ray force vectors
 ```
 
-The explorer is mounted only on `#/explore`, so the academic pages never stream
-the 8K Earth texture. Vite `base: "./"` plus hash routing keeps deep links valid
-on GitHub Pages project sites.
+Vite `base: "./"` plus hash routing keeps deep links valid on GitHub Pages project sites.
 
 ### 8.1 Four cameras, one merged close-up
 

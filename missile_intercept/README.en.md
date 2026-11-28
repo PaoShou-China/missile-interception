@@ -38,33 +38,33 @@ A modular, testable and parallel hypersonic-interceptor simulation in pure Pytho
 | Item | Contents |
 |---|---|
 | Mission | Inland launch site → sea target at about 1990 km and 15.24 km altitude, head-on intercept |
-| Phases | Vertical cold launch → gravity-turn boost → constant-q midcourse cruise → ZEM/APN terminal |
-| Propulsion | Solid booster (13 s, 800 kg) + supersonic ramjet (Mach 1.6–10) |
-| Dynamics | 14-state rigid body (3 position + 3 velocity + 4 quaternion + 3 rate + 1 mass) |
-| Target | F-35A-class threat (3DOF point mass), Mach 1.6 constant-altitude cruise, 9 g weaving inside 15 km |
-| Navigation | INS prediction + 1 Hz GNSS, 12-state linear Kalman filter, 50 ms output delay |
-| Seeker | Dual-mode radar + imaging infrared, 5 ms measurement, ±20° FOV, 200 m blind zone |
-| Control | Three-loop PID (pseudo AoA → rate → virtual fin) + anti-windup + dynamic-pressure gain scheduling |
-| Integration | Native fixed-step RK4 + direction-aware event detection + bisection localisation |
-| Parallelism | `ProcessPoolExecutor` Monte-Carlo, reproducible with fixed seeds |
+| Phases | Vertical cold launch → gravity-turn boost (13 s discrete Stage-1 separation) → q_max/q_dot_max corridor midcourse → ZEM/APN terminal |
+| Propulsion & TPS | Solid booster (13 s, 800 kg, 95 kg casing jettison) + dual-mode scramjet (Mach 1.6–10, stoichiometric capture ceiling, Unstart hysteresis) + 1D transient thin-wall nose-cap TPS |
+| Dynamics | 14-state rigid body with Eckert compressible skin friction, inlet spillage drag, Hoerner base-drag relief, and live-CG damping |
+| Target & Countermeasures | F-35A-class threat (3DOF point mass), Mach 1.6, 60 km beaming turn, 9 g terminal weave + IR flare / radar chaff ejection |
+| Navigation & Tracking | 12-state strapdown GNSS/INS Kalman filter (50 ms delay) + Blom–Bar-Shalom 3-model IMM (CV + CA/Singer + 3D-CT) |
+| Seeker | Dual-mode X-band pulse-Doppler radar (360° VLO RCS + Doppler notch) + MWIR passive IR, ±30° FOV, 120 m blind zone, anti-decoy gate |
+| Control & Warhead | Scheduled three-loop PID + 32 Hz / ζ=0.7 2nd-order fin servos (>400 kPa hinge torque cap) + tail-fin NMP compensation + 3D directed-fragmentation proximity fuze |
+| Integration & Speedup | Fused zero-alloc nogil=True Numba RK4 & IMM kernels + phase-adaptive cruise stepping (5 / 10 / 20 ms) + direction-aware root bisection |
+| Parallelism & I/O | ProcessPoolExecutor / --threads, zero-alloc telemetry_profile=none, default binary telemetry.npz (--csv opt-in) |
 
-Current single-shot results (`output/telemetry.csv`, run of 2026-11-13):
+Current single-shot baseline (output/telemetry.npz, verified 2026-11-28):
 
 | Metric | Value |
 |---|---:|
-| Miss distance (10 ms telemetry sample) | **13.40 m** |
-| Miss distance (integrator event locator) | 7.94 m |
-| Intercept time | 676.47 s |
-| Peak speed / Mach | 3094.5 m/s / 9.48 |
-| Peak dynamic pressure | 881.3 kPa |
-| Peak altitude | 29.93 km |
-| Peak load factor | 20.0 g commanded / 10.6 g measured |
-| Downrange | 1846.3 km |
-| Handover time / downrange | 668.79 s / 1824.9 km |
-| Terminal duration | 7.67 s |
-| FOV exceedance | 6.4 % |
-| Propellant used | 1424.4 kg (solid 800 + ramjet about 664) |
-| Telemetry frames | 67 647 |
+| Miss distance (event locator) | **1.48 m** |
+| Proximity-fuze kill probability Pk | **99.5 %** (Carleton 98.5 %, 2.00 ms / 5.1 m standoff) |
+| Intercept time | 680.47 s |
+| Peak Earth-relative speed / Mach | 2734.7 m/s / Ma 9.19 |
+| Peak dynamic pressure (corridor-guarded) | 632.5 kPa |
+| Peak stagnation heat flux / transient wall temp | 5.49 MW/m² / 2282.1 K |
+| Peak altitude | 29.84 km |
+| Downrange | 1652.1 km |
+| Handover time / terminal duration | 672.32 s / 8.15 s |
+| Propellant used | 1425.7 kg |
+| Telemetry frames / columns | 53 673 × 152 (float64 .npz saved in 1.16 s) |
+| CPU time (full telemetry / zero-alloc batch) | **52.39 s** / **21.42 s** |
+| 48-case validation matrix (12 workers) | **6/6 PASS (45/48 = 93.8 %, 200.3 s)** |
 
 ---
 
@@ -72,64 +72,64 @@ Current single-shot results (`output/telemetry.csv`, run of 2026-11-13):
 
 ### 2.1 Requirements
 
-- Python 3.9+ (code keeps 3.6+ syntax compatibility)
+- Python 3.9+
 - NumPy 1.x / 2.x
-- Optional: SciPy (Sobol sampling), matplotlib (batch histograms), Numba (hot-path acceleration with automatic fallback)
+- Recommended: Numba (nogil fused RK4 & IMM hot-path acceleration with automatic pure-Python fallback), SciPy (Sobol sampling), matplotlib (batch histograms)
 - Tests: pytest, pytest-xdist
 
-```bash
-python -m pip install numpy scipy pytest pytest-xdist
-# optional
-python -m pip install numba matplotlib
-```
+`ash
+python -m pip install -r requirements.txt
+`
 
 ### 2.2 Single run
 
-```bash
+`ash
 cd missile_intercept
 
-python main.py                          # boost/terminal 5 ms, midcourse 10 ms
+python main.py                          # boost/terminal 5 ms, midcourse 10 ms, adaptive cruise 20 ms; saves telemetry.npz + 12-panel HTML
+python main.py --csv                    # also export telemetry.csv
+python main.py --no-adaptive-step       # disable adaptive 20 ms cruise widening
 python main.py --max-step 0.002         # finer boost/terminal step
 python main.py --midcourse-step 0.005   # midcourse back to 5 ms
 python main.py --duration 900           # set simulation end time
-python main.py --no-plot                # CSV only
+python main.py --no-plot                # skip HTML dashboard
 python main.py --converge               # step convergence + Richardson extrapolation
-```
+`
 
-At start-up `config.validate_data()` checks reference area, specific impulse, inertia, static stability margin, centre-of-gravity travel and other consistency conditions, and raises on failure.
+At start-up config.validate_data() checks reference area, specific impulse, inertia, static stability margin, centre-of-gravity travel and other consistency conditions, and raises on failure.
 
-### 2.3 Monte-Carlo campaign
+### 2.3 Validation & Monte-Carlo campaigns
 
-```bash
+`ash
+python validate_performance.py --workers 12 --no-plot    # 48-case 6-suite envelope validation (~200 s)
+python validate_performance.py --suite baseline --threads --workers 4 --no-plot
+python tools/miss_budget.py --quick --workers 6          # miss-distance error-budget ablation (~48 s)
+
 python main.py --batch 20 --workers 8
 python batch.py --cases 50 --workers 8 --seed 2026
-
-python batch.py --cases 50 \
-  --launch-cep 500 --target-cep 2000 \
-  --target-alt-sigma 500 --target-mach-sigma 0.05 \
-  --evade-g-sigma 1.0 --lethal-radius 10
-```
+python batch.py --cases 50 --threads --workers 8 --no-plot
+`
 
 ### 2.4 Tests and analysis
 
-```bash
-python -m pytest -n auto
+`ash
+python -m pytest -q                     # 103 passed (incl. Python/Numba isomorphism & NPZ tests)
 python verification.py
 python analysis.py sweep spec.json
 python analysis.py sobol spec.json --cases 64
 python analysis.py mc --checkpoint out.jsonl --resume
-```
+`
 
 ### 2.5 Outputs
 
 | Path | Contents |
 |---|---|
-| `output/telemetry.csv` | Full single-shot telemetry (132 columns by default, 10 ms per frame) |
-| `output/intercept_dashboard.html` | Six-panel interactive dashboard (Canvas, no front-end dependencies) |
-| `output/batch/batch_results.csv` | Per-case miss distance, intercept time, phase, CPU time |
-| `output/validation/` | Per-scenario performance validation report and summary |
-| `output/handover_diagnostics/` | Per-case handover diagnostics |
-| `intercept-report/` | Single-page HTML report data and page |
+| output/telemetry.npz | Compressed binary telemetry (152 float64 columns by default; add --csv to also write 	elemetry.csv) |
+| output/intercept_dashboard.html | 12-panel interactive dashboard (radar R-D, MWIR, 360° RCS polar, anti-decoy, IMM weights, B-Plane waterfall) |
+| output/batch/batch_results.csv | Per-case miss distance, intercept time, phase, CPU time |
+| output/validation/ | 48-case 6-suite performance validation report and summary |
+| output/miss_budget/ | Miss-distance ablation JSON/CSV consumed by B-Plane waterfall charts |
+| output/handover_diagnostics/ | Per-case handover diagnostics |
 
 ---
 

@@ -38,33 +38,33 @@
 | 项目 | 内容 |
 |---|---|
 | 任务 | 内陆发射点 → 约 1990 km 外、15.24 km 高度海上目标，迎头拦截 |
-| 弹道阶段 | 垂直冷发射 → 重力转弯助推 → 定动压中制导巡航 → ZEM/APN 末制导 |
-| 动力 | 固体助推（13 s、800 kg）+ 超燃冲压（Mach 1.6–10） |
-| 动力学 | 14 状态刚体（3 位置 + 3 速度 + 4 四元数 + 3 角速度 + 1 质量） |
-| 目标 | F-35A 级威胁（3DOF 质点），Mach 1.6 定高巡航，15 km 内 9 g 蛇形规避 |
-| 导航 | INS 预测 + 1 Hz GNSS，12 状态线性卡尔曼滤波，50 ms 输出延迟 |
-| 导引头 | 雷达 + 成像红外双模，5 ms 量测，±20° 视场，200 m 盲区 |
-| 控制 | 三回路 PID（伪攻角 → 角速率 → 虚拟舵偏）+ 抗饱和 + 动压增益调度 |
-| 积分 | 原生定步长 RK4 + 方向感知事件检测 + 二分定位 |
-| 并行 | `ProcessPoolExecutor` 多进程蒙特卡洛，固定种子可复现 |
+| 弹道阶段 | 垂直冷发射 → 重力转弯助推（13 s 离散级间分离）→ 热-动压走廊中制导 → ZEM/APN 末制导 |
+| 动力与热防护 | 固体助推（13 s、800 kg、95 kg 壳体分离）+ 双模态超燃冲压（Ma 1.6–10、化学计量进气上限、Unstart 滞回）+ 一维瞬态薄壁头罩气动热 |
+| 动力学 | 14 状态刚体（3 位置 + 3 速度 + 4 四元数 + 3 角速度 + 1 质量），含 Eckert 摩阻、溢流阻力与质心随动阻尼 |
+| 目标与对抗 | F-35A 级威胁（3DOF 质点），Ma 1.6、60 km 防御转向、15 km 内 9 g 蛇形规避 + 红外诱饵/雷达箔条抛射 |
+| 导航与跟踪 | 12 状态捷联 GNSS/INS 卡尔曼滤波（50 ms 延迟）+ Blom–Bar-Shalom 3 模型 IMM（CV + CA/Singer + 3D-CT） |
+| 导引头 | X 波段脉冲多普勒雷达（360° VLO RCS + 零多普勒陷波）+ MWIR 被动红外双模，±30° 视场，120 m 盲区，抗诱饵波门 |
+| 控制与战斗部 | 三回路调度 PID + 32 Hz / $\zeta=0.7$ 二阶机电舵机（>400 kPa 铰链限幅）+ 尾舵 NMP 补偿 + 三维定向破片近炸引信 |
+| 积分与加速 | 融合零分配 `nogil=True` Numba 多子步 RK4 + 阶段自适应巡航步长（5 / 10 / 20 ms）+ 方向感知事件二分定位 |
+| 并行与 I/O | `ProcessPoolExecutor` / `--threads` 线程池、零分配 `telemetry_profile="none"`、默认二进制压缩 `telemetry.npz`（`--csv` 按需导出） |
 
-当前单发结果（`output/telemetry.csv`，2026-11-13 运行）：
+当前单发标称结果（`output/telemetry.npz`，2026-11-28 验证基线）：
 
 | 指标 | 数值 |
 |---|---:|
-| 脱靶量（10 ms 遥测采样） | **13.40 m** |
-| 脱靶量（积分器事件定位） | 7.94 m |
-| 拦截时间 | 676.47 s |
-| 最大速度 / 马赫 | 3094.5 m/s / 9.48 |
-| 最大动压 | 881.3 kPa |
-| 最大高度 | 29.93 km |
-| 最大过载 | 20.0 g 指令 / 10.6 g 实测 |
-| 航程 | 1846.3 km |
-| 交班时间 / 距离 | 668.79 s / 1824.9 km |
-| 末制导时长 | 7.67 s |
-| 视场超界比例 | 6.4 % |
-| 推进剂消耗 | 1424.4 kg（固体 800 + 冲压约 664） |
-| 遥测帧数 | 67 647 |
+| 脱靶量（事件精确定位） | **1.48 m** |
+| 近炸引信毁伤概率 $P_k$ | **99.5 %**（Carleton 98.5 %，提前量 2.00 ms / 5.1 m） |
+| 拦截时间 | 680.47 s |
+| 最大地速 / 马赫 | 2734.7 m/s / Ma 9.19 |
+| 最大动压（走廊限幅后） | 632.5 kPa |
+| 峰值驻点热流 / 瞬态壁温 | 5.49 MW/m² / 2282.1 K |
+| 最大高度 | 29.84 km |
+| 地面投影航程 | 1652.1 km |
+| 交班时间 / 末制导时长 | 672.32 s / 8.15 s |
+| 推进剂消耗 | 1425.7 kg |
+| 遥测帧数 / 列数 | 53 673 帧 × 152 列（`float64` `.npz` 落盘 `1.16 s`） |
+| CPU 耗时（全遥测 / 批量零分配） | **52.39 s** / **21.42 s** |
+| 48 例全包线验证矩阵（12 核） | **6/6 PASS（45/48 = 93.8 %，200.3 s）** |
 
 ---
 
@@ -72,15 +72,13 @@
 
 ### 2.1 环境
 
-- Python 3.9+（代码保留 3.6+ 语法兼容）
+- Python 3.9+
 - NumPy 1.x / 2.x
-- 可选：SciPy（Sobol 采样）、matplotlib（批量直方图）、Numba（热路径加速，不可用时自动回退）
+- 推荐：Numba（融合 `nogil` RK4 & IMM 热路径加速，不可用时自动回退纯 Python）、SciPy（Sobol 采样）、matplotlib（批量直方图）
 - 测试：pytest、pytest-xdist
 
 ```bash
-python -m pip install numpy scipy pytest pytest-xdist
-# 可选
-python -m pip install numba matplotlib
+python -m pip install -r requirements.txt
 ```
 
 ### 2.2 单发仿真
@@ -88,32 +86,34 @@ python -m pip install numba matplotlib
 ```bash
 cd missile_intercept
 
-python main.py                          # 助推/末段 5 ms，中制导 10 ms
+python main.py                          # 默认：助推/末段 5 ms，中制导 10 ms，纯巡航自适应 20 ms；输出 telemetry.npz + 12 面板 HTML
+python main.py --csv                    # 同步导出 telemetry.csv
+python main.py --no-adaptive-step       # 关闭中制导巡航自适应步长（固定 10 ms）
 python main.py --max-step 0.002         # 更细的助推/末段步长
 python main.py --midcourse-step 0.005   # 中制导回到 5 ms
 python main.py --duration 900           # 设置仿真结束时间
-python main.py --no-plot                # 只输出 CSV
-python main.py --converge               # 步长收敛 + Richardson 外推
+python main.py --no-plot                # 跳过 HTML 仪表盘
+python main.py --converge               # 步长收敛 + Richardson 外推（自动固定步长、零噪声）
 ```
 
 启动时自动执行 `config.validate_data()`，检查参考面积、比冲、惯量、静稳定裕度、质心行程等一致性条件，不通过则抛异常。
 
-### 2.3 蒙特卡洛打靶
+### 2.3 蒙特卡洛打靶与全包线验证
 
 ```bash
+python validate_performance.py --workers 12 --no-plot     # 48 例全包线 6 套件验证（零分配模式，~200 s）
+python validate_performance.py --suite baseline --threads --workers 4 --no-plot  # 无 GIL 线程池模式
+python tools/miss_budget.py --quick --workers 6           # 误差归因消融诊断（~48 s）
+
 python main.py --batch 20 --workers 8
 python batch.py --cases 50 --workers 8 --seed 2026
-
-python batch.py --cases 50 \
-  --launch-cep 500 --target-cep 2000 \
-  --target-alt-sigma 500 --target-mach-sigma 0.05 \
-  --evade-g-sigma 1.0 --lethal-radius 10
+python batch.py --cases 50 --threads --workers 8 --no-plot
 ```
 
 ### 2.4 测试与分析
 
 ```bash
-python -m pytest -n auto
+python -m pytest -q                     # 103 passed（含 Python/Numba 双路径同构与 .npz 单测）
 python verification.py
 python analysis.py sweep spec.json
 python analysis.py sobol spec.json --cases 64
@@ -124,12 +124,12 @@ python analysis.py mc --checkpoint out.jsonl --resume
 
 | 路径 | 内容 |
 |---|---|
-| `output/telemetry.csv` | 单发全量遥测（默认 132 列，10 ms 一帧） |
-| `output/intercept_dashboard.html` | 六面板交互仪表盘（Canvas，无前端依赖） |
+| `output/telemetry.npz` | 单发全量二进制压缩遥测（默认 152 列 `float64`，读写提速 15×–20×；`--csv` 可选同时导出 `telemetry.csv`） |
+| `output/intercept_dashboard.html` | 12 面板交互仪表盘（含雷达 R-D、MWIR、360° RCS 极坐标、抗诱饵、IMM 权重、B-Plane 瀑布图，无前端依赖） |
 | `output/batch/batch_results.csv` | 逐算例脱靶量、拦截时间、阶段、CPU 时间等 |
-| `output/validation/` | 分场景性能验证报告与汇总 |
+| `output/validation/` | 48 例 6 套件性能验证报告与汇总 |
+| `output/miss_budget/` | 误差归因消融矩阵（供前端/仪表盘 B-Plane 瀑布图消费） |
 | `output/handover_diagnostics/` | 逐案交班诊断 |
-| `intercept-report/` | 单页 HTML 技术报告数据与页面 |
 | `output/experiments/` | 对比实验代表算例的全量遥测（供 Web 适配器导出） |
 
 ### 2.6 对比实验开关

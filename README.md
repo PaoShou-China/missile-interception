@@ -33,22 +33,20 @@
 
 | Part | Purpose |
 | --- | --- |
-| **`missile_intercept/`** | Python/NumPy 6DOF simulator: boost → midcourse → handover → terminal, sensors, guidance, control, Monte-Carlo campaigns |
-| **`aerospace-vision-web/`** | React 19 + Vite + Three.js + ECharts platform: academic site, 3D explorer, cinematic mode, **Experiment Configuration Studio** |
-| **`interceptor-vision/`** | Blender + Three.js interceptor visualisation demo; it is now the site's "3D explorer" entry (legacy explorer kept at `#/explore-legacy`) |
+| **`missile_intercept/`** | Python/NumPy/Numba 6DOF simulator: vertical cold launch, discrete Stage-1 separation, scramjet propulsion (with stoichiometric capture & Unstart hysteresis), 1D transient TPS, dual-mode X-band radar + MWIR seeker, flare/chaff countermeasures, 3-model IMM tracker, 2nd-order hinge-moment fin servos, proximity fuze lethality, and parallel Monte-Carlo / validation campaigns |
+| **`aerospace-vision-web/`** | React 19 + Vite + Three.js + ECharts platform: bilingual academic site, 3D orbital/close-up replay with GLSL shock cone / blackbody heat / X-Ray force vectors, dual-mode sensor analytics, and **Experiment Configuration Studio** (`#/compare`) with Monte-Carlo 3D trajectory bundles |
+| **`interceptor-vision/`** | Dedicated Three.js + Blender 3D tactical explorer (the site's primary 3D entry): high-fidelity scramjet interceptor & F-35A meshes, GLSL Mach-diamond plumes, real-time 25 Hz radar R-D / MWIR / RCS polar / B-Plane waterfall `SeekerOverlay`, X-Ray physics overlay, semantic event timeline + `0.1×` bullet-time, and in-browser 6-DoF terminal solver |
 | **`docs/experiments/`** | Paired Monte-Carlo campaigns: guidance-law, boost-law, attitude-control and architecture comparisons |
-| **Legacy reports** | The original static HTML overview / intercept analysis / test report, preserved at their original URLs |
 
 ### Aerospace Vision Web at a glance
 
 - **Four cameras**: Earth overview, chase, intercept framing, and one merged **close-up** that
-  shows tail fins, nozzle/plume and body axes together (the former fin/engine/attitude
-  cameras were merged).
-- **Real telemetry only**: 1,504 samples over 672.75 s from the source run; no procedural
-  pose and no altitude exaggeration.
+  shows tail fins, nozzle/plume, GLSL shock cone, blackbody nose-cap heating, and 3D X-Ray force vectors + live CG/CP markers.
+- **Real telemetry only**: **1,509 samples** over **680.47 s** (1,652.1 km downrange, 29.84 km apogee, 632.5 kPa max q, 5.49 MW/m² peak heat flux, 2,282 K transient wall temp, **1.48 m** miss, **99.5%** proximity-fuze $P_k$) converted directly from binary `telemetry.npz` (`53,673 × 152` float64 rows); no procedural pose and no altitude exaggeration.
 - **Experiment Configuration Studio** (`#/compare`): choose Guidance / Attitude control /
-  Vehicle / Scenario for A and B, press Compare, and load only real records. Unsupported
+  Vehicle / Scenario for A and B, press Compare, and load only real records alongside 3D Monte-Carlo trajectory bundles & handover point clouds (`InstancedMesh`). Unsupported
   combinations show `No Available Experiment`; nothing is fabricated.
+- **Semantic event timeline & `0.1×` bullet-time**: clickable anchors for booster separation, max dynamic pressure, inlet unstart, decoy ejection, handover and intercept, plus shareable `?t=&view=&compare=` deep links.
 - **Paired campaign statistics**: hit rate, median/P90/max miss, handover range/energy,
   boost-end state and fin saturation, with deltas only when definitions and conditions match.
 - **Earth realism**: bump-mapped WGS84 surface, ocean sun-glint shader, layered clouds,
@@ -58,7 +56,7 @@
 - **Static deployment**: GitHub Pages, no backend.
 
 **Live platform:** https://paoshou-china.github.io/missile-interception/
-· **Legacy report index:** https://paoshou-china.github.io/missile-interception/legacy/
+· **3D Explorer:** https://paoshou-china.github.io/missile-interception/interceptor-vision/
 
 ## Guidance, control and comparison matrix
 
@@ -91,42 +89,40 @@ a 4-case-per-law quick campaign captured on 2026-11-21 plus a 24-case architectu
 The offline driver `missile_intercept/tools/guidance_comparison.py` can rerun larger
 campaigns; its output changes when rerun, while the web copy is explicit and frozen.
 
-## Online reports
+## Online entry points
 
-| Report | Contents | Link |
+| Entry | Contents | Link |
 | --- | --- | --- |
-| **Aerospace Vision platform** | Academic site, 3D explorer, cinematic mode, configuration studio | [Open →](https://paoshou-china.github.io/missile-interception/) |
-| **Project overview (legacy)** | Interactive walk-through: trajectory, energy, handover, key metrics | [Open →](https://paoshou-china.github.io/missile-interception/missile-intercept-overview/missile-intercept-overview.html) |
-| **Intercept analysis (legacy)** | Altitude/Mach, LOS rates, miss distance, Monte-Carlo statistics | [Open →](https://paoshou-china.github.io/missile-interception/intercept-report/intercept-report.html) |
-| **Full-flow test report (legacy)** | Subsystem and end-to-end verification summary | [Open →](https://paoshou-china.github.io/missile-interception/test-report/missile_interceptor_test_report.html) |
+| **Aerospace Vision platform** | Bilingual academic site, results/sensor analytics, **Experiment Configuration Studio** (`#/compare`) | [Open →](https://paoshou-china.github.io/missile-interception/) |
+| **Interceptor Vision (3D Explorer)** | Tactical 3D replay, GLSL shock cone / X-Ray vectors, 25 Hz dual-mode `SeekerOverlay`, live 6-DoF terminal solver | [Open →](https://paoshou-china.github.io/missile-interception/interceptor-vision/) |
 
 ## Repository layout
 
 ```
 .
-├── missile_intercept/            # Python 6DOF simulator
-│   ├── main.py                   # single run; --boost/--midcourse/--terminal/--control-law
-│   ├── batch.py                  # Monte-Carlo campaigns (paired case ids, dispersion)
+├── missile_intercept/            # Python/Numba 6DOF simulator
+│   ├── main.py                   # single run; --csv / --no-adaptive-step / law switches
+│   ├── fastcore.py               # nogil Numba kernels (fused RK4, 3-model IMM, aero, servos)
+│   ├── batch.py                  # Monte-Carlo campaigns (multiprocess & --threads)
+│   ├── validate_performance.py   # 48-case 6-suite envelope validation matrix
 │   ├── config.py                 # all parameters and comparison switches
 │   ├── guidance/                 # boost, Bezier/PIP midcourse, ZEM/APN, pure PN, handover
-│   ├── control/                  # scheduled autopilot, classic PID, fin mixer, thrust
-│   ├── sensors/                  # IMU, GNSS/INS, seeker, target tracker
-│   ├── vehicle/                  # atmosphere, aerodynamics, target, wind
-│   ├── tools/                    # tuning, diagnostics, guidance/architecture campaigns
-│   └── tests/                    # pytest suite
-├── aerospace-vision-web/         # React + Three.js + ECharts platform
+│   ├── control/                  # scheduled autopilot, classic PID, 2nd-order fin mixer, thrust
+│   ├── sensors/                  # IMU, 12-state GNSS/INS, dual-mode seeker, 3-model IMM tracker
+│   ├── vehicle/                  # atmosphere, hypersonic aero/TPS, scramjet, target, warhead/fuze, wind
+│   ├── tools/                    # DATCOM, miss_budget ablation, UQ, tuning, comparison campaigns
+│   └── tests/                    # 103 pytest checks (incl. Python/Numba 1e-11 isomorphism)
+├── aerospace-vision-web/         # React 19 + Three.js + ECharts academic portal & Compare Studio
 │   ├── src/                      # scientific, scene, state, components, compare, pages
 │   ├── public/data/              # explorer payload, experiment registry, campaign stats
-│   ├── schemas/                  # scenario and comparison manifest schemas
-│   ├── tests/                    # Vitest unit + Playwright E2E
-│   └── docs/                     # architecture, comparison, acceptance, science notes
+│   ├── tools/data-adapter/       # NPZ/CSV -> scenario.json builder + 11-check validator
+│   ├── tests/                    # 66 Vitest unit + Playwright E2E
+│   └── docs/                     # architecture, comparison, acceptance, scientific status
+├── interceptor-vision/           # Three.js + Blender 3D tactical explorer & 6-DoF terminal solver
 ├── docs/experiments/             # generated campaigns and reports (CSV/JSON/MD/PNG)
-├── intercept-report/             # legacy intercept analysis (HTML)
-├── missile-intercept-overview/   # legacy project overview (HTML)
-├── test-report/                  # legacy full-flow test report (HTML)
 ├── assets/                       # README figures
-├── TECHNICAL_REPORT.md           # Chinese technical report
-└── index.html                    # GitHub Pages landing page
+├── TECHNICAL_REPORT.md           # Chinese technical report (subsystems, equations, benchmarks)
+└── CHANGELOG.md                  # release history
 ```
 
 ## Quick start
@@ -137,17 +133,17 @@ campaigns; its output changes when rerun, while the web copy is explicit and fro
 cd missile_intercept
 python -m pip install -r requirements.txt
 
-python main.py                 # nominal: feasible boost + Bezier + ZEM/APN + scheduled
-python main.py --no-plot      # telemetry CSV only
+python main.py                                    # nominal run -> telemetry.npz + 12-panel HTML (~52 s)
+python main.py --csv                              # also export telemetry.csv
+python validate_performance.py --workers 12 --no-plot   # 48-case 6-suite envelope matrix (~200 s)
+python tools/miss_budget.py --quick --workers 6   # error-budget ablation (~48 s)
 
 # Comparison switches
 python main.py --boost-law fixed_rate --control-law classic_pid --no-plot
 python main.py --midcourse-law pip_pn --terminal-law pn --no-plot
 
-# Monte-Carlo campaign
+# Monte-Carlo & paired comparison campaigns
 python batch.py --cases 24 --workers 8 --seed 2026
-
-# Paired comparison campaigns
 python tools/guidance_comparison.py --cases 24 --seed 2026
 python tools/architecture_comparison.py --cases 24 --seed 2026
 ```
@@ -165,11 +161,11 @@ npm run build      # production bundle in dist/
 npm run preview    # serve dist/ on :4173
 ```
 
-Regenerate the explorer payload from simulator telemetry:
+Regenerate and verify the explorer payload from binary `telemetry.npz` (takes `< 1 s`):
 
 ```bash
-cd aerospace-vision-web
-python tools/data-adapter/build_scenario.py
+python aerospace-vision-web/tools/data-adapter/build_scenario.py
+python aerospace-vision-web/tools/data-adapter/verify_scenario.py
 ```
 
 Export one paired campaign case with full telemetry (for a new B record):
@@ -179,16 +175,18 @@ cd missile_intercept
 python tools/export_campaign_case.py --law bezier_zem_apn --out output/experiments/example
 ```
 
-## Verification snapshot
+## Verification snapshot (2026-11-28)
 
 | Area | Result |
 | --- | --- |
-| Python guidance/control/integration | 45 passed |
-| Web unit/scientific (Vitest) | 66 passed (9 files) |
-| Chromium E2E | 16 passed, 60.2 FPS on Intel UHD |
-| WebKit E2E | camera/comparison suites pass; FPS gate runs on Chromium only |
-| Payload integrity | all shipped scenario payloads pass the adapter checks |
-| Narrow screen | 390×844 layout verified (font sizes, pane heights, table scrolling) |
+| Backend 6DOF & Python/Numba isomorphism (`missile_intercept`, pytest) | **103 passed** |
+| Root provenance/traceability tests (`tests/`, pytest) | **36 passed** |
+| 48-case performance envelope matrix (`validate_performance.py`, 12 workers) | **6/6 suites PASS (45/48 = 93.8 %, 200.3 s)** |
+| Nominal 6DOF intercept (`main.py`, 152-col `.npz`) | **1.48 m** miss @ 680.47 s (`Pk(fuze) = 99.5 %`) |
+| Scenario data contract (`verify_scenario.py`) | **11/11 PASS** (float64 quaternion err `6.19e-12`) |
+| Web unit/scientific (`aerospace-vision-web`, Vitest) | **66 passed** (9 files) + production build PASS |
+| 3D explorer validators (`interceptor-vision`) | **28/28 aero**, **12/12 6-DoF** + production build PASS |
+| Chromium E2E / narrow screen | 16 passed, 60.2 FPS on Intel UHD; 390×844 verified |
 
 What is **not** claimed: independent scientific validation of every new law, a full-factorial
 campaign, statistical equivalence between campaigns, or mobile GPU performance parity.

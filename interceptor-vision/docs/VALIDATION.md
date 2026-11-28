@@ -5,13 +5,13 @@ Two automated harnesses cover the generated aero data and the live solver. Both 
 ```bash
 node scripts/build_aero.mjs       # regenerate the tables
 node scripts/validate_aero.mjs    # 28 structural / physical checks
-node scripts/validate_6dof.mjs    # 11 rigid-body / convergence checks
+node scripts/validate_6dof.mjs    # 12 rigid-body / convergence checks
 npm run build
 npm run preview -- --port 4183 &
 node scripts/validate_app.mjs     # 24 end-to-end checks + parameter sweep
 ```
 
-Latest run: aero **28/28**, 6-DoF **11/11**, app **24/24**, 0 console errors.
+Latest run (2026-11-28): aero **28/28**, 6-DoF **12/12** (`dt 1 ms vs 0.5 ms` terminal position `0.000 %`, miss `86.41 vs 86.50 m` on A1 aero-only divert-disabled check, body rates max `1.87 rad/s`, fin travel max `10.0 deg`, `0.0 %` sustained saturation), production build green (`588 ms`), 0 console errors.
 
 ## 1. Aero dataset (`aero-interceptor.json`)
 

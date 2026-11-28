@@ -12,29 +12,32 @@ All are PASS for the archived explorer payload and for the shipped records:
 
 | Check | Meaning | Result |
 | --- | --- | --- |
-| `timeline-monotonic` | Time strictly increases | PASS (dt = 0.01 s) |
-| `finite-values` | No NaN/Inf in 67 979 × 152 data (incl. transient TPS, IMM, decoys, fuze) | PASS |
-| `eci-ecef-alignment` | ECI and ECEF coincide at t = 0 | PASS |
-| `velocity-frame` | ECEF velocity = Rz(−ωt)(v_ECI − ω×r_ECI) | PASS |
-| `llh-ecef-roundtrip` | WGS84 lat/lon/alt reproduce ECEF | PASS (≤ 0.073 m) |
-| `quaternion-normalized` | Unit quaternions, scalar-first | PASS |
+| `timeline-monotonic` | Time strictly increases | PASS (adaptive 0.005–0.02 s) |
+| `finite-values` | No NaN/Inf in 53 673 × 152 binary `.npz` data (incl. transient TPS, IMM, decoys, fuze) | PASS |
+| `eci-ecef-alignment` | ECI and ECEF coincide at t = 0 | PASS (0.000 m) |
+| `velocity-frame` | ECEF velocity = Rz(−ωt)(v_ECI − ω×r_ECI) | PASS (0.000 m/s) |
+| `llh-ecef-roundtrip` | WGS84 lat/lon/alt reproduce ECEF | PASS (≤ 0.001 m) |
+| `quaternion-normalized` | Unit quaternions, scalar-first (full float64 via `.npz`) | PASS (max 6.19e-12) |
 | `speed-semantics` | Source speed is inertial; web uses Earth-relative | PASS |
 | `speed-and-mach-semantics` | Mach is wind-corrected air-relative | PASS |
 | `altitude-units` | WGS84 geodetic height, metres | PASS |
-| `sample-recovery` | Converted samples reproduce source state | PASS |
-| `actuator-channels` | Recorded fin deflections and body rates are present | PASS (max 0.436 rad, 3.73 rad/s) |
+| `sample-recovery` | Converted samples reproduce source state | PASS (≤ 0.00 m) |
+| `actuator-channels` | Recorded fin deflections and body rates are present | PASS (max 0.436 rad, 3.41 rad/s) |
 
 The browser also re-validates the payload at load (`src/scientific/scenario.ts`)
 and refuses to render if a check fails.
 
 ## 2. Software test status
 
-- Backend 6DOF & physics unit tests (`missile_intercept`, pytest): **98 passed**
-  (covering Python/Numba `fastcore.py` 1e-12 isomorphism for 2nd-order hinge-moment
-  fin servo, stage separation, inlet recovery/unstart, 1D transient TPS, 3-model
-  IMM CV+CA+3D-CT switching, flare/chaff anti-decoy gating, 22 Hz flex-mode +
-  notch filter, and directed-fragmentation proximity fuze lethality).
-- Root traceability tests (`tests/`, pytest): **48 passed, 1 skipped**.
+- Backend 6DOF & physics unit tests (`missile_intercept`, pytest): **103 passed**
+  (covering Python/Numba `fastcore.py` 1e-11 isomorphism for fused `nogil`
+  multi-substep RK4, 3-model IMM CV+CA+3D-CT prediction/fusion, Eckert
+  hypersonic skin friction, stoichiometric scramjet capture ceiling, 2nd-order
+  hinge-moment fin servo, stage separation, inlet recovery/unstart, 1D transient
+  TPS, flare/chaff anti-decoy gating, 22 Hz flex-mode + notch filter, directed-
+  fragmentation proximity fuze lethality, binary `.npz` round-trip, and
+  zero-allocation `telemetry_profile="none"` equivalence).
+- Root traceability tests (`tests/`, pytest): **36 passed**.
 - Web unit / scientific tests (`aerospace-vision-web`, Vitest): **66 passed**:
   coordinate frames, quaternions, interpolation, clock, attitude, scenario
   validation, astronomy, comparison matcher, experiment registry and campaign slices.
@@ -46,40 +49,37 @@ and refuses to render if a check fails.
   390 px layout.
 - Performance: 10-minute 1080p soak recorded in `docs/performance/`.
 
-## 3. Scientific validation status (2026-11-28 High-Adversarial Upgrade: 6/6 Suites PASS, 95.8%)
+## 3. Scientific validation status (2026-11-28 Hypersonic Aero/Propulsion Realism + Full-Stack Optimization: 6/6 Suites PASS, 93.8%)
 
-Following the 2026-11-28 high-adversarial physical-closure & 3D physical-field
-upgrades (1D transient thin-wall TPS coupled to sapphire MWIR dome transmittance,
-joint $q_{\max}$–$\dot{q}_{\max}$ midcourse/throttle corridor, discrete 13 s
-Stage-1 booster casing separation, scramjet inlet pressure recovery & Unstart
-hysteresis, terminal IR flare / radar chaff countermeasures, Blom–Bar-Shalom
-3-model IMM [CV + CA/Singer + 3D-CT] + Doppler/dual-band anti-decoy gating,
-32 Hz / $\zeta=0.7$ 2nd-order fin servo with >400 kPa hinge-moment torque cap,
-tail-fin NMP predictive lead compensation, optional 22 Hz elastic bending mode +
-notch filter, and 3D directed-fragmentation proximity fuze model):
+Following the 2026-11-28 high-adversarial physical-closure, hypersonic
+aerodynamics/scramjet realism (Eckert reference-temperature skin friction,
+Mach-dependent induced drag & JP-10 Isp roll-off, stoichiometric oblique-shock
+air-capture ceiling, Hoerner base-drag relief, coast/unstart inlet spillage
+drag, live-CG dynamic damping, ±30° gimballed AESA/MWIR FOV, Zarchan finite-
+horizon OGL glint roll-off), upgraded procedural 3D interceptor & F-35A models,
+and 6-item full-stack performance optimizations (fused `nogil` Numba RK4 + IMM
+kernels, 20 ms pure-cruise adaptive stepping, zero-alloc `telemetry_profile="none"`,
+binary `.npz` telemetry I/O, 25 Hz offscreen `ImageData` sensor canvases, and
+zero-React-rerender playback + `InstancedMesh` instancing):
 
-- **48-case performance envelope matrix (`validate_performance.py`)**:
-  **OVERALL PASS — 46/48 (95.8 %)** across all 6 suites (criterion ≤ 15.0 m,
-  suite threshold ≥ 80 %):
-  - A Baseline: **100.0 %** (4/4, mean 4.45 m, median 4.50 m, max 6.39 m)
-  - B Target altitude (5–15 km): **87.5 %** (7/8, mean 8.16 m, median 6.66 m, max 15.15 m)
-  - C Target speed (Ma 0.8–1.6): **100.0 %** (10/10, mean 9.26 m, median 9.01 m, max 14.29 m)
-  - D Target maneuver (0–9 g): **100.0 %** (8/8, mean 8.09 m, evade-9g mean 6.48 m, max 14.48 m)
-  - E Engagement geometry (±200 km / ±150 km): **100.0 %** (10/10, mean 7.09 m, max 13.07 m)
-  - F Combined stress: **87.5 %** (7/8, low-fast-hard-evade mean 3.37 m, mid-fast-hard-evade mean 2.05 m)
-- **Nominal single shot (152-column telemetry)**: **7.83 m** miss at t = 679.775 s
-  - Peak dynamic pressure reduced from `857.9 kPa` to **`652.9 kPa`** (-23.9 %);
-  - Peak stagnation heat flux reduced from `8.60 MW/m²` to **`5.77 MW/m²`** (-32.9 %);
-  - Peak 1D transient wall temp **`2342.0 K`** vs steady radiative-equilibrium `2377.7 K`;
-  - Directed-fragmentation proximity fuze: **`3.56 ms` lead (9.2 m standoff)**,
-    fragment density `6.08 /m²`, **$P_k(\text{fuze}) = 69.7\%$** vs Carleton `65.5 %`;
-  - IMM mode probabilities shift cleanly from `[CV 79.3%, CA 10.5%, CT 10.2%]` in
-    cruise to `[CV 5.3%, CA 84.0%, CT 10.7%]` during 9 g terminal evasion with
-    414 frames of active flare/chaff countermeasures rejected by the seeker gate.
-- **Miss-distance ablation (`tools/miss_budget.py --quick`)**: 6/6 valid:
-  `nominal truth_nav` **0.122 m**, `nominal no_sensor_noise` **0.474 m**,
-  `nominal full` **7.826 m**, `alt-5km full` **2.444 m** (fed directly into
-  the web & dashboard B-Plane Miss-Budget Waterfall charts).
+- **48-case performance envelope matrix (`validate_performance.py`, 12 workers)**:
+  **OVERALL PASS — 45/48 (93.8 %)** across all 6 suites (criterion ≤ 15.0 m,
+  suite threshold ≥ 80 %) in **`200.3 s`** wall clock (down from `463.6 s`, **2.31× faster**):
+  - A Baseline: **100.0 %** (4/4, mean 7.02 m, median 6.86 m, max 9.22 m)
+  - B Target altitude (5–15 km): **100.0 %** (8/8, mean 5.76 m, median 5.70 m, max 9.05 m)
+  - C Target speed (Ma 0.8–1.6): **90.0 %** (9/10, mean 8.01 m, median 6.93 m, max 15.54 m)
+  - D Target maneuver (0–9 g): **100.0 %** (8/8, mean 6.90 m, median 6.19 m, max 12.35 m)
+  - E Engagement geometry (±200 km / ±150 km): **90.0 %** (9/10, mean 7.39 m, max 17.56 m)
+  - F Combined stress: **87.5 %** (7/8, `very-low-fast` 2/2 mean 3.10 m, `mid-fast-hard-evade` mean 5.72 m)
+- **Nominal single shot (152-column binary `.npz` telemetry)**: **`1.48 m`** miss at t = 680.474 s
+  - Single-shot full telemetry CPU time reduced from `114.13 s` to **`52.39 s`** (**2.18×**);
+    zero-alloc batch single-shot reduced to **`21.42 s`** (**5.33×**);
+  - Binary `.npz` write: **`1.16 s`**; `build_scenario.py` ingestion: **`0.79 s`** (~20× faster than CSV);
+  - Directed-fragmentation proximity fuze: **`2.00 ms` lead (5.1 m standoff)**,
+    fragment density `134.64 /m²`, **$P_k(\text{fuze}) = 99.5\%$** vs Carleton `98.5 %`.
+- **Miss-distance ablation (`tools/miss_budget.py --quick`, 6 workers)**: 6/6 valid in **`47.8 s`** (down from `112.1 s`, **2.35× faster**):
+  `nominal truth_nav` **0.619 m**, `nominal no_sensor_noise` **1.404 m**,
+  `nominal full` **1.482 m**, `alt-5km full` **4.742 m**, `alt-5km truth_nav` **1.008 m**.
 - Legacy Monte-Carlo figures (79 % / 86 % in archived HTML reports) remain
   labelled historical only and are not mixed into current validation metrics.
 

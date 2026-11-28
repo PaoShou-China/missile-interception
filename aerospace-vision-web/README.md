@@ -5,20 +5,17 @@ Browser-native, scientifically grounded 3D replay and experiment comparison for 
 React 19 + Vite + Three.js + ECharts, no backend, no game engine, no plugins.
 
 **Live:** https://paoshou-china.github.io/missile-interception/
-· **Legacy report:** https://paoshou-china.github.io/missile-interception/legacy/
+· **3D Explorer:** https://paoshou-china.github.io/missile-interception/interceptor-vision/
 
 ## What the platform contains
 
 | Route | Purpose |
 | --- | --- |
-| `#/` | Bilingual Beihang-style academic site: overview, method, results, verification, resources |
-| `#/explore` | 3D explorer: real telemetry replay, live telemetry, charts, cinematic mode |
-| `#/compare` | **Experiment Configuration Studio**: configure A/B from the real registry and compare |
+| `#/` | Bilingual Beihang-style academic site: overview, method, results (incl. 25 Hz dual-mode `SensorAnalyticsCards` & B-Plane waterfall), verification, resources |
+| `/interceptor-vision/` | Dedicated 3D tactical explorer (primary "Launch 3D Explorer" target): high-fidelity scramjet interceptor & F-35A meshes, GLSL shock cone & X-Ray force vectors, 25 Hz `SeekerOverlay`, `0.1×` bullet-time, live 6-DoF terminal solver |
+| `#/compare` | **Experiment Configuration Studio**: configure A/B from the real registry, compare 3D trajectories + Monte-Carlo trajectory bundles & handover point clouds (`InstancedMesh`) |
 
-The explorer scenario is the archived validated payload: **1,504 samples** over
-**672.75 s**, 1,655.4 km downrange, 29.90 km apogee, 872.7 kPa max dynamic pressure,
-26.73 m logged closest approach. No pose animation is procedural; all motion comes from
-the telemetry arrays.
+The shipped nominal scenario is the verified 2026-11-28 payload converted directly from binary `telemetry.npz` (`53,673 × 152` float64 rows in `0.79 s`): **1,509 samples** over **680.47 s**, 1,652.1 km downrange, 29.84 km apogee, 632.5 kPa max dynamic pressure, 5.49 MW/m² peak heat flux, 2,282.1 K peak transient nose-cap wall temp, **1.48 m** closest approach, and **99.5%** proximity-fuze $P_k$. No pose animation is procedural; all motion comes from the telemetry arrays.
 
 ## Experiment Configuration Studio
 
@@ -103,21 +100,22 @@ On Windows without bundled Chromium, set `PW_CHANNEL=msedge` to use an installed
 ### Data pipeline
 
 ```
-telemetry.csv ──► tools/data-adapter/build_scenario.py ──► scenario.json
-                   (frames, units, checks, provenance)          │
-                                                                ▼
+telemetry.npz (or .csv) ──► tools/data-adapter/build_scenario.py ──► scenario.json
+                             (frames, units, 11 checks, provenance)       │
+                                                                          ▼
    src/scientific (types, geodesy, quaternion, interpolate, clock, attitude)
-   src/state      (one SimulationClock + throttled Zustand mirror)
-   src/scene      (Earth, atmosphere, stars, Sun/Moon, vehicle, trajectory, cameras)
-   src/components (mission, telemetry, charts, timeline, camera dock)
-   src/compare    (registry, manifest, matching, charts, 3D compare scene)
+   src/state      (one SimulationClock + throttled ~8 Hz Zustand mirror)
+   src/scene      (Earth, atmosphere, stars, Sun/Moon, InstancedMesh vehicles, GLSL AeroPhysicsField)
+   src/components (25 Hz SensorAnalyticsCards, zero-rerender useRef Timeline, charts, camera dock)
+   src/compare    (registry, manifest, matching, charts, Monte-Carlo 3D bundles & point clouds)
    src/pages      (academic pages, compare studio)
 ```
 
-Regenerate the explorer payload:
+Regenerate and verify the explorer payload (`< 1 s` from `.npz`):
 
 ```bash
 python tools/data-adapter/build_scenario.py
+python tools/data-adapter/verify_scenario.py
 ```
 
 Export one paired campaign case with full telemetry (for a new B record):
@@ -129,23 +127,22 @@ python tools/export_campaign_case.py --law bezier_zem_apn \
   --out output/experiments/example
 ```
 
-## Validation and current status
+## Validation and current status (2026-11-28)
 
 ```
-$ npm test                   66 passed (9 files)
-$ playwright chromium        16 passed, 60.2 FPS (Intel UHD, D3D11)
-$ playwright webkit          camera/comparison suites pass; FPS gate is Chromium-only
-$ build_scenario checks      all shipped payloads PASS
+$ npm test                          66 passed (9 files)
+$ npm run build                     PASS (tsc -b && vite build)
+$ python verify_scenario.py         11/11 PASS (miss 1.482 m @ 680.47 s, quat err 7.79e-10)
+$ playwright chromium               16 passed, 60.2 FPS (Intel UHD, D3D11)
+$ playwright webkit                 camera/comparison suites pass; FPS gate is Chromium-only
 ```
 
 **Truthful limits**
 
-- Only one fully validated historical telemetry shot exists; newer comparison runs pass
-  payload-integrity checks but have **NOT RUN** independent scientific validation.
+- The nominal single-shot payload (`1.48 m` miss, 152 columns) and the 48-case envelope matrix (`6/6 PASS, 93.8%`) are verified; newer A/B comparison runs pass payload-integrity checks but have **NOT RUN** independent scientific validation.
 - The web campaign is a quick 4-case-per-law capture plus a 24-case architecture arm; it is
   not a full-factorial campaign and not a basis for statistical superiority claims.
 - The synthetic demo is labelled “not a scientific result” and excluded from all claims.
-- Legacy reports use different versions and statistical units; they are provenance only.
 - Mobile is verified for layout and readability at 390×844, not GPU performance parity.
 
 See [ACCEPTANCE](docs/ACCEPTANCE.md), [COMPARISON](docs/COMPARISON.md) and
@@ -161,10 +158,10 @@ overflows horizontally.
 
 ## Deployment
 
-`.github/workflows/aerospace-vision-pages.yml` builds from `aerospace-vision-web/` and
-publishes to GitHub Pages. Enable **Pages → GitHub Actions**. Vite uses a relative base,
-so project-path hosting needs no configuration. Legacy reports are staged into `/legacy/`
-and at their original paths during deployment.
+`.github/workflows/aerospace-vision-pages.yml` builds both `aerospace-vision-web/` and
+`interceptor-vision/` and publishes them to GitHub Pages (legacy static HTML reports were
+removed in v0.3.0). Enable **Pages → GitHub Actions**. Vite uses a relative base, so
+project-path hosting needs no configuration.
 
 ## Documentation
 

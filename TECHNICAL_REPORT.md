@@ -898,27 +898,51 @@ Web 端 `campaign.json` 固化的是 2026-11-21 的 4 例/律快速采集加 24 
    - **双模抗诱饵态势渲染 + B-Plane 脱靶归因瀑布图**：三端（`SeekerOverlay.tsx`、`SensorAnalyticsCards.tsx`、`visualization.py` 12 面板仪表盘）同步实时绘制红外诱饵与多普勒分离雷达箔条（`FLARE GATED` / `CHAFF REJECTED`）、IMM 三模型权重演化、瞬态/平衡壁温对比及联动 `tools/miss_budget.py` 的脱靶误差归因瀑布图；
    - **蒙特卡洛 3D 弹道束与交接点云**：`aerospace-vision-web` 的 `#/compare` 工作台（`CompareScene.tsx` / `ComparePage.tsx`）新增 `THREE.LineSegments` + 半透明包络管 + `THREE.InstancedMesh` 交接点云的 A/B 散布同屏对比；
    - **语义事件时间轴、0.1× 末段子弹时间与深度链接**：播放条自动标注 `BOOSTER SEP`、`MAX Q`、`INLET UNSTART`、`DECOY EJECT`、`INTERCEPT` 等可点击事件锚点，一键跳转并切入 `0.1×` 末段慢放，支持 `?t=...&view=...&compare=...` 深度链接一键分享。
-   - **全仓库总回归结果**：`missile_intercept` 98/98 `pytest`、48 算例验证矩阵 **6/6 套件全部 PASS（46/48 = 95.8%）**、根级 `tests/` 48/48 PASS、`verify_scenario.py` 11/11 PASS、`aerospace-vision-web` 66/66 Vitest + 构建 PASS、`interceptor-vision` 28/28 气动 + 12/12 6DOF + 构建 PASS。
-7. **实时性与对比实验声明**：Numba 快核与纯 Python 双路径严格同构（测试已覆盖 `1e-12` 级一致性）；`campaign.json` 仍为 2026-11-21 快速采集基线，仅作描述性对比展示。
+   - **全仓库总回归结果**：`missile_intercept` 103/103 `pytest`、48 算例验证矩阵 **6/6 套件全部 PASS（45/48 = 93.8%）**、根级 `tests/` 36/36 PASS、`verify_scenario.py` 11/11 PASS、`aerospace-vision-web` 66/66 Vitest + 构建 PASS、`interceptor-vision` 28/28 气动 + 12/12 6DOF + 构建 PASS。
+7. **2026-11-28 高超声速气动/超燃推进真实性、高保真 3D 载具外形与全栈 6 项性能优化**：
+   - **气动与超燃冲压真实性补强**（纯 Python `vehicle/missile.py` 与 Numba `fastcore.py` 严格双路径同构，单测 `1e-11` 对齐）：
+     1. **Eckert 参考温度可压缩摩阻修正**：锚定 DATCOM $M=5$ 海平面摩阻基准，在 $M>5$ 真实引入壁温/边界层参考温度压缩衰减与雷诺数海拔修正；
+     2. **高超声速无前缘吸力诱导阻力**：$M>5$ 时诱导阻力因子 $k(M)$ 随激波膨胀法向力斜率 $C_{N\alpha}(M)$ 倒数抬升（上限 $1.45\times$）；
+     3. **碳氢 JP-10 双模态超燃冲压比冲与化学计量进气限流**：$I_{sp}(M)$ 随马赫数平滑凸衰减（$M\le3.5$ 为 $1500\text{ s}$ → $M=10$ 为 $1220\text{ s}$），并在斜激波预压缩空气捕获量上限（$f_{\text{stoich}}=0.068,\ \phi_{\max}=1.15$）下约束满油门最大推力与燃油流率；
+     4. **Hoerner 底部减阻与进气道溢流阻力**：底部推力减阻随 $0.065/(1+0.35M^2)$ 衰减；级间分离后熄火滑翔附加冷流溢流阻力（$\Delta C_{D,\text{spill}}=0.015$），进气道 Unstart 时附加正激波溢流阻力（$\Delta C_{D,\text{unstart}}=0.120$）；
+     5. **质心随动阻尼力臂与 ±30° 双模导引头视场**：动阻尼系数随瞬时质心迁移与舵面力臂平方实时修正；将导引头万向框架视场更新为真实 AESA/MWIR 双模工程量级 **$\pm 30^\circ$**（消除 5 km / Ma 1.6 侧飞交会下 $22.7^\circ$ 前置角盲区），并结合 Zarchan 第 8 章有限时域 OGL 末段角闪烁滚降（$t_{go} < 0.28\text{ s}$）。
+   - **高保真 3D 载具模型升级（`aerospace-vision-web` & `interceptor-vision` 双端同步）**：
+     - 拦截弹按 `8.11 m × 0.63 m` 真实尺寸重构为冯·卡门卵形头罩 + C-SiC 端头 + 蓝宝石红外窗口 + 双侧二维斜板超燃进气道（含 Unstart 喘振发光）+ 背部整流脊 + `3.8 m` 升力边条 + 十字梯形尾舵与作动筒（移除伪鸭翼）+ 13 s 分离翻滚助推级 + 自定义 GLSL 体积马赫环尾焰；
+     - 目标机重构为 `15.7 m × 10.7 m` F-35A（24 段超椭圆菱形隐身机身 + Have Glass V 涂层 + 金色 ITO 气泡座舱盖 + 雕刻式 DSI 进气道与鼓包 + 蓝宝石 EOTS 棱镜 + 15 片锯齿 F135 矢量喷口与 GLSL 加力尾焰 + 实时 3D 红外诱饵弹抛射）。
+   - **后端与前端全栈 6 项性能优化（实测对比）**：
+     - 后端：① 融合零分配 `nogil=True` Numba 多子步 RK4（`fastcore.py::rk4_multi_step_system_into`）及三模型 IMM 预测融合核（`imm_predict_all`），并支持 `--threads` 线程池；② 阶段自适应多速率步长（纯平飞巡航段 $R>80\text{ km}$ 且非俯冲/低过载时放宽至 `20 ms` 双子步，交接前与末段无缝切回 `10 ms / 5 ms`）；③ 消除 `math_utils`/`midcourse_guidance`/`seeker` 千万级标量 `np.clip` 与重复 `predict_intercept`/`get_atmosphere` 开销、预分配 `_log_buf` 并在批量验证中启用零分配 `telemetry_profile="none"` + $O(1)$ 标量统计；④ 遥测 I/O 默认二进制压缩 `.npz`（`--csv` 按需导出），`build_scenario.py` 自动优先读取 `.npz` 并保留完整 `float64` 精度。
+     - 前端：⑤ `SeekerOverlay.tsx` 与 `SensorAnalyticsCards.tsx` 降分辨率至真实传感器焦平面量级（`128×84` / `128×96` + 复用离屏 `ImageData` 缓存）、DPR 上限 `1.25` 并解耦刷新率至 `25 Hz`；⑥ `Timeline.tsx` / `Transport.tsx` 播放态通过 `useRef` + Zustand `subscribe` 零 React 重渲染，`Entities.tsx` 将 F-35A 15 片喷口鳞片与 6 枚实时红外诱饵合批为 `InstancedMesh`（27 次 Draw Call → 3 次）。
+
+| 性能 / 精度指标 | 优化前基线（2026-11-28） | 全栈优化后实测 | 提升 / 变化 |
+|---|---|---|---|
+| 单发标称全遥测 CPU 耗时（152 列） | `114.13 s` | **`52.39 s`** | **2.18× 加速** |
+| 单发批量零分配 CPU 耗时（`profile="none"`） | `114.13 s` | **`21.42 s`** | **5.33× 加速** |
+| 48 例全包线验证墙钟耗时（12 核） | `463.6 s` | **`200.3 s`** | **2.31× 加速** |
+| `miss_budget --quick` 墙钟耗时（6 核） | `112.1 s` | **`47.8 s`** | **2.35× 加速** |
+| 遥测落盘 / 前端适配读取耗时 | CSV ~15–20 s / 解析 ~15 s | **NPZ `1.16 s` / 适配 `0.79 s`** | **~15×–20× I/O 加速** |
+| 标称脱靶量 & 近炸引信 $P_k$ | `4.60 m` (`98.2%`) | **`1.48 m` (`99.5%`)** | 精度与毁伤概率进一步提升 |
+| 48 例验证总通过率（≤15 m，6 套件） | 6/6 PASS（45/48 = 93.8%） | **6/6 PASS（45/48 = 93.8%）** | A/B/D 套件均 100%，零退化 |
+| 遥测四元数数值精度（`verify_scenario.py`） | CSV 6 位截断 `~1e-6` | **NPZ `float64` `6.19e-12`** | 精度提升 5 个数量级 |
+
+8. **对比实验声明**：`campaign.json` 仍为 2026-11-21 快速采集基线，仅作描述性对比展示。
 
 ---
 
-## 16 可视化与实验配置平台（Aerospace Vision Web）
+## 16 可视化与实验配置平台（Aerospace Vision Web & Interceptor Vision）
 
 浏览器端为纯静态 React 19 + Vite + Three.js + ECharts，无后端。数据链为：
 
 ```
-telemetry.csv → tools/data-adapter/build_scenario.py → scenario.json
-              → 单一仿真时钟 → 3D / HUD / 图表 / 对比工作台
+telemetry.npz（或 --csv 导出）→ tools/data-adapter/build_scenario.py → scenario.json
+                            → 单一仿真时钟 → 3D / HUD / 传感器画布 / 图表 / 对比工作台
 ```
 
-- **数据真实性**：所有位姿来自样本数组；目标姿态由 ECEF 速度推导并标注；不做高度或轨迹夸张。
-- **视角**：轨道、追踪、拦截、近景四个。近景为机体系后侧三分之四构图，同时显示四片尾舵、尾喷口/羽流与体轴三轴。
-- **环境**：WGS84 椭球、日间贴图 bump 地形、海面太阳高光、分层云、大气边缘；太阳/月亮/昼夜由声明历元与仿真时间驱动，不参与弹道解算。
-- **实验配置工作台**（`#/compare`）：A/B 各四个下拉框（制导、姿控、飞行器、场景）；仅加载真实记录，缺失组合显示 `No Available Experiment`。可比性分为严格/部分/不可比；仅定义与条件一致时计算差值。
-- **实验集统计**：命中率、中位/P90/均值/最大脱靶、交接距离与比能量、助推结束高度/马赫、舵面饱和率；数据来自 `public/data/experiments/campaign.json`，与单条代表轨迹分开标注。
-- **响应式**：≤720 px 时面板单列、下拉框 14–15 px、按钮 ≥44 px、A/B 三维各 38–42 vh、宽表在区域内横向滚动；E2E 断言页面本身无横向溢出。
-- **部署**：GitHub Pages，Vite 相对 base；旧报告保留原路径并另设 `/legacy/`。
+- **数据真实性**：所有位姿来自样本数组（最新基线 1,509 帧 / 680.47 s，由 53,673×152 `float64` 二进制遥测生成，脱靶量 `1.48 m`，`verify_scenario.py` 11/11 PASS）；目标姿态由 ECEF 速度推导并标注；不做高度或轨迹夸张。
+- **视角与 3D 物理场**：轨道、追踪、拦截、近景四个（`interceptor-vision` 作为主 3D 入口并提供 8 机位与实时 6-DoF 末段解算）。近景展示真实 `8.11 m` 冯·卡门超燃拦截弹与 `15.7 m` F-35A 模型、GLSL 马赫环尾焰，支持快捷键 `X` 叠加激波锥、黑体辐射热着色、3D 气动/推力/尾舵 NMP 受力矢量与动态 CG/CP 标记。
+- **传感器与性能解耦**：雷达 R-D / MWIR 焦平面画布降分辨率至 `128×84` / `128×96` 离屏 `ImageData` 并以 25 Hz 解耦重绘；播放态时间轴采用 `useRef` + Zustand `subscribe` 零 React 重渲染，喷口鳞片与实时红外诱饵采用 `InstancedMesh` 合批。
+- **实验配置工作台**（`#/compare`）：A/B 各四个下拉框（制导、姿控、飞行器、场景）；仅加载真实记录，缺失组合显示 `No Available Experiment`；支持 3D 蒙特卡洛弹道散布束与交接点云同屏对比。
+- **语义时间轴与深链**：播放条自动标注助推分离、最大动压、Unstart、诱饵抛射、交接与拦截节点，支持一键切入 `0.1×` 末段子弹时间及 `?t=...&view=...&compare=...` 深链分享。
+- **部署**：GitHub Pages，Vite 相对 base，静态托管 `aerospace-vision-web/` 与 `interceptor-vision/`（旧版静态 HTML 报告及 `/explore-legacy` 已在 v0.3.0 清理归档）。
 
 平台的可运行性、单元测试、Chromium/WebKit E2E、性能与验收记录见
 `aerospace-vision-web/docs/ACCEPTANCE.md`。
@@ -931,24 +955,25 @@ telemetry.csv → tools/data-adapter/build_scenario.py → scenario.json
 |---|---|---|
 | 几何 | 长度 / 直径 / 参考面积 | 8.11 m / 0.63 m / 0.3117 m² |
 | 翼面 | 根弦 / 尖弦 / 半展 | 3.8 / 1.6 / 0.364 m |
-| 质量 | 发射 / 干重 / 固体燃料 | 2565 / 1000 / 800 kg |
+| 质量 | 发射 / 干重 / 固体燃料 / 助推壳体 | 2565 / 1000 / 800 / 95 kg |
 | 惯量 | $I_{xx}$ / $I_{yy}=I_{zz}$ | 190→90 / 6000→2400 kg·m² |
 | 质心 | 满载 / 干重 | 4.45 / 4.10 m |
 | 助推 | 推力 / 时间 / $I_{sp}$ | 130 kN / 13 s / 215 s |
-| 冲压 | 最大推力 / 最大流率 / $I_{sp}$ | 60 kN / 3 kg/s / 1500 s |
-| 气动 | $C_N^\alpha$ (M2) / $C_{D0}$ (M2) | 12.89 / 0.312 |
-| 舵 | 限幅 / 速率 / 时间常数 | ±25° / 150°/s / 10 ms |
-| 导引头 | 视场 / 盲区 / 角度噪声 | ±20° / 120 m / 1 mrad |
+| 冲压 | 最大推力 / 最大流率 / $I_{sp}(M)$ | 60 kN / 3 kg/s / 1500→1220 s（含化学计量上限） |
+| 气动 | $C_N^\alpha$ (M2) / $C_{D0}$ (M2) | 12.89 / 0.312（含 Eckert 摩阻与溢流阻力） |
+| 舵机 | 限幅 / 速率 / 二阶带宽与阻尼 | ±25° / 150°/s / 32 Hz ($\zeta=0.70$, >400 kPa 铰链限幅) |
+| 导引头 | 视场 / 盲区 / 角度噪声 | ±30° / 120 m / 1 mrad（X 波段雷达 + MWIR 双模） |
 | 交接 | 距离 / 速度 / 过载 | 24 km / 1800 m/s / 4 g |
-| 仿真 | 步长（助推/中制导） | 5 ms / 10 ms |
+| 仿真 | 步长（助推·末段 / 中制导 / 巡航自适应） | 5 ms / 10 ms / 20 ms（内部 2×10 ms 融合 RK4） |
 
 ## 附录 B 文件索引
 
-- 气动数据：`output/datcom_aero.csv`、`config.py` §5
-- 单发结果：`intercept-report/assets/metrics.json`、`output/telemetry.csv`
-- 蒙特卡洛：`output/batch/batch_results.csv`
-- 性能验证：`output/validation/validation_report.txt`
-- 测试：`missile_intercept/tests/`、`python -m pytest -q`
+- 气动数据：`missile_intercept/output/datcom_aero.csv`、`missile_intercept/config.py` §5
+- 单发结果：`missile_intercept/output/telemetry.npz`（默认二进制，`--csv` 可选导出）、`missile_intercept/output/intercept_dashboard.html`
+- 前端载荷：`aerospace-vision-web/public/data/missile-intercept/scenario.json`、`interceptor-vision/public/data/scenario.json`
+- 蒙特卡洛：`missile_intercept/output/batch/batch_results.csv`
+- 性能验证：`missile_intercept/output/validation/validation_report.txt`、`missile_intercept/output/miss_budget/miss_budget_summary.json`
+- 测试：`missile_intercept/tests/`（103 passed）、`tests/`（36 passed）
 
 ---
 
